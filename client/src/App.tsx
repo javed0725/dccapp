@@ -62,7 +62,25 @@ function Router() {
   const [location] = useLocation();
   const roleHomePath = user?.role === "teacher" ? "/admission" : "/";
 
-  if (isLoading) return null;
+  // During auth check, render public pages immediately so there is never a blank screen.
+  // Vercel serverless cold starts can take several seconds — returning null causes
+  // a white page for the entire duration of that request.
+  if (isLoading) {
+    return (
+      <Switch>
+        <Route path="/" component={LandingPage} />
+        <Route path="/student"><LoginPage fixedRole="student" /></Route>
+        <Route path="/teacher"><LoginPage fixedRole="teacher" /></Route>
+        <Route path="/admin"><LoginPage fixedRole="admin" /></Route>
+        <Route path="/login" component={LoginPage} />
+        <Route>
+          <div className="min-h-screen flex items-center justify-center bg-white">
+            <div className="w-8 h-8 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        </Route>
+      </Switch>
+    );
+  }
 
   if (!user) {
     return (
