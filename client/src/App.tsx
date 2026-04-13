@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect, Link, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -59,15 +59,25 @@ function Router() {
     retry: false
   });
   const [location] = useLocation();
+  const roleHomePath = user?.role === "teacher" ? "/admission" : "/";
 
   if (isLoading) return null;
 
   if (!user) {
     return (
       <Switch>
+        <Route path="/student">
+          <LoginPage fixedRole="student" />
+        </Route>
+        <Route path="/teacher">
+          <LoginPage fixedRole="teacher" />
+        </Route>
+        <Route path="/admin">
+          <LoginPage fixedRole="admin" />
+        </Route>
         <Route path="/login" component={LoginPage} />
         <Route>
-          <Redirect to="/login" />
+          <Redirect to="/student" />
         </Route>
       </Switch>
     );
@@ -105,7 +115,16 @@ function Router() {
                 </>
               )}
               <Route path="/login">
-                <Redirect to="/" />
+                <Redirect to={roleHomePath} />
+              </Route>
+              <Route path="/student">
+                <Redirect to={roleHomePath} />
+              </Route>
+              <Route path="/teacher">
+                <Redirect to={roleHomePath} />
+              </Route>
+              <Route path="/admin">
+                <Redirect to={roleHomePath} />
               </Route>
               <Route component={NotFound} />
             </Switch>

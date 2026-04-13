@@ -9,25 +9,71 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Lock, User as UserIcon, GraduationCap, ChevronLeft, ArrowRight, Sparkles, Eye, EyeOff } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
+import { type User } from "@/lib/schemas";
 
-export default function LoginPage() {
+type LoginRole = "admin" | "teacher" | "student";
+
+const roleDetails: Record<LoginRole, { label: string; title: string; description: string; icon: typeof Shield; color: string; path: string }> = {
+  teacher: {
+    label: "Teacher",
+    title: "Teacher Login",
+    description: "Access class management, admissions, payments, and result entry.",
+    icon: UserIcon,
+    color: "bg-blue-50 text-blue-600",
+    path: "/teacher",
+  },
+  admin: {
+    label: "Authority",
+    title: "Authority Login",
+    description: "Access the core dashboard, reports, teacher management, and notifications.",
+    icon: Shield,
+    color: "bg-indigo-50 text-indigo-600",
+    path: "/admin",
+  },
+  student: {
+    label: "Student",
+    title: "Student Login",
+    description: "Access your payment history, account status, and published results.",
+    icon: GraduationCap,
+    color: "bg-purple-50 text-purple-600",
+    path: "/student",
+  },
+};
+
+function getHomePath(role: LoginRole) {
+  return role === "teacher" ? "/admission" : "/";
+}
+
+export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const [role, setRole] = useState<"admin" | "teacher" | "student" | null>(null);
-  const [isLogin, setIsLogin] = useState(true);
+  const [role, setRole] = useState<LoginRole | null>(fixedRole ?? null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const selectedRole = fixedRole ?? role;
+  const selectedRoleDetails = selectedRole ? roleDetails[selectedRole] : null;
 
   const loginMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/login", data);
       return res.json();
     },
-    onSuccess: (user) => {
+    onSuccess: async (user: User) => {
+      if (fixedRole && user.role !== fixedRole) {
+        await apiRequest("POST", "/api/logout").catch(() => undefined);
+        queryClient.setQueryData(["/api/user"], null);
+        toast({
+          variant: "destructive",
+          title: "Wrong login page",
+          description: `Please use the ${roleDetails[user.role].label} login page for this account.`,
+        });
+        return;
+      }
+
       queryClient.setQueryData(["/api/user"], user);
-      setLocation("/");
+      setLocation(getHomePath(user.role));
       toast({ title: "Logged in successfully" });
     },
     onError: (error: Error) => {
@@ -35,29 +81,9 @@ export default function LoginPage() {
     }
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/register", data);
-      return res.json();
-    },
-    onSuccess: (user) => {
-      queryClient.setQueryData(["/api/user"], user);
-      setLocation("/");
-      toast({ title: "Registered successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ variant: "destructive", title: "Registration failed", description: error.message });
-    }
-  });
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = { username, password, role: isLogin ? undefined : role };
-    if (isLogin) {
-      loginMutation.mutate(data);
-    } else {
-      registerMutation.mutate(data);
-    }
+    loginMutation.mutate({ username, password });
   };
 
   return (
@@ -87,24 +113,21 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {!role ? (
+        {!selectedRole ? (
           /* Role Selection Cards */
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-            {[
-              { id: 'teacher', label: 'Teacher', icon: UserIcon, desc: 'Class Management', color: 'bg-blue-50 text-blue-600' },
-              { id: 'admin', label: 'Authority', icon: Shield, desc: 'Core Dashboard', color: 'bg-indigo-50 text-indigo-600' },
-              { id: 'student', label: 'Student', icon: GraduationCap, desc: 'Payment Tracking', color: 'bg-purple-50 text-purple-600' }
-            ].map((item) => (
+            {Object.entries(roleDetails).map(([id, item]) => (
               <button
-                key={item.id}
-                onClick={() => { setRole(item.id as any); setIsLogin(true); }}
+                key={id}
+                data-testid={`button-login-${id}`}
+                onClick={() => setLocation(item.path)}
                 className="group relative flex flex-col items-center text-center p-5 rounded-[1.5rem] bg-white border border-primary/5 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-500"
               >
                 <div className={`p-3 rounded-xl ${item.color} mb-4 group-hover:scale-110 transition-all duration-500`}>
                   <item.icon className="w-6 h-6" />
                 </div>
                 <h3 className="text-base font-bold text-slate-900 mb-1 tracking-tight">{item.label}</h3>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">{item.desc}</p>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">{item.description}</p>
                 <div className="absolute bottom-4 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-500 text-primary">
                   <ArrowRight className="w-4 h-4" />
                 </div>
@@ -118,33 +141,37 @@ export default function LoginPage() {
               <div className="absolute -inset-0.5 bg-primary/10 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000" />
               <Card className="relative bg-white border-primary/10 rounded-[2.5rem] shadow-xl overflow-hidden">
                 <CardContent className="p-10">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRole(null)}
-                    className="mb-8 -ml-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 font-bold text-xs tracking-widest"
-                  >
-                    <ChevronLeft className="w-4 h-4 mr-2" /> BACK
-                  </Button>
+                  {!fixedRole && (
+                    <Button
+                      data-testid="button-login-back"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRole(null)}
+                      className="mb-8 -ml-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 font-bold text-xs tracking-widest"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-2" /> BACK
+                    </Button>
+                  )}
 
                   <div className="mb-10 space-y-2">
                     <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase">
                       <span className="p-2 rounded-xl bg-primary/5 border border-primary/10 text-primary">
-                        {role === "admin" ? <Shield className="w-5 h-5" /> :
-                         role === "student" ? <GraduationCap className="w-5 h-5" /> :
-                         <UserIcon className="w-5 h-5" />}
+                        {selectedRoleDetails && <selectedRoleDetails.icon className="w-5 h-5" />}
                       </span>
-                      {role}
+                      {selectedRoleDetails?.title}
                     </h2>
-                    <p className="text-slate-500 text-sm font-medium">Access your professional workspace</p>
+                    <p className="text-slate-500 text-sm font-medium">{selectedRoleDetails?.description}</p>
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-1">Identity</Label>
+                      <Label htmlFor={`username-${selectedRole}`} className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-1">Identity</Label>
                       <div className="relative group/input">
                         <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within/input:text-primary transition-colors" />
                         <Input
+                          id={`username-${selectedRole}`}
+                          data-testid={`input-username-${selectedRole}`}
+                          autoComplete="username"
                           placeholder="Username"
                           className="pl-12 h-14 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-primary/50 focus:ring-primary/10 rounded-2xl transition-all"
                           value={username}
@@ -154,10 +181,13 @@ export default function LoginPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-1">Password</Label>
+                      <Label htmlFor={`password-${selectedRole}`} className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-1">Password</Label>
                       <div className="relative group/input">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within/input:text-primary transition-colors" />
                         <Input
+                          id={`password-${selectedRole}`}
+                          data-testid={`input-password-${selectedRole}`}
+                          autoComplete="current-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
                           className="pl-12 pr-12 h-14 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-primary/50 focus:ring-primary/10 rounded-2xl transition-all"
@@ -167,6 +197,7 @@ export default function LoginPage() {
                         />
                         <button
                           type="button"
+                          data-testid={`button-toggle-password-${selectedRole}`}
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors focus:outline-none"
                         >
@@ -176,6 +207,7 @@ export default function LoginPage() {
                     </div>
                     <Button
                       type="submit"
+                      data-testid={`button-submit-login-${selectedRole}`}
                       className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300"
                       disabled={loginMutation.isPending}
                     >

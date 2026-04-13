@@ -17,8 +17,9 @@ export function AppSidebar() {
       await apiRequest("POST", "/api/logout");
     },
     onSuccess: () => {
+      const loginPath = user?.role === "teacher" ? "/teacher" : user?.role === "admin" ? "/admin" : "/student";
       queryClient.setQueryData(["/api/user"], null);
-      setLocation("/login");
+      setLocation(loginPath);
     }
   });
 
