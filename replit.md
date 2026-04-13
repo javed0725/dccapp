@@ -41,6 +41,10 @@ The `shared/` directory contains code used by both frontend and backend:
 - Added dedicated login entry routes for `/student`, `/teacher`, and `/admin`, each with a fixed-role login form and automatic redirects for authenticated users.
 - Migrated the project for Replit runtime compatibility: configured the web workflow on port 5000, added Vite preview host support, and verified the app launches successfully in the Replit preview.
 - Hardened authentication responses and API logging so user password fields are not returned to the browser or written to request logs.
+
+### GitHub Sync Notes
+- Last attempted push target: `https://github.com/javed0725/dccapp`.
+- Push is blocked until GitHub authentication is connected or a secure GitHub token is provided.
 - Rebranded app to **Dynamic Coaching Center**.
 - Updated all currency symbols to **Bangladeshi Taka (৳)**.
 - Replaced default logos with custom coaching center logo.
