@@ -9,6 +9,8 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("teacher"),
   teacherId: text("teacher_id").unique(),
   mobileNumber: text("mobile_number"),
+  name: text("name"),
+  subject: text("subject"),
 });
 
 export const batches = pgTable("batches", {

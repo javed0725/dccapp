@@ -20,7 +20,17 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupAuth(app);
-  
+
+  // Public endpoint — no auth required — used by the landing page Teachers section
+  app.get("/api/teachers", async (_req, res) => {
+    try {
+      const teachers = await storage.getTeachers();
+      res.json(teachers);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get(api.batches.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const batches = await storage.getBatches();

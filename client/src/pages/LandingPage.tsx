@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   GraduationCap,
   ShieldCheck,
@@ -438,6 +439,105 @@ function AboutSection({ onNavigate }: { onNavigate: (path: string) => void }) {
             </button>
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+const TEACHER_AVATAR_COLORS = [
+  "bg-sky-500", "bg-blue-500", "bg-indigo-500", "bg-teal-500", "bg-cyan-500", "bg-violet-500",
+];
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function TeachersSection() {
+  const { data: teachers, isLoading } = useQuery<{ id: number; username: string; name: string | null; subject: string | null }[]>({
+    queryKey: ["/api/teachers"],
+  });
+
+  const hasTeachers = teachers && teachers.length > 0;
+
+  return (
+    <section id="teachers" className="py-20 bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-14">
+          <p className="text-sky-600 text-sm font-semibold uppercase tracking-widest mb-3">Our Faculty</p>
+          <h2 className="font-display font-black text-slate-900 text-4xl sm:text-5xl mb-4">
+            Meet Your <span className="text-sky-600">Teachers</span>
+          </h2>
+          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+            Experienced educators dedicated to helping every student achieve their best results.
+          </p>
+        </div>
+
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-sky-100 shadow-sm p-6 animate-pulse">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-16 h-16 rounded-full bg-slate-200" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-200 rounded w-3/4" />
+                    <div className="h-3 bg-slate-100 rounded w-1/2" />
+                  </div>
+                </div>
+                <div className="h-3 bg-slate-100 rounded w-full mb-2" />
+                <div className="h-3 bg-slate-100 rounded w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : hasTeachers ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {teachers.map((teacher, idx) => {
+              const displayName = teacher.name || teacher.username;
+              const displaySubject = teacher.subject || "Teacher";
+              const initials = getInitials(displayName);
+              const avatarColor = TEACHER_AVATAR_COLORS[idx % TEACHER_AVATAR_COLORS.length];
+              return (
+                <div
+                  key={teacher.id}
+                  data-testid={`card-teacher-${teacher.id}`}
+                  className="group bg-white rounded-2xl border border-sky-100 shadow-sm hover:shadow-xl hover:border-sky-200 hover:-translate-y-1 transition-all duration-300 p-6"
+                >
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className={`w-16 h-16 rounded-full ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0`}>
+                      <span className="font-display font-black text-white text-xl">{initials}</span>
+                    </div>
+                    <div>
+                      <h4 className="font-display font-bold text-slate-900 text-base">{displayName}</h4>
+                      <p className="text-sky-600 text-xs font-semibold mt-0.5">{displaySubject}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mb-3">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-3.5 h-3.5 fill-sky-400 text-sky-400" />
+                    ))}
+                    <span className="text-slate-400 text-xs ml-1">5.0</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-sky-50 border border-sky-100">
+                    <UserCheck className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span className="text-slate-600 text-xs">Expert faculty at Dynamic Coaching Center</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-16 rounded-2xl bg-sky-50 border border-sky-100">
+            <div className="w-16 h-16 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-4">
+              <Users className="w-8 h-8 text-sky-600" />
+            </div>
+            <h3 className="font-display font-bold text-slate-900 text-xl mb-2">Faculty Profiles Coming Soon</h3>
+            <p className="text-slate-500 text-sm max-w-sm mx-auto">Our talented teaching staff will be listed here. Check back soon!</p>
+          </div>
+        )}
       </div>
     </section>
   );
