@@ -9,6 +9,12 @@ import { z } from "zod";
 import { setupAuth } from "./auth/auth";
 import bcrypt from "bcryptjs";
 
+function removePassword<T extends { password?: string } | null | undefined>(user: T) {
+  if (!user) return user;
+  const { password: _password, ...safeUser } = user;
+  return safeUser;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -267,7 +273,7 @@ export async function registerRoutes(
   app.get("/api/admin/teachers", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
     const teachers = await storage.getTeachers();
-    res.json(teachers);
+    res.json(teachers.map(removePassword));
   });
 
   app.post("/api/admin/teachers", async (req, res) => {
@@ -280,8 +286,9 @@ export async function registerRoutes(
         mobileNumber: z.string().optional(),
       }).parse(req.body);
       
-      const teacher = await storage.createTeacher(teacherId, username, password, mobileNumber);
-      res.status(201).json(teacher);
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const teacher = await storage.createTeacher(teacherId, username, hashedPassword, mobileNumber);
+      res.status(201).json(removePassword(teacher));
     } catch (err) {
       res.status(400).json({ message: "Teacher ID already exists or invalid data" });
     }
@@ -292,11 +299,11 @@ export async function registerRoutes(
     const id = Number(req.params.id);
     const { password, role } = req.body;
     const updateData: any = {};
-    if (password) updateData.password = password;
+    if (password) updateData.password = await bcrypt.hash(password, 10);
     if (role) updateData.role = role;
     
     const user = await storage.updateUser(id, updateData);
-    res.json(user);
+    res.json(removePassword(user));
   });
 
   app.delete("/api/admin/teachers/:id", async (req, res) => {
@@ -320,7 +327,8 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const { password } = z.object({ password: z.string().min(6) }).parse(req.body);
-      await storage.updateUser((req.user as any).id, { password });
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await storage.updateUser((req.user as any).id, { password: hashedPassword });
       res.json({ message: "Password updated" });
     } catch (err) {
       res.status(400).json({ message: "Invalid password" });

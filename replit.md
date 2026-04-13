@@ -38,6 +38,8 @@ The `shared/` directory contains code used by both frontend and backend:
 - `routes.ts`: API route definitions with paths, methods, and response schemas
 
 ### Recent Changes (January 26, 2026)
+- Migrated the project for Replit runtime compatibility: configured the web workflow on port 5000, added Vite preview host support, and verified the app launches successfully in the Replit preview.
+- Hardened authentication responses and API logging so user password fields are not returned to the browser or written to request logs.
 - Rebranded app to **Dynamic Coaching Center**.
 - Updated all currency symbols to **Bangladeshi Taka (৳)**.
 - Replaced default logos with custom coaching center logo.

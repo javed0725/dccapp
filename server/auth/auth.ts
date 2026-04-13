@@ -14,11 +14,24 @@ declare global {
   }
 }
 
+type PublicUser = Omit<SelectUser, "password">;
+
+function toPublicUser(user: SelectUser): PublicUser {
+  const { password: _password, ...publicUser } = user;
+  return publicUser;
+}
+
 export function setupAuth(app: Express) {
-  // Trust Vercel's reverse proxy so secure cookies work correctly
   app.set("trust proxy", 1);
 
   const PgStore = connectPgSimple(session);
+  const sessionSecret =
+    process.env.SESSION_SECRET ||
+    (process.env.NODE_ENV === "production" ? undefined : "development-session-secret");
+
+  if (!sessionSecret) {
+    throw new Error("SESSION_SECRET must be set in production");
+  }
 
   const sessionSettings: session.SessionOptions = {
     store: new PgStore({
@@ -26,7 +39,7 @@ export function setupAuth(app: Express) {
       tableName: "user_sessions",
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "dcc-secret-key-2024",
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -41,7 +54,6 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Ensure default admin exists — wrapped in try/catch so a DB error never crashes the server
   (async () => {
     try {
       const admin = await storage.getUserByUsername("dynamic");
@@ -108,7 +120,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Login — use callback form so errors return JSON instead of crashing
   app.post("/api/login", (req, res, next) => {
     passport.authenticate(
       "local",
@@ -131,7 +142,7 @@ export function setupAuth(app: Express) {
               .status(500)
               .json({ message: "Login succeeded but session could not be saved." });
           }
-          return res.json(user);
+          return res.json(toPublicUser(user));
         });
       }
     )(req, res, next);
@@ -147,7 +158,7 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser({ ...req.body, password: hashedPassword });
       req.login(user, (err) => {
         if (err) return res.status(500).json({ message: "Login after registration failed" });
-        res.status(201).json(user);
+        res.status(201).json(toPublicUser(user));
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message ?? "Registration failed" });
@@ -163,6 +174,6 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
+    res.json(toPublicUser(req.user));
   });
 }

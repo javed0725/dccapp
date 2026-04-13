@@ -12,6 +12,12 @@ import {
 } from "@shared/schema";
 import { eq, desc, inArray } from "drizzle-orm";
 
+function removePassword<T extends User | null | undefined>(user: T) {
+  if (!user) return user;
+  const { password: _password, ...safeUser } = user;
+  return safeUser;
+}
+
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -105,7 +111,7 @@ export class DatabaseStorage implements IStorage {
     return allStudents.map(student => ({
       ...student,
       batch: allBatches.find(b => b.id === student.batchId),
-      addedByUser: student.addedByUserId ? allUsers.find(u => u.id === student.addedByUserId) : null,
+      addedByUser: student.addedByUserId ? removePassword(allUsers.find(u => u.id === student.addedByUserId)) : null,
     }));
   }
 
@@ -181,7 +187,7 @@ export class DatabaseStorage implements IStorage {
         ...income,
         student: allStudents.find(s => s.id === income.studentId),
         batch: allBatches.find(b => b.id === income.batchId),
-        recorder: allUsers.find(u => u.id === income.recordedBy),
+        recorder: removePassword(allUsers.find(u => u.id === income.recordedBy)),
         status: income.status,
         addedBy: income.addedBy
     }));
