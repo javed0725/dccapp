@@ -13,6 +13,7 @@ import Marksheet from "@/pages/Marksheet";
 import LoginPage from "@/pages/Login";
 import Notifications from "@/pages/Notifications";
 import NotFound from "@/pages/not-found";
+import LandingPage from "@/pages/LandingPage";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
@@ -66,6 +67,7 @@ function Router() {
   if (!user) {
     return (
       <Switch>
+        <Route path="/" component={LandingPage} />
         <Route path="/student">
           <LoginPage fixedRole="student" />
         </Route>
@@ -77,7 +79,7 @@ function Router() {
         </Route>
         <Route path="/login" component={LoginPage} />
         <Route>
-          <Redirect to="/student" />
+          <Redirect to="/" />
         </Route>
       </Switch>
     );
