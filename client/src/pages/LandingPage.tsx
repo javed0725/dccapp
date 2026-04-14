@@ -654,39 +654,48 @@ function ContactSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           {/* Contact Info */}
           <div className="space-y-4">
-            {[
-              {
-                icon: MapPin,
-                label: "Address",
-                value: "Dynamic Coaching Center\nMain Road, Upazila Area, Bangladesh",
-                iconBg: "bg-blue-50",
-                iconColor: "text-blue-600",
-              },
-              {
-                icon: Phone,
-                label: "Phone",
-                value: "+880 1XXX-XXXXXX\nAvailable: Sat–Thu, 9 AM – 7 PM",
-                iconBg: "bg-indigo-50",
-                iconColor: "text-indigo-600",
-              },
-              {
-                icon: Mail,
-                label: "Email",
-                value: "info@dynamiccoachingcenter.edu.bd\nWe respond within 24 hours",
-                iconBg: "bg-slate-100",
-                iconColor: "text-slate-600",
-              },
-            ].map(({ icon: Icon, label, value, iconBg, iconColor }) => (
-              <div key={label} className="flex items-start gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
-                  <Icon className={`w-5 h-5 ${iconColor}`} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm mb-1">{label}</h4>
-                  <p className="text-slate-500 text-sm whitespace-pre-line">{value}</p>
+            {/* Address */}
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-blue-50">
+                <MapPin className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm mb-1">Address</h4>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                  Khotija Bhavan, Opposite of Land Office<br />
+                  (Lane beside Shahid Computer)<br />
+                  Jaldi, Banskhali, Chattogram
+                </p>
+              </div>
+            </div>
+
+            {/* Phone */}
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-indigo-50">
+                <Phone className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm mb-1">Phone</h4>
+                <div className="flex flex-col gap-0.5">
+                  {["01814-362956", "01306-743336", "01538-255904"].map((num) => (
+                    <a key={num} href={`tel:${num.replace(/-/g, "")}`} className="text-slate-500 text-sm hover:text-blue-600 transition-colors">
+                      {num}
+                    </a>
+                  ))}
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Email */}
+            <div className="flex items-start gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-slate-100">
+                <Mail className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm mb-1">Email</h4>
+                <span className="text-slate-500 text-sm">info@dynamiccoachingcenter.edu.bd</span>
+              </div>
+            </div>
 
             {/* Quick portal links */}
             <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
@@ -735,7 +744,7 @@ function ContactSection() {
                 </div>
                 <div>
                   <div className="font-bold text-slate-800 text-base">Dynamic Coaching Center</div>
-                  <div className="text-slate-500 text-xs mt-0.5">Main Road, Upazila Area, Bangladesh</div>
+                  <div className="text-slate-500 text-xs mt-0.5">Khotija Bhavan, Jaldi, Banskhali, Chattogram</div>
                 </div>
                 <a
                   href="https://maps.app.goo.gl/kzRgRt53jRugxgi66"
@@ -839,15 +848,19 @@ function Footer() {
             <ul className="space-y-4 text-slate-400 text-sm">
               <li className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                <span>Main Road, Upazila Area,<br />Bangladesh</span>
+                <span>Khotija Bhavan, Opposite of Land Office<br />(Lane beside Shahid Computer)<br />Jaldi, Banskhali, Chattogram</span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>info@dcc.edu.bd</span>
+                <span>info@dynamiccoachingcenter.edu.bd</span>
               </li>
-              <li className="flex items-center gap-2.5">
-                <Phone className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>+880 1XXX-XXXXXX</span>
+              <li className="flex items-start gap-2.5">
+                <Phone className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-0.5">
+                  {["01814-362956", "01306-743336", "01538-255904"].map((num) => (
+                    <a key={num} href={`tel:${num.replace(/-/g, "")}`} className="hover:text-blue-400 transition-colors">{num}</a>
+                  ))}
+                </div>
               </li>
             </ul>
           </div>
