@@ -18,6 +18,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
+import heroBg from "@assets/PXL_20251115_061413679~3_1776191730471.jpg";
 
 /* ─── DATA ─────────────────────────────────────────────────── */
 
@@ -198,10 +199,7 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
       {/* Full-width background image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1600&q=80')",
-        }}
+        style={{ backgroundImage: `url(${heroBg})` }}
       />
       {/* Dark gradient overlay — heavier on left for text legibility */}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/30" />
