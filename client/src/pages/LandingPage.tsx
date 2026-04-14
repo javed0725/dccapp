@@ -1,5 +1,7 @@
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import useEmblaCarousel from "embla-carousel-react";
 import {
   GraduationCap,
   ShieldCheck,
@@ -510,9 +512,43 @@ function TeachersSection() {
 /* ─── ALUMNI / WALL OF FAME ─────────────────────────────────── */
 
 function AlumniSection() {
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: true,
+    align: "start",
+    slidesToScroll: 1,
+    dragFree: false,
+  });
+
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [scrollSnaps, setScrollSnaps] = useState<number[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const scrollTo = useCallback(
+    (index: number) => emblaApi?.scrollTo(index),
+    [emblaApi],
+  );
+
+  // Track selected snap and build dots
+  useEffect(() => {
+    if (!emblaApi) return;
+    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    emblaApi.on("select", onSelect);
+    setScrollSnaps(emblaApi.scrollSnapList());
+    onSelect();
+    return () => { emblaApi.off("select", onSelect); };
+  }, [emblaApi]);
+
+  // Auto-play: advance one slide every 4 seconds, pause on hover
+  useEffect(() => {
+    if (!emblaApi || isPaused) return;
+    const timer = setInterval(() => emblaApi.scrollNext(), 4000);
+    return () => clearInterval(timer);
+  }, [emblaApi, isPaused]);
+
   return (
     <section id="alumni" className="py-20 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Heading */}
         <div className="text-center mb-12">
           <p className="text-blue-600 text-sm font-bold uppercase tracking-widest mb-3">Kriti Shikkharthi</p>
           <h2 className="font-black text-slate-900 text-4xl sm:text-5xl mb-4">
@@ -523,45 +559,75 @@ function AlumniSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {alumni.map((student) => (
-            <div
-              key={student.name}
-              data-testid={`card-alumni-${student.name.replace(/\s+/g, "-").toLowerCase()}`}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-100 hover:-translate-y-1 transition-all duration-300 p-6"
-            >
-              {/* Avatar row */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className={`w-14 h-14 rounded-2xl ${student.color} flex items-center justify-center border-4 border-white shadow-md`}>
-                  <span className="font-black text-white text-lg">{student.initials}</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-base">{student.name}</h4>
-                  <div className="flex items-center gap-0.5 mt-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-blue-400 text-blue-400" />
-                    ))}
+        {/* Carousel viewport */}
+        <div
+          ref={emblaRef}
+          className="overflow-hidden"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+        >
+          <div className="flex">
+            {alumni.map((student) => (
+              <div
+                key={student.name}
+                /* 1 card on mobile, 2 on tablet, 3 on desktop — with horizontal padding as gap */
+                className="flex-none w-full md:w-1/2 lg:w-1/3 px-3"
+              >
+                <div
+                  data-testid={`card-alumni-${student.name.replace(/\s+/g, "-").toLowerCase()}`}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-100 hover:-translate-y-1 transition-all duration-300 p-6 h-full"
+                >
+                  {/* Avatar row */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className={`w-14 h-14 rounded-2xl ${student.color} flex items-center justify-center border-4 border-white shadow-md shrink-0`}>
+                      <span className="font-black text-white text-lg">{student.initials}</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-base">{student.name}</h4>
+                      <div className="flex items-center gap-0.5 mt-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className="w-3 h-3 fill-blue-400 text-blue-400" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="text-blue-600 text-xs font-bold">{student.achievement}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="text-slate-600 text-xs font-medium">{student.university}</span>
+                  </div>
+
+                  <div className="relative pl-4 border-l-2 border-blue-200">
+                    <p className="text-slate-500 text-sm leading-relaxed italic">"{student.quote}"</p>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-slate-100 text-slate-400 text-xs">
+                    {student.batch}
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
 
-              <div className="flex items-center gap-2 mb-2">
-                <Award className="w-4 h-4 text-blue-600 shrink-0" />
-                <span className="text-blue-600 text-xs font-bold">{student.achievement}</span>
-              </div>
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-slate-600 text-xs font-medium">{student.university}</span>
-              </div>
-
-              <div className="relative pl-4 border-l-2 border-blue-200">
-                <p className="text-slate-500 text-sm leading-relaxed italic">"{student.quote}"</p>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-slate-100 text-slate-400 text-xs">
-                {student.batch}
-              </div>
-            </div>
+        {/* Navigation dots */}
+        <div className="flex justify-center items-center gap-2 mt-8">
+          {scrollSnaps.map((_, index) => (
+            <button
+              key={index}
+              data-testid={`dot-alumni-${index}`}
+              onClick={() => scrollTo(index)}
+              aria-label={`Go to slide ${index + 1}`}
+              className={`rounded-full transition-all duration-300 ${
+                index === selectedIndex
+                  ? "w-6 h-2.5 bg-blue-600"
+                  : "w-2.5 h-2.5 bg-slate-300 hover:bg-slate-400"
+              }`}
+            />
           ))}
         </div>
       </div>
