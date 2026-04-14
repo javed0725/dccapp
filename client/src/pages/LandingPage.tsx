@@ -731,7 +731,7 @@ function ContactSection() {
               <div className="font-bold text-slate-700 text-xl mb-2">Dynamic Coaching Center</div>
               <div className="text-slate-500 text-sm mb-6">Main Road, Upazila Area, Bangladesh</div>
               <a
-                href="https://maps.google.com"
+                href="https://maps.app.goo.gl/kzRgRt53jRugxgi66"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="link-google-maps"
