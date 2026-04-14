@@ -82,6 +82,8 @@ export default function ManageData() {
   const [teacherUsername, setTeacherUsername] = useState("");
   const [teacherPassword, setTeacherPassword] = useState("");
   const [teacherMobile, setTeacherMobile] = useState("");
+  const [teacherName, setTeacherName] = useState("");
+  const [teacherSubject, setTeacherSubject] = useState("");
 
   const createTeacherMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -89,11 +91,14 @@ export default function ManageData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
       toast({ title: "Teacher created successfully" });
       setTeacherId("");
       setTeacherUsername("");
       setTeacherPassword("");
       setTeacherMobile("");
+      setTeacherName("");
+      setTeacherSubject("");
     },
     onError: (err: any) => {
       toast({ variant: "destructive", title: "Error", description: err.message });
@@ -116,6 +121,7 @@ export default function ManageData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
       toast({ title: "Teacher deleted" });
     }
   });
@@ -430,6 +436,8 @@ export default function ManageData() {
                       username: teacherUsername, 
                       password: teacherPassword,
                       mobileNumber: teacherMobile || undefined,
+                      name: teacherName || undefined,
+                      subject: teacherSubject || undefined,
                     });
                   }}
                   className="space-y-4"
@@ -443,11 +451,27 @@ export default function ManageData() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Full Name / Display Name</label>
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Login Username</label>
                     <Input 
-                      placeholder="Enter name" 
+                      placeholder="Used to log in" 
                       value={teacherUsername}
                       onChange={(e) => setTeacherUsername(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Display Name <span className="text-muted-foreground font-normal">(shown on website)</span></label>
+                    <Input 
+                      placeholder="e.g. Md. Rahim Uddin" 
+                      value={teacherName}
+                      onChange={(e) => setTeacherName(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Subject <span className="text-muted-foreground font-normal">(shown on website)</span></label>
+                    <Input 
+                      placeholder="e.g. Mathematics, Physics" 
+                      value={teacherSubject}
+                      onChange={(e) => setTeacherSubject(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -492,7 +516,9 @@ export default function ManageData() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Teacher ID</TableHead>
-                      <TableHead>Name</TableHead>
+                      <TableHead>Username</TableHead>
+                      <TableHead>Display Name</TableHead>
+                      <TableHead>Subject</TableHead>
                       <TableHead>Mobile</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -500,11 +526,13 @@ export default function ManageData() {
                   </TableHeader>
                   <TableBody>
                     {loadingTeachers ? (
-                      <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
                     ) : teachers?.map((teacher) => (
                       <TableRow key={teacher.id}>
                         <TableCell className="font-bold text-primary">{teacher.teacherId ?? "—"}</TableCell>
                         <TableCell className="font-medium">{teacher.username}</TableCell>
+                        <TableCell className="text-slate-700">{(teacher as any).name ?? <span className="text-muted-foreground text-xs">Not set</span>}</TableCell>
+                        <TableCell className="text-slate-700">{(teacher as any).subject ?? <span className="text-muted-foreground text-xs">Not set</span>}</TableCell>
                         <TableCell className="text-slate-500 text-sm">{teacher.mobileNumber ?? "—"}</TableCell>
                         <TableCell>
                           {teacher.role === "teacher" ? (

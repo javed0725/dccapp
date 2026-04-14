@@ -148,13 +148,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).where(eq(users.role, "teacher"));
   }
 
-  async createTeacher(teacherId: string, username: string, password: string, mobileNumber?: string): Promise<User> {
+  async createTeacher(teacherId: string, username: string, password: string, mobileNumber?: string, name?: string, subject?: string): Promise<User> {
     const [user] = await db.insert(users).values({
       username,
       password,
       role: "teacher",
       teacherId,
       mobileNumber: mobileNumber ?? null,
+      name: name ?? null,
+      subject: subject ?? null,
     }).returning();
     return user;
   }

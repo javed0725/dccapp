@@ -780,6 +780,7 @@ export default function LandingPage() {
       <PartnersSection />
       <PortalsSection onNavigate={navigate} />
       <AboutSection onNavigate={navigate} />
+      <TeachersSection />
       <AlumniSection />
       <ContactSection />
       <Footer onNavigate={navigate} />

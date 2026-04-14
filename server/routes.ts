@@ -289,15 +289,17 @@ export async function registerRoutes(
   app.post("/api/admin/teachers", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
     try {
-      const { teacherId, username, password, mobileNumber } = z.object({
+      const { teacherId, username, password, mobileNumber, name, subject } = z.object({
         teacherId: z.string().min(1),
         username: z.string().min(1),
         password: z.string().min(6),
         mobileNumber: z.string().optional(),
+        name: z.string().optional(),
+        subject: z.string().optional(),
       }).parse(req.body);
       
       const hashedPassword = await bcrypt.hash(password, 10);
-      const teacher = await storage.createTeacher(teacherId, username, hashedPassword, mobileNumber);
+      const teacher = await storage.createTeacher(teacherId, username, hashedPassword, mobileNumber, name, subject);
       res.status(201).json(removePassword(teacher));
     } catch (err) {
       res.status(400).json({ message: "Teacher ID already exists or invalid data" });
@@ -307,10 +309,12 @@ export async function registerRoutes(
   app.patch("/api/admin/teachers/:id", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
     const id = Number(req.params.id);
-    const { password, role } = req.body;
+    const { password, role, name, subject } = req.body;
     const updateData: any = {};
     if (password) updateData.password = await bcrypt.hash(password, 10);
     if (role) updateData.role = role;
+    if (name !== undefined) updateData.name = name;
+    if (subject !== undefined) updateData.subject = subject;
     
     const user = await storage.updateUser(id, updateData);
     res.json(removePassword(user));
