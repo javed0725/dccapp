@@ -715,30 +715,38 @@ function ContactSection() {
           </div>
 
           {/* Map / location visual */}
-          <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50 min-h-[460px] flex flex-col relative">
-            <div
-              className="absolute inset-0 opacity-15"
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(37,99,235,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.5) 1px, transparent 1px)",
-                backgroundSize: "40px 40px",
-              }}
+          <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm min-h-[460px] relative">
+            {/* Embedded Google Map fills the full card */}
+            <iframe
+              title="Dynamic Coaching Center Location"
+              src="https://maps.google.com/maps?q=Dynamic+Coaching+Center,Bangladesh&output=embed&z=16&gesturehandling=none"
+              className="absolute inset-0 w-full h-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              scrolling="no"
             />
-            <div className="relative z-10 flex flex-col items-center justify-center flex-1 p-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center mx-auto mb-4 shadow-xl">
-                <MapPin className="w-8 h-8 text-white" />
+            {/* Light overlay so text stays readable */}
+            <div className="absolute inset-0 bg-white/40 pointer-events-none" />
+            {/* Content on top */}
+            <div className="relative z-10 flex flex-col items-center justify-end h-full pb-8 px-8 text-center min-h-[460px]">
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg px-6 py-5 flex flex-col items-center gap-3 border border-slate-100">
+                <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shadow-md">
+                  <MapPin className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="font-bold text-slate-800 text-base">Dynamic Coaching Center</div>
+                  <div className="text-slate-500 text-xs mt-0.5">Main Road, Upazila Area, Bangladesh</div>
+                </div>
+                <a
+                  href="https://maps.app.goo.gl/kzRgRt53jRugxgi66"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="link-google-maps"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors shadow-md"
+                >
+                  <MapPin className="w-4 h-4" /> Open in Google Maps
+                </a>
               </div>
-              <div className="font-bold text-slate-700 text-xl mb-2">Dynamic Coaching Center</div>
-              <div className="text-slate-500 text-sm mb-6">Main Road, Upazila Area, Bangladesh</div>
-              <a
-                href="https://maps.app.goo.gl/kzRgRt53jRugxgi66"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="link-google-maps"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors shadow-md"
-              >
-                <MapPin className="w-4 h-4" /> Open in Google Maps
-              </a>
             </div>
           </div>
         </div>
