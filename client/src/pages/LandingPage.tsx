@@ -3,62 +3,66 @@ import { useQuery } from "@tanstack/react-query";
 import {
   GraduationCap,
   ShieldCheck,
-  Search,
-  ArrowRight,
-  Star,
   MapPin,
   Phone,
   Mail,
-  BookOpen,
-  Users,
   Award,
+  Star,
   TrendingUp,
   LayoutGrid,
-  UserCheck,
   ChevronRight,
   CheckCircle2,
+  Download,
+  ArrowRight,
+  Users,
+  BookOpen,
 } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 
 /* ─── DATA ─────────────────────────────────────────────────── */
 
-const navLinks = ["Home", "About", "Teachers", "Alumni", "Contact"];
-
-const partners = [
-  "Logoipsum",
-  "Logoipsum",
-  "Logoipsum",
-  "Logoipsum",
-  "Logoipsum",
+const navLinks = [
+  { label: "Home", href: "#home" },
+  { label: "About", href: "#about" },
+  { label: "Programs", href: "#portals" },
+  { label: "Teachers", href: "#teachers" },
+  { label: "Alumni", href: "#alumni" },
+  { label: "Contact", href: "#contact" },
 ];
 
 const portals = [
   {
     icon: GraduationCap,
     title: "Student Portal",
-    subtitle: "View Results & Payments",
-    desc: "Access your payment history, academic results, and account status from a single dashboard.",
+    subtitle: "Academic & Payments",
+    desc: "Access your payment history, academic results, model test scores, and account status from one personalised dashboard.",
     path: "/student",
-    color: "text-sky-600",
-    bg: "bg-sky-50",
+    accentColor: "bg-blue-600",
+    iconBg: "bg-blue-50",
+    iconColor: "text-blue-600",
+    borderHover: "hover:border-blue-200",
   },
   {
     icon: LayoutGrid,
     title: "Teacher Panel",
-    subtitle: "Manage Admissions & Marks",
-    desc: "Handle student admissions, record exam marks, and track monthly payments efficiently.",
+    subtitle: "Admissions & Marks",
+    desc: "Handle student admissions, record exam marks, manage batches, and track monthly fee payments efficiently.",
     path: "/teacher",
-    color: "text-sky-600",
-    bg: "bg-sky-50",
+    accentColor: "bg-indigo-600",
+    iconBg: "bg-indigo-50",
+    iconColor: "text-indigo-600",
+    borderHover: "hover:border-indigo-200",
   },
   {
     icon: ShieldCheck,
     title: "Authority Access",
     subtitle: "Full Admin Control",
-    desc: "Complete oversight of finances, batches, teacher management, and system analytics.",
+    desc: "Complete oversight of finances, teacher management, batch analytics, and centre-wide system administration.",
     path: "/admin",
-    color: "text-sky-600",
-    bg: "bg-sky-50",
+    accentColor: "bg-slate-700",
+    iconBg: "bg-slate-100",
+    iconColor: "text-slate-700",
+    borderHover: "hover:border-slate-200",
   },
 ];
 
@@ -67,6 +71,7 @@ const aboutFeatures = [
   "Regular mock tests & model exams",
   "Personal performance tracking",
   "Small batch sizes for focused learning",
+  "Dedicated academic counselling",
 ];
 
 const alumni = [
@@ -77,7 +82,7 @@ const alumni = [
     batch: "Batch 2022–24",
     quote: "DCC's structured teaching and mock tests gave me the confidence to achieve a perfect GPA.",
     initials: "SI",
-    color: "bg-sky-400",
+    color: "bg-blue-500",
   },
   {
     name: "Mehedi Hasan",
@@ -86,16 +91,16 @@ const alumni = [
     batch: "Batch 2022–24",
     quote: "The teachers here are incredibly dedicated. Their individual attention made all the difference.",
     initials: "MH",
-    color: "bg-blue-500",
+    color: "bg-indigo-500",
   },
   {
     name: "Fatema Tuj Zohora",
     achievement: "GPA 5.00 — SSC 2023",
     university: "Rajshahi University",
     batch: "Batch 2021–23",
-    quote: "DCC is not just a coaching center — it's a family. The environment pushed me to be my best.",
+    quote: "DCC is not just a coaching centre — it's a family. The environment pushed me to be my best.",
     initials: "FZ",
-    color: "bg-indigo-500",
+    color: "bg-violet-500",
   },
   {
     name: "Raiyan Ahmed",
@@ -113,7 +118,7 @@ const alumni = [
     batch: "Batch 2022–24",
     quote: "I never imagined getting GPA 5 until DCC showed me exactly how to get there.",
     initials: "NJ",
-    color: "bg-cyan-500",
+    color: "bg-cyan-600",
   },
   {
     name: "Arif Hossain",
@@ -122,45 +127,58 @@ const alumni = [
     batch: "Batch 2021–23",
     quote: "DCC's guidance helped me turn my weaknesses into strengths before the final exams.",
     initials: "AH",
-    color: "bg-violet-500",
+    color: "bg-blue-700",
   },
 ];
+
+const TEACHER_AVATAR_COLORS = [
+  "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-teal-500", "bg-cyan-600", "bg-slate-600",
+];
+
+/* ─── HELPERS ───────────────────────────────────────────────── */
+
+function getInitials(name: string): string {
+  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+}
 
 /* ─── COMPONENTS ────────────────────────────────────────────── */
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shadow-sm shrink-0">
         <img src={coachingLogo} alt="DCC Logo" className="w-full h-full object-cover" />
       </div>
-      <span className="font-display font-black text-slate-900 text-xl tracking-tight">DCC</span>
+      <div>
+        <div className="font-black text-slate-900 text-lg leading-none tracking-tight">DCC</div>
+        <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic Coaching</div>
+      </div>
     </div>
   );
 }
 
-/* ─── SECTIONS ──────────────────────────────────────────────── */
+/* ─── HEADER ────────────────────────────────────────────────── */
 
 function Header({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
         <Logo />
-        <nav className="hidden md:flex items-center gap-7">
+        <nav className="hidden lg:flex items-center gap-8">
           {navLinks.map((link) => (
             <a
-              key={link}
-              href={`#${link.toLowerCase()}`}
-              className="text-slate-600 text-sm font-medium hover:text-sky-600 transition-colors"
+              key={link.label}
+              href={link.href}
+              className="text-slate-600 text-sm font-medium hover:text-blue-600 transition-colors"
             >
-              {link}
+              {link.label}
             </a>
           ))}
         </nav>
         <button
           data-testid="button-nav-get-in-touch"
           onClick={() => onNavigate("/student")}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
         >
           Get In Touch <ArrowRight className="w-4 h-4" />
         </button>
@@ -169,129 +187,77 @@ function Header({ onNavigate }: { onNavigate: (path: string) => void }) {
   );
 }
 
+/* ─── HERO ──────────────────────────────────────────────────── */
+
 function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
     <section
       id="home"
-      className="pt-16 min-h-screen flex items-center bg-white relative overflow-hidden"
+      className="relative pt-16 min-h-screen flex items-center overflow-hidden"
     >
-      {/* Decorative blobs */}
-      <div className="absolute top-0 right-0 w-[520px] h-[520px] rounded-full bg-sky-100/60 translate-x-1/3 -translate-y-1/4 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-blue-50 -translate-x-1/3 translate-y-1/3 pointer-events-none" />
+      {/* Full-width background image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1600&q=80')",
+        }}
+      />
+      {/* Dark gradient overlay — heavier on left for text legibility */}
+      <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/30" />
+      {/* Subtle blue tint overlay */}
+      <div className="absolute inset-0 bg-blue-900/20" />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        {/* Left: Text */}
-        <div>
-          <h1 className="font-display font-black text-slate-900 text-5xl sm:text-6xl leading-[1.08] mb-5">
-            Build Your<br />
-            Future, Choose<br />
-            <span className="text-sky-600">Your Course</span>
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 w-full">
+        <div className="max-w-2xl">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-6">
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-white/90 text-xs font-semibold tracking-wide">Admissions Open 2025–26</span>
+          </div>
+
+          {/* Main heading */}
+          <h1 className="font-black text-white text-5xl sm:text-6xl lg:text-7xl leading-[1.05] mb-5 drop-shadow-lg">
+            Dynamic<br />
+            <span className="text-blue-400">Coaching</span><br />
+            Center
           </h1>
-          <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md">
-            Dynamic Coaching Center — the academic school of the future. We teach you the right skills to be prepared for tomorrow.
+
+          <p className="text-white/80 text-lg sm:text-xl leading-relaxed mb-10 max-w-lg">
+            Start your career &amp; pursue your passion. We equip every student with the knowledge and confidence to succeed.
           </p>
 
-          {/* Search bar */}
-          <div className="flex items-center gap-2 bg-white rounded-xl shadow-md border border-slate-100 p-2 max-w-md mb-10">
-            <input
-              data-testid="input-course-search"
-              type="text"
-              placeholder="Search By Courses..."
-              className="flex-1 bg-transparent text-sm text-slate-600 placeholder:text-slate-400 outline-none px-3 py-1.5"
-            />
-            <button
-              data-testid="button-search"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 transition-colors"
+          {/* CTA Buttons */}
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href="#portals"
+              data-testid="button-hero-view-programs"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-500 transition-colors shadow-lg"
             >
-              <Search className="w-4 h-4" /> Search
-            </button>
+              View our Programs <ChevronRight className="w-4 h-4" />
+            </a>
+            <a
+              href="#about"
+              data-testid="link-hero-about"
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold text-sm hover:bg-white/20 transition-colors"
+            >
+              Learn More
+            </a>
           </div>
 
           {/* Stats strip */}
-          <div className="flex items-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-2">
-                {["bg-sky-400", "bg-blue-500", "bg-indigo-400"].map((c, i) => (
-                  <div key={i} className={`w-8 h-8 rounded-full ${c} border-2 border-white flex items-center justify-center`}>
-                    <span className="text-white text-[10px] font-bold">{String.fromCharCode(65 + i)}</span>
-                  </div>
-                ))}
+          <div className="flex flex-wrap items-center gap-8 mt-14 pt-8 border-t border-white/15">
+            {[
+              { value: "500+", label: "Students Enrolled" },
+              { value: "98%", label: "Pass Rate" },
+              { value: "8+", label: "Years of Excellence" },
+              { value: "120+", label: "GPA 5.00 Achievers" },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div className="text-white font-black text-2xl">{stat.value}</div>
+                <div className="text-white/60 text-xs mt-0.5">{stat.label}</div>
               </div>
-              <div className="ml-1">
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="w-3 h-3 fill-sky-400 text-sky-400" />)}
-                </div>
-                <p className="text-slate-500 text-xs mt-0.5">100k+ Reviews</p>
-              </div>
-            </div>
-            <div className="h-10 w-px bg-slate-200" />
-            <div>
-              <div className="font-display font-black text-slate-900 text-xl">500+</div>
-              <div className="text-slate-500 text-xs">Students Enrolled</div>
-            </div>
-            <div className="h-10 w-px bg-slate-200" />
-            <div>
-              <div className="font-display font-black text-slate-900 text-xl">98%</div>
-              <div className="text-slate-500 text-xs">Pass Rate</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Student visual */}
-        <div className="relative flex items-center justify-center">
-          {/* Large blue circle */}
-          <div className="absolute w-[380px] h-[380px] sm:w-[440px] sm:h-[440px] rounded-full bg-sky-100/70" />
-
-          {/* Student illustration placeholder */}
-          <div className="relative z-10 w-[320px] sm:w-[380px] h-[420px] sm:h-[480px] flex items-end justify-center">
-            <div className="absolute inset-0 flex flex-col items-center justify-end">
-              <div className="w-56 sm:w-64 h-72 sm:h-80 rounded-2xl bg-gradient-to-b from-sky-100 to-blue-50 flex items-end justify-center overflow-hidden shadow-xl">
-                <div className="flex flex-col items-center justify-end h-full pb-0">
-                  <div className="relative">
-                    {/* Head */}
-                    <div className="w-16 h-16 rounded-full bg-sky-700 mx-auto mb-1 flex items-center justify-center border-4 border-sky-100">
-                      <span className="text-white font-display font-black text-xl">DCC</span>
-                    </div>
-                    {/* Body with books */}
-                    <div className="w-40 h-48 bg-sky-600 rounded-t-3xl flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <BookOpen className="w-10 h-10 text-white/80" />
-                        <span className="text-white/90 font-display font-bold text-sm text-center">Future<br />Scholar</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Floating badges */}
-          <div className="absolute top-8 right-4 bg-white rounded-2xl shadow-lg px-4 py-3 flex items-center gap-2 border border-slate-100">
-            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center">
-              <Award className="w-4 h-4 text-sky-600" />
-            </div>
-            <div>
-              <div className="font-display font-bold text-slate-900 text-xs">120+ Students</div>
-              <div className="text-slate-400 text-[10px]">GPA 5.00 Achievers</div>
-            </div>
-          </div>
-
-          <div className="absolute bottom-16 right-0 bg-white rounded-2xl shadow-lg px-4 py-3 border border-slate-100">
-            <div className="flex items-center gap-1 mb-1">
-              {[...Array(5)].map((_, i) => <Star key={i} className="w-3 h-3 fill-sky-400 text-sky-400" />)}
-            </div>
-            <div className="text-slate-700 text-xs font-semibold">4.9 Rating</div>
-            <div className="text-slate-400 text-[10px]">Based on 100k+ Reviews</div>
-          </div>
-
-          <div className="absolute top-24 left-0 bg-white rounded-2xl shadow-lg px-4 py-3 border border-slate-100 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-sky-600" />
-            </div>
-            <div>
-              <div className="font-display font-bold text-slate-900 text-xs">8+ Years</div>
-              <div className="text-slate-400 text-[10px]">of Excellence</div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -299,49 +265,63 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
   );
 }
 
-function PartnersSection() {
-  return (
-    <section className="bg-slate-50 border-t border-slate-100 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-center gap-10 sm:gap-16 opacity-50">
-          {partners.map((name, i) => (
-            <div key={i} className="flex items-center gap-2 text-slate-500">
-              <div className="w-7 h-7 rounded-full bg-slate-400 flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">L</span>
-              </div>
-              <span className="font-display font-bold text-slate-600 text-sm">{name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+/* ─── PORTALS ───────────────────────────────────────────────── */
 
 function PortalsSection({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
-    <section className="py-16 bg-white">
+    <section id="portals" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section heading */}
+        <div className="text-center mb-12">
+          <p className="text-blue-600 text-sm font-semibold uppercase tracking-widest mb-3">Access Portals</p>
+          <h2 className="font-black text-slate-900 text-4xl sm:text-5xl mb-4">
+            Choose Your <span className="text-blue-600">Portal</span>
+          </h2>
+          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+            Dedicated dashboards for every role in the Dynamic Coaching Centre ecosystem.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {portals.map((portal) => {
             const Icon = portal.icon;
             return (
-              <button
+              <div
                 key={portal.path}
-                data-testid={`button-portal-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
-                onClick={() => onNavigate(portal.path)}
-                className="group text-left p-7 rounded-2xl bg-white border border-sky-100 shadow-sm hover:shadow-xl hover:border-sky-200 hover:bg-sky-50 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                data-testid={`card-portal-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
+                className={`flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl ${portal.borderHover} hover:-translate-y-1 transition-all duration-300 overflow-hidden`}
               >
-                <div className={`w-14 h-14 rounded-2xl ${portal.bg} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
-                  <Icon className={`w-7 h-7 ${portal.color}`} />
+                {/* Coloured top accent bar */}
+                <div className={`h-1 w-full ${portal.accentColor}`} />
+
+                <div className="flex flex-col flex-1 p-7">
+                  {/* Icon */}
+                  <div className={`w-14 h-14 rounded-2xl ${portal.iconBg} flex items-center justify-center mb-5`}>
+                    <Icon className={`w-7 h-7 ${portal.iconColor}`} />
+                  </div>
+
+                  <h3 className="font-black text-slate-900 text-xl mb-1">{portal.title}</h3>
+                  <p className={`text-xs font-bold mb-3 ${portal.iconColor}`}>{portal.subtitle}</p>
+                  <p className="text-slate-500 text-sm leading-relaxed flex-1 mb-6">{portal.desc}</p>
+
+                  {/* Buttons */}
+                  <div className="flex flex-col gap-3">
+                    <button
+                      data-testid={`button-login-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
+                      onClick={() => onNavigate(portal.path)}
+                      className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${portal.accentColor} text-white text-sm font-bold hover:opacity-90 transition-opacity shadow-sm`}
+                    >
+                      Login Now <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      data-testid={`button-install-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200 transition-colors"
+                    >
+                      <Download className="w-4 h-4" /> Install App
+                    </button>
+                  </div>
                 </div>
-                <h3 className="font-display font-bold text-slate-900 text-xl mb-1">{portal.title}</h3>
-                <p className="text-sky-600 text-xs font-semibold mb-3">{portal.subtitle}</p>
-                <p className="text-slate-500 text-sm leading-relaxed mb-5">{portal.desc}</p>
-                <div className="flex items-center gap-1 text-sky-600 text-sm font-semibold group-hover:gap-2 transition-all">
-                  Login Now <ChevronRight className="w-4 h-4" />
-                </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -350,93 +330,90 @@ function PortalsSection({ onNavigate }: { onNavigate: (path: string) => void }) 
   );
 }
 
-function AboutSection({ onNavigate }: { onNavigate: (path: string) => void }) {
+/* ─── ABOUT ─────────────────────────────────────────────────── */
+
+function AboutSection() {
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+  });
+
+  const aboutTitle = settings?.about_title || "Shaping Futures Through Quality Education";
+  const aboutDesc =
+    settings?.about_description ||
+    "Dynamic Coaching Center provides a structured, result-oriented learning environment where students gain the knowledge, skills, and confidence to excel in their academic journey. Our expert faculty, personalised approach, and rigorous practice tests ensure every student reaches their full potential.";
+
   return (
-    <section id="about" className="py-20 bg-white">
+    <section id="about" className="py-20 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-          {/* Left: Image */}
+          {/* Left: Visual */}
           <div className="relative">
-            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-sky-50 to-blue-100 aspect-[3/4] max-w-sm mx-auto lg:mx-0 shadow-xl">
-              {/* Decorative dot pattern */}
-              <div className="absolute inset-0 opacity-10"
-                style={{ backgroundImage: "radial-gradient(circle, #0ea5e9 1px, transparent 1px)", backgroundSize: "20px 20px" }}
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl aspect-[4/5] max-w-sm mx-auto lg:mx-0">
+              <img
+                src="https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&q=80"
+                alt="Students in a coaching class"
+                className="w-full h-full object-cover"
               />
-              {/* Student figure */}
-              <div className="absolute inset-0 flex flex-col items-center justify-end pb-0">
-                <div className="flex flex-col items-center">
-                  <div className="w-20 h-20 rounded-full bg-sky-500 flex items-center justify-center border-4 border-white shadow-lg mb-0">
-                    <Users className="w-9 h-9 text-white" />
-                  </div>
-                  <div className="w-full h-56 bg-gradient-to-b from-sky-500 to-blue-700 flex items-center justify-center rounded-t-3xl mt-3 px-8">
-                    <div className="text-center">
-                      <BookOpen className="w-12 h-12 text-white/80 mx-auto mb-3" />
-                      <p className="text-white font-display font-bold text-base">Passionate Learner</p>
-                      <p className="text-white/70 text-xs mt-1">Achieving excellence every day</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* "New" badge */}
-              <div className="absolute top-5 left-5 bg-sky-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow">
-                New
-              </div>
-              <div className="absolute top-12 left-5 bg-white/90 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl shadow-md max-w-[140px] leading-tight">
-                Get 20% off in every courses
+              {/* Overlay gradient at bottom */}
+              <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-slate-900/70 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="text-white font-bold text-base">Academic Excellence</p>
+                <p className="text-white/70 text-xs mt-0.5">Empowering students since 2016</p>
               </div>
             </div>
 
-            {/* Floating card */}
-            <div className="absolute -bottom-4 -right-4 lg:-right-8 bg-white rounded-2xl shadow-xl px-5 py-4 border border-sky-100 flex items-center gap-3 z-10">
-              <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
-                <Award className="w-5 h-5 text-sky-600" />
+            {/* Floating stat card */}
+            <div className="absolute -bottom-5 -right-4 lg:-right-8 bg-white rounded-2xl shadow-xl px-5 py-4 border border-blue-50 flex items-center gap-3 z-10">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                <Award className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <div className="font-display font-bold text-slate-900 text-sm">120+ GPA 5.00</div>
+                <div className="font-black text-slate-900 text-base">120+ GPA 5.00</div>
                 <div className="text-slate-500 text-xs">Students in 2024</div>
               </div>
+            </div>
+
+            {/* Top badge */}
+            <div className="absolute top-5 -left-4 lg:-left-8 bg-blue-600 text-white rounded-2xl shadow-xl px-4 py-3 z-10">
+              <div className="font-black text-xl leading-none">8+</div>
+              <div className="text-blue-200 text-xs mt-0.5">Years Active</div>
             </div>
           </div>
 
           {/* Right: Content */}
           <div>
-            <p className="text-sky-600 text-sm font-semibold uppercase tracking-widest mb-3">About Us</p>
-            <h2 className="font-display font-black text-slate-900 text-4xl sm:text-5xl leading-tight mb-5">
-              About Our Next Level<br />
-              <span className="text-sky-600">E-Course For Everyone</span>
+            <p className="text-blue-600 text-sm font-bold uppercase tracking-widest mb-3">About the Coaching</p>
+            <h2 className="font-black text-slate-900 text-4xl sm:text-5xl leading-tight mb-5">
+              {aboutTitle}
             </h2>
-            <p className="text-slate-500 text-base leading-relaxed mb-6">
-              E-learning allows learners to access course materials and complete assignments at their own pace and on their own schedule. This is particularly beneficial for adult learners who may have work or family commitments.
+            <p className="text-slate-500 text-base leading-relaxed mb-7">
+              {aboutDesc}
             </p>
 
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-3.5 mb-8">
               {aboutFeatures.map((f) => (
-                <li key={f} className="flex items-center gap-3 text-slate-700 text-sm">
-                  <CheckCircle2 className="w-5 h-5 text-sky-600 shrink-0" />
+                <li key={f} className="flex items-center gap-3 text-slate-700 text-sm font-medium">
+                  <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                  </div>
                   {f}
                 </li>
               ))}
             </ul>
 
-            {/* Create Account CTA */}
-            <div className="flex items-start gap-4 p-5 rounded-2xl bg-sky-50 border border-sky-100 mb-8">
-              <div className="w-10 h-10 rounded-xl bg-sky-100 flex items-center justify-center shrink-0">
-                <UserCheck className="w-5 h-5 text-sky-600" />
-              </div>
-              <div>
-                <h4 className="font-display font-bold text-slate-900 text-base mb-1">Creat Account</h4>
-                <p className="text-slate-500 text-sm">E-learning eliminates the need for classroom.</p>
-              </div>
+            {/* Stats row */}
+            <div className="flex flex-wrap gap-6 pt-6 border-t border-slate-200">
+              {[
+                { value: "500+", label: "Students" },
+                { value: "98%", label: "Pass Rate" },
+                { value: "15+", label: "Expert Faculty" },
+              ].map((stat) => (
+                <div key={stat.label}>
+                  <div className="font-black text-blue-600 text-2xl">{stat.value}</div>
+                  <div className="text-slate-500 text-xs mt-0.5">{stat.label}</div>
+                </div>
+              ))}
             </div>
-
-            <button
-              data-testid="button-about-student-portal"
-              onClick={() => onNavigate("/student")}
-              className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-sky-600 text-white font-semibold text-sm hover:bg-sky-700 transition-colors shadow-md"
-            >
-              Get Started <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </div>
@@ -444,43 +421,32 @@ function AboutSection({ onNavigate }: { onNavigate: (path: string) => void }) {
   );
 }
 
-const TEACHER_AVATAR_COLORS = [
-  "bg-sky-500", "bg-blue-500", "bg-indigo-500", "bg-teal-500", "bg-cyan-500", "bg-violet-500",
-];
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
+/* ─── TEACHERS ──────────────────────────────────────────────── */
 
 function TeachersSection() {
-  const { data: teachers, isLoading } = useQuery<{ id: number; username: string; name: string | null; subject: string | null }[]>({
-    queryKey: ["/api/teachers"],
-  });
+  const { data: teachers, isLoading } = useQuery<
+    { id: number; username: string; name: string | null; subject: string | null }[]
+  >({ queryKey: ["/api/teachers"] });
 
   const hasTeachers = teachers && teachers.length > 0;
 
   return (
     <section id="teachers" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-14">
-          <p className="text-sky-600 text-sm font-semibold uppercase tracking-widest mb-3">Our Faculty</p>
-          <h2 className="font-display font-black text-slate-900 text-4xl sm:text-5xl mb-4">
-            Meet Your <span className="text-sky-600">Teachers</span>
+        <div className="text-center mb-12">
+          <p className="text-blue-600 text-sm font-bold uppercase tracking-widest mb-3">Our Faculty</p>
+          <h2 className="font-black text-slate-900 text-4xl sm:text-5xl mb-4">
+            Meet Your <span className="text-blue-600">Teachers</span>
           </h2>
           <p className="text-slate-500 text-lg max-w-xl mx-auto">
-            Experienced educators dedicated to helping every student achieve their best results.
+            Experienced educators dedicated to helping every student achieve outstanding results.
           </p>
         </div>
 
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-sky-100 shadow-sm p-6 animate-pulse">
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 animate-pulse">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 rounded-full bg-slate-200" />
                   <div className="flex-1 space-y-2">
@@ -504,25 +470,25 @@ function TeachersSection() {
                 <div
                   key={teacher.id}
                   data-testid={`card-teacher-${teacher.id}`}
-                  className="group bg-white rounded-2xl border border-sky-100 shadow-sm hover:shadow-xl hover:border-sky-200 hover:-translate-y-1 transition-all duration-300 p-6"
+                  className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-100 hover:-translate-y-1 transition-all duration-300 p-6"
                 >
                   <div className="flex items-center gap-4 mb-5">
-                    <div className={`w-16 h-16 rounded-full ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0`}>
-                      <span className="font-display font-black text-white text-xl">{initials}</span>
+                    <div className={`w-16 h-16 rounded-2xl ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0`}>
+                      <span className="font-black text-white text-xl">{initials}</span>
                     </div>
                     <div>
-                      <h4 className="font-display font-bold text-slate-900 text-base">{displayName}</h4>
-                      <p className="text-sky-600 text-xs font-semibold mt-0.5">{displaySubject}</p>
+                      <h4 className="font-bold text-slate-900 text-base">{displayName}</h4>
+                      <p className="text-blue-600 text-xs font-semibold mt-0.5">{displaySubject}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 mb-3">
+                  <div className="flex items-center gap-1 mb-4">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-sky-400 text-sky-400" />
+                      <Star key={i} className="w-3.5 h-3.5 fill-blue-400 text-blue-400" />
                     ))}
                     <span className="text-slate-400 text-xs ml-1">5.0</span>
                   </div>
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-sky-50 border border-sky-100">
-                    <UserCheck className="w-4 h-4 text-sky-600 shrink-0" />
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="text-slate-600 text-xs">Expert faculty at Dynamic Coaching Center</span>
                   </div>
                 </div>
@@ -530,11 +496,11 @@ function TeachersSection() {
             })}
           </div>
         ) : (
-          <div className="text-center py-16 rounded-2xl bg-sky-50 border border-sky-100">
-            <div className="w-16 h-16 rounded-full bg-sky-100 flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-sky-600" />
+          <div className="text-center py-16 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
+              <Users className="w-8 h-8 text-blue-600" />
             </div>
-            <h3 className="font-display font-bold text-slate-900 text-xl mb-2">Faculty Profiles Coming Soon</h3>
+            <h3 className="font-bold text-slate-900 text-xl mb-2">Faculty Profiles Coming Soon</h3>
             <p className="text-slate-500 text-sm max-w-sm mx-auto">Our talented teaching staff will be listed here. Check back soon!</p>
           </div>
         )}
@@ -543,14 +509,16 @@ function TeachersSection() {
   );
 }
 
+/* ─── ALUMNI / WALL OF FAME ─────────────────────────────────── */
+
 function AlumniSection() {
   return (
     <section id="alumni" className="py-20 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-14">
-          <p className="text-sky-600 text-sm font-semibold uppercase tracking-widest mb-3">Kriti Shikkharthi</p>
-          <h2 className="font-display font-black text-slate-900 text-4xl sm:text-5xl mb-4">
-            Wall of <span className="text-sky-600">Fame</span>
+        <div className="text-center mb-12">
+          <p className="text-blue-600 text-sm font-bold uppercase tracking-widest mb-3">Kriti Shikkharthi</p>
+          <h2 className="font-black text-slate-900 text-4xl sm:text-5xl mb-4">
+            Wall of <span className="text-blue-600">Fame</span>
           </h2>
           <p className="text-slate-500 text-lg max-w-xl mx-auto">
             Our proudest achievers who made DCC shine on the national stage.
@@ -562,35 +530,33 @@ function AlumniSection() {
             <div
               key={student.name}
               data-testid={`card-alumni-${student.name.replace(/\s+/g, "-").toLowerCase()}`}
-              className="bg-white rounded-2xl border border-sky-100 shadow-sm hover:shadow-xl hover:border-sky-200 hover:-translate-y-1 transition-all duration-300 p-6"
+              className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-100 hover:-translate-y-1 transition-all duration-300 p-6"
             >
               {/* Avatar row */}
               <div className="flex items-center gap-4 mb-4">
-                <div className={`w-14 h-14 rounded-full ${student.color} flex items-center justify-center border-4 border-white shadow-md`}>
-                  <span className="font-display font-black text-white text-lg">{student.initials}</span>
+                <div className={`w-14 h-14 rounded-2xl ${student.color} flex items-center justify-center border-4 border-white shadow-md`}>
+                  <span className="font-black text-white text-lg">{student.initials}</span>
                 </div>
                 <div>
-                  <h4 className="font-display font-bold text-slate-900 text-base">{student.name}</h4>
-                  <div className="flex items-center gap-1 mt-0.5">
+                  <h4 className="font-bold text-slate-900 text-base">{student.name}</h4>
+                  <div className="flex items-center gap-0.5 mt-1">
                     {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3 h-3 fill-sky-400 text-sky-400" />
+                      <Star key={i} className="w-3 h-3 fill-blue-400 text-blue-400" />
                     ))}
                   </div>
                 </div>
               </div>
 
-              {/* Achievement */}
-              <div className="flex items-center gap-2 mb-3">
-                <Award className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="text-sky-600 text-xs font-bold">{student.achievement}</span>
+              <div className="flex items-center gap-2 mb-2">
+                <Award className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="text-blue-600 text-xs font-bold">{student.achievement}</span>
               </div>
               <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="w-4 h-4 text-slate-400 shrink-0" />
                 <span className="text-slate-600 text-xs font-medium">{student.university}</span>
               </div>
 
-              {/* Testimonial */}
-              <div className="relative pl-4 border-l-2 border-sky-200">
+              <div className="relative pl-4 border-l-2 border-blue-200">
                 <p className="text-slate-500 text-sm leading-relaxed italic">"{student.quote}"</p>
               </div>
 
@@ -605,14 +571,16 @@ function AlumniSection() {
   );
 }
 
+/* ─── CONTACT ───────────────────────────────────────────────── */
+
 function ContactSection() {
   return (
     <section id="contact" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-14">
-          <p className="text-sky-600 text-sm font-semibold uppercase tracking-widest mb-3">Find Us</p>
-          <h2 className="font-display font-black text-slate-900 text-4xl sm:text-5xl mb-4">
-            Contact & <span className="text-sky-600">Location</span>
+        <div className="text-center mb-12">
+          <p className="text-blue-600 text-sm font-bold uppercase tracking-widest mb-3">Find Us</p>
+          <h2 className="font-black text-slate-900 text-4xl sm:text-5xl mb-4">
+            Contact & <span className="text-blue-600">Location</span>
           </h2>
           <p className="text-slate-500 text-lg max-w-xl mx-auto">
             Come visit us or reach out — we're always happy to help students and parents.
@@ -623,24 +591,42 @@ function ContactSection() {
           {/* Contact Info */}
           <div className="space-y-4">
             {[
-              { icon: MapPin, label: "Address", value: "Dynamic Coaching Center\nMain Road, Upazila Area, Bangladesh", iconBg: "bg-sky-50", iconColor: "text-sky-600" },
-              { icon: Phone, label: "Phone", value: "+880 1XXX-XXXXXX\nAvailable: Sat–Thu, 9 AM – 7 PM", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-              { icon: Mail, label: "Email", value: "info@dynamiccoachingcenter.edu.bd\nWe respond within 24 hours", iconBg: "bg-indigo-50", iconColor: "text-indigo-600" },
+              {
+                icon: MapPin,
+                label: "Address",
+                value: "Dynamic Coaching Center\nMain Road, Upazila Area, Bangladesh",
+                iconBg: "bg-blue-50",
+                iconColor: "text-blue-600",
+              },
+              {
+                icon: Phone,
+                label: "Phone",
+                value: "+880 1XXX-XXXXXX\nAvailable: Sat–Thu, 9 AM – 7 PM",
+                iconBg: "bg-indigo-50",
+                iconColor: "text-indigo-600",
+              },
+              {
+                icon: Mail,
+                label: "Email",
+                value: "info@dynamiccoachingcenter.edu.bd\nWe respond within 24 hours",
+                iconBg: "bg-slate-100",
+                iconColor: "text-slate-600",
+              },
             ].map(({ icon: Icon, label, value, iconBg, iconColor }) => (
-              <div key={label} className="flex items-start gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-100">
+              <div key={label} className="flex items-start gap-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
                   <Icon className={`w-5 h-5 ${iconColor}`} />
                 </div>
                 <div>
-                  <h4 className="font-display font-bold text-slate-900 text-sm mb-1">{label}</h4>
+                  <h4 className="font-bold text-slate-900 text-sm mb-1">{label}</h4>
                   <p className="text-slate-500 text-sm whitespace-pre-line">{value}</p>
                 </div>
               </div>
             ))}
 
             {/* Quick portal links */}
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-sky-600 to-blue-700 text-white">
-              <h4 className="font-display font-bold text-lg mb-4">Quick Portal Access</h4>
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+              <h4 className="font-bold text-lg mb-4">Quick Portal Access</h4>
               <div className="space-y-3">
                 {[
                   { label: "Student Portal", path: "/student", icon: GraduationCap },
@@ -653,7 +639,10 @@ function ContactSection() {
                     data-testid={`link-contact-${label.replace(/\s+/g, "-").toLowerCase()}`}
                     className="w-full flex items-center justify-between p-3 rounded-xl bg-white/15 hover:bg-white/25 transition-colors text-sm font-medium"
                   >
-                    <span className="flex items-center gap-2"><Icon className="w-4 h-4" />{label}</span>
+                    <span className="flex items-center gap-2">
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </span>
                     <ChevronRight className="w-4 h-4 opacity-70" />
                   </a>
                 ))}
@@ -661,33 +650,32 @@ function ContactSection() {
             </div>
           </div>
 
-          {/* Map */}
-          <div className="rounded-2xl overflow-hidden border border-sky-100 shadow-sm bg-slate-50 min-h-[460px] flex flex-col relative">
+          {/* Map / location visual */}
+          <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50 min-h-[460px] flex flex-col relative">
             <div
-              className="absolute inset-0 opacity-20"
+              className="absolute inset-0 opacity-15"
               style={{
-                backgroundImage: "linear-gradient(rgba(14,165,233,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(14,165,233,0.4) 1px, transparent 1px)",
+                backgroundImage:
+                  "linear-gradient(rgba(37,99,235,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(37,99,235,0.5) 1px, transparent 1px)",
                 backgroundSize: "40px 40px",
               }}
             />
             <div className="relative z-10 flex flex-col items-center justify-center flex-1 p-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-sky-600 flex items-center justify-center mx-auto mb-4 shadow-xl">
+              <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center mx-auto mb-4 shadow-xl">
                 <MapPin className="w-8 h-8 text-white" />
               </div>
-              <div className="font-display font-bold text-slate-700 text-xl mb-2">Dynamic Coaching Center</div>
+              <div className="font-bold text-slate-700 text-xl mb-2">Dynamic Coaching Center</div>
               <div className="text-slate-500 text-sm mb-6">Main Road, Upazila Area, Bangladesh</div>
               <a
                 href="https://maps.google.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="link-google-maps"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 transition-colors shadow-md"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-colors shadow-md"
               >
                 <MapPin className="w-4 h-4" /> Open in Google Maps
               </a>
             </div>
-            <div className="absolute bottom-16 left-0 right-0 h-px bg-sky-200/40" />
-            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-sky-200/40" />
           </div>
         </div>
       </div>
@@ -695,66 +683,106 @@ function ContactSection() {
   );
 }
 
-function Footer({ onNavigate }: { onNavigate: (path: string) => void }) {
+/* ─── FOOTER ────────────────────────────────────────────────── */
+
+function Footer() {
   return (
     <footer className="bg-slate-900 text-white pt-14 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
           {/* Brand */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/20">
+          <div className="lg:col-span-1">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/20">
                 <img src={coachingLogo} alt="DCC Logo" className="w-full h-full object-cover" />
               </div>
-              <span className="font-display font-black text-white text-lg">DCC</span>
+              <div>
+                <div className="font-black text-white text-lg leading-none">DCC</div>
+                <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic Coaching</div>
+              </div>
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-5">
-              Make better future<br />for your Career
+              Empowering students to achieve academic excellence and build a brighter future since 2016.
             </p>
+            {/* Newsletter */}
             <div className="flex items-center gap-2">
               <input
                 placeholder="Your Email Address"
-                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-sm text-white placeholder:text-slate-500 outline-none focus:border-sky-400 transition-colors"
+                data-testid="input-newsletter-email"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-400 transition-colors"
               />
-              <button className="px-3 py-2 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-700 transition-colors">
+              <button
+                data-testid="button-newsletter-subscribe"
+                className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-500 transition-colors"
+              >
                 Subscribe
               </button>
             </div>
           </div>
 
-          {/* Academic Info */}
+          {/* Quick Links */}
           <div>
-            <h5 className="font-display font-bold text-white text-sm mb-4">Academic Info</h5>
-            <ul className="space-y-2 text-slate-400 text-sm">
-              {["Home", "About Us", "Teachers", "Alumni", "Blog", "Contact"].map((item) => (
-                <li key={item}><a href="#" className="hover:text-sky-400 transition-colors">{item}</a></li>
+            <h5 className="font-bold text-white text-sm mb-5 uppercase tracking-wide">Quick Links</h5>
+            <ul className="space-y-2.5 text-slate-400 text-sm">
+              {[
+                { label: "Home", href: "#home" },
+                { label: "About Us", href: "#about" },
+                { label: "Programs", href: "#portals" },
+                { label: "Teachers", href: "#teachers" },
+                { label: "Alumni", href: "#alumni" },
+                { label: "Contact", href: "#contact" },
+              ].map((item) => (
+                <li key={item.label}>
+                  <a href={item.href} className="hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                    <ChevronRight className="w-3 h-3 opacity-50" />
+                    {item.label}
+                  </a>
+                </li>
               ))}
             </ul>
           </div>
 
-          {/* Categories */}
+          {/* Portals */}
           <div>
-            <h5 className="font-display font-bold text-white text-sm mb-4">Categories</h5>
-            <ul className="space-y-2 text-slate-400 text-sm">
-              {["Development", "UX/UI Design", "Technology", "Mathematics", "Science", "English"].map((item) => (
-                <li key={item}><a href="#" className="hover:text-sky-400 transition-colors">{item}</a></li>
+            <h5 className="font-bold text-white text-sm mb-5 uppercase tracking-wide">Portals</h5>
+            <ul className="space-y-2.5 text-slate-400 text-sm">
+              {[
+                { label: "Student Portal", href: "/student" },
+                { label: "Teacher Panel", href: "/teacher" },
+                { label: "Authority Access", href: "/admin" },
+              ].map((item) => (
+                <li key={item.label}>
+                  <a href={item.href} className="hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                    <ChevronRight className="w-3 h-3 opacity-50" />
+                    {item.label}
+                  </a>
+                </li>
               ))}
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* Contact Info */}
           <div>
-            <h5 className="font-display font-bold text-white text-sm mb-4">Contact Info</h5>
-            <ul className="space-y-3 text-slate-400 text-sm">
-              <li className="flex items-start gap-2"><MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />Main Road, Upazila Area, Bangladesh</li>
-              <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-sky-400 shrink-0" />info@dcc.edu.bd</li>
-              <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-sky-400 shrink-0" />+880 1XXX-XXXXXX</li>
+            <h5 className="font-bold text-white text-sm mb-5 uppercase tracking-wide">Contact Info</h5>
+            <ul className="space-y-4 text-slate-400 text-sm">
+              <li className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <span>Main Road, Upazila Area,<br />Bangladesh</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Mail className="w-4 h-4 text-blue-400 shrink-0" />
+                <span>info@dcc.edu.bd</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Phone className="w-4 h-4 text-blue-400 shrink-0" />
+                <span>+880 1XXX-XXXXXX</span>
+              </li>
             </ul>
           </div>
         </div>
 
-        {/* Bottom bar */}
-        <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500 text-xs">
+        {/* Divider */}
+        <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-slate-500 text-xs">
           <p>© {new Date().getFullYear()} Dynamic Coaching Center. All rights reserved.</p>
           <div className="flex items-center gap-5">
             <a href="#" className="hover:text-white transition-colors">Terms & Conditions</a>
@@ -777,13 +805,12 @@ export default function LandingPage() {
     <div className="min-h-screen font-sans overflow-x-hidden">
       <Header onNavigate={navigate} />
       <HeroSection onNavigate={navigate} />
-      <PartnersSection />
       <PortalsSection onNavigate={navigate} />
-      <AboutSection onNavigate={navigate} />
+      <AboutSection />
       <TeachersSection />
       <AlumniSection />
       <ContactSection />
-      <Footer onNavigate={navigate} />
+      <Footer />
     </div>
   );
 }

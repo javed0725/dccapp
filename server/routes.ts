@@ -31,6 +31,37 @@ export async function registerRoutes(
     }
   });
 
+  // Public endpoint — no auth required — used by the landing page About section (CMS)
+  app.get("/api/settings", async (_req, res) => {
+    try {
+      const settings = await storage.getAllSettings();
+      res.json(settings);
+    } catch {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Admin-only: update site settings
+  app.patch("/api/settings", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
+      return res.sendStatus(403);
+    }
+    try {
+      const updates = z.record(z.string()).parse(req.body);
+      for (const [key, value] of Object.entries(updates)) {
+        await storage.setSetting(key, value);
+      }
+      const settings = await storage.getAllSettings();
+      res.json(settings);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ message: err.errors[0].message });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
   app.get(api.batches.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const batches = await storage.getBatches();

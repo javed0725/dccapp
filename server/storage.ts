@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { 
-  incomes, expenses, batches, students, users, results, modelTestDrafts, notifications,
+  incomes, expenses, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Batch, type InsertBatch,
@@ -71,6 +71,11 @@ export interface IStorage {
   createNotification(message: string, type: string): Promise<Notification>;
   markAllNotificationsRead(): Promise<void>;
   getUnreadNotificationCount(): Promise<number>;
+
+  // Site Settings
+  getAllSettings(): Promise<Record<string, string>>;
+  getSetting(key: string): Promise<string | undefined>;
+  setSetting(key: string, value: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -389,6 +394,23 @@ export class DatabaseStorage implements IStorage {
     const { count } = await import("drizzle-orm");
     const [row] = await db.select({ count: count() }).from(notifications).where(eq(notifications.isRead, false));
     return Number(row?.count ?? 0);
+  }
+
+  async getAllSettings(): Promise<Record<string, string>> {
+    const rows = await db.select().from(siteSettings);
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  }
+
+  async getSetting(key: string): Promise<string | undefined> {
+    const [row] = await db.select().from(siteSettings).where(eq(siteSettings.key, key));
+    return row?.value;
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await db
+      .insert(siteSettings)
+      .values({ key, value })
+      .onConflictDoUpdate({ target: siteSettings.key, set: { value } });
   }
 }
 
