@@ -40,8 +40,11 @@ const roleDetails: Record<LoginRole, { label: string; title: string; description
   },
 };
 
-function getHomePath(role: LoginRole) {
-  return role === "teacher" ? "/admission" : "/";
+function getRedirectPath(role: string): string {
+  if (role === "admin") return "/admin";
+  if (role === "teacher") return "/teacher";
+  if (role === "student") return "/student";
+  return "/"; // fallback
 }
 
 export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
@@ -61,19 +64,32 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
       return res.json();
     },
     onSuccess: async (user: User) => {
-      if (fixedRole && user.role !== fixedRole) {
+      if (user.role === "deactivated") {
         await apiRequest("POST", "/api/logout").catch(() => undefined);
         queryClient.setQueryData(["/api/user"], null);
         toast({
           variant: "destructive",
+          title: "Account deactivated",
+          description: "Your account has been deactivated. Please contact the administrator.",
+        });
+        return;
+      }
+
+      const validRole = user.role as LoginRole;
+      if (fixedRole && validRole !== fixedRole) {
+        await apiRequest("POST", "/api/logout").catch(() => undefined);
+        queryClient.setQueryData(["/api/user"], null);
+        const correctLabel = roleDetails[validRole]?.label ?? user.role;
+        toast({
+          variant: "destructive",
           title: "Wrong login page",
-          description: `Please use the ${roleDetails[user.role].label} login page for this account.`,
+          description: `Please use the ${correctLabel} login page for this account.`,
         });
         return;
       }
 
       queryClient.setQueryData(["/api/user"], user);
-      setLocation(getHomePath(user.role));
+      setLocation(getRedirectPath(user.role));
       toast({ title: "Logged in successfully" });
     },
     onError: (error: Error) => {

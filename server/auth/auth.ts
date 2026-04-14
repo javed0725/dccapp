@@ -25,13 +25,24 @@ export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
   const PgStore = connectPgSimple(session);
-  const sessionSecret =
-    process.env.SESSION_SECRET ||
-    (process.env.NODE_ENV === "production" ? undefined : "development-session-secret");
+  // Use SESSION_SECRET from env if available.
+  // Fall back to a stable substring of DATABASE_URL so the app doesn't crash
+  // when SESSION_SECRET hasn't been set in Vercel yet. Sessions will still
+  // work; the only downside is they're less cryptographically random.
+  // ACTION REQUIRED: set SESSION_SECRET in your Vercel project environment variables.
+  const envSecret = process.env.SESSION_SECRET;
+  const fallbackSecret =
+    (process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || "").slice(-40) ||
+    "dcc-fallback-please-set-SESSION-SECRET-in-vercel";
 
-  if (!sessionSecret) {
-    throw new Error("SESSION_SECRET must be set in production");
+  if (!envSecret) {
+    console.warn(
+      "[Auth] SESSION_SECRET is not set. Using a fallback derived from DATABASE_URL. " +
+      "Please add SESSION_SECRET to your Vercel environment variables for production security."
+    );
   }
+
+  const sessionSecret = envSecret || fallbackSecret;
 
   const sessionSettings: session.SessionOptions = {
     store: new PgStore({

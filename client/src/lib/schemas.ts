@@ -4,10 +4,11 @@ import { z } from "zod";
 export interface User {
   id: number;
   username: string;
-  password: string;
-  role: "admin" | "teacher" | "student";
+  role: "admin" | "teacher" | "student" | "deactivated";
   teacherId: string | null;
   mobileNumber: string | null;
+  name: string | null;
+  subject: string | null;
 }
 
 export interface Batch {

@@ -60,7 +60,11 @@ function Router() {
     retry: false
   });
   const [location] = useLocation();
-  const roleHomePath = user?.role === "teacher" ? "/admission" : "/";
+  // Role-specific home paths that match Login.tsx getRedirectPath()
+  const roleHomePath =
+    user?.role === "admin" ? "/admin" :
+    user?.role === "teacher" ? "/teacher" :
+    user?.role === "student" ? "/student" : "/";
 
   // During auth check, render public pages immediately so there is never a blank screen.
   // Vercel serverless cold starts can take several seconds — returning null causes
@@ -112,20 +116,33 @@ function Router() {
 
           <main className="flex-1 overflow-auto bg-muted/30 px-2 py-3 md:p-6 pb-28 md:pb-28 w-full">
             <Switch>
+              {/* Root: admins and students see Dashboard; teachers redirect to /teacher */}
               {user.role === 'admin' ? (
                 <Route path="/" component={Dashboard} />
               ) : user.role === 'student' ? (
                 <Route path="/" component={Dashboard} />
               ) : (
                 <Route path="/">
-                  <Redirect to="/admission" />
+                  <Redirect to="/teacher" />
                 </Route>
               )}
+
+              {/* Role-specific entry points — these are where Login.tsx now redirects */}
+              <Route path="/admin">
+                {user.role === 'admin' ? <Dashboard /> : <Redirect to={roleHomePath} />}
+              </Route>
+              <Route path="/student">
+                {user.role === 'student' ? <Dashboard /> : <Redirect to={roleHomePath} />}
+              </Route>
+              <Route path="/teacher">
+                {user.role === 'teacher' ? <Admission /> : <Redirect to={roleHomePath} />}
+              </Route>
+
               <Route path="/income" component={Income} />
               <Route path="/results" component={EntryMarks} />
               <Route path="/marksheet" component={Marksheet} />
               <Route path="/admission">
-                {user.role === 'teacher' ? <Admission /> : <Redirect to="/" />}
+                {user.role === 'teacher' ? <Admission /> : <Redirect to={roleHomePath} />}
               </Route>
               {user.role === 'admin' && (
                 <>
@@ -135,15 +152,6 @@ function Router() {
                 </>
               )}
               <Route path="/login">
-                <Redirect to={roleHomePath} />
-              </Route>
-              <Route path="/student">
-                <Redirect to={roleHomePath} />
-              </Route>
-              <Route path="/teacher">
-                <Redirect to={roleHomePath} />
-              </Route>
-              <Route path="/admin">
                 <Redirect to={roleHomePath} />
               </Route>
               <Route component={NotFound} />
