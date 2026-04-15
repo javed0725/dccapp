@@ -205,9 +205,9 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
     <section
       id="home"
-      className="relative pt-16 min-h-screen flex items-center overflow-hidden bg-slate-900"
+      className="relative pt-16 min-h-[100svh] sm:min-h-screen flex items-center overflow-hidden bg-slate-900"
     >
-      {/* Full-width background image — loaded as <img> for browser-native priority */}
+      {/* Full-width background image — object-top keeps students' faces visible on mobile */}
       <img
         src={heroBg}
         alt=""
@@ -215,11 +215,13 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
         loading="eager"
         decoding="async"
         aria-hidden="true"
-        className="absolute inset-0 w-full h-full object-cover object-center"
+        className="absolute inset-0 w-full h-full object-cover object-top"
       />
-      {/* Dark gradient overlay — heavier on left for text legibility */}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/30" />
-      {/* Subtle blue tint overlay */}
+      {/* Mobile: top-to-bottom overlay so text stays legible on portrait layout */}
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/80 via-slate-900/60 to-slate-900/80 sm:hidden" />
+      {/* Desktop: heavier on left for side-by-side text legibility */}
+      <div className="absolute inset-0 hidden sm:block bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/30" />
+      {/* Subtle blue tint overlay — full coverage on all sizes */}
       <div className="absolute inset-0 bg-blue-900/20" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 w-full">
