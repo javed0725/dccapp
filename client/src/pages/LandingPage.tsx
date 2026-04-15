@@ -22,6 +22,7 @@ import {
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import heroBg from "@assets/PXL_20251115_061413679~3_1776191730471.jpg";
 import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
+import aboutPhoto3 from "@assets/PXL_20251115_062309530~2_1776252686289.jpg";
 
 /* ─── DATA ─────────────────────────────────────────────────── */
 
@@ -82,6 +83,7 @@ const aboutFeatures = [
 const aboutImages = [
   { src: aboutPhoto2, alt: "DCC students and faculty group photo" },
   { src: heroBg,      alt: "DCC student group at the coaching centre" },
+  { src: aboutPhoto3, alt: "DCC student group outdoor photo" },
 ];
 
 const alumni = [
@@ -255,10 +257,10 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
           {/* Stats strip */}
           <div className="flex flex-wrap items-center gap-8 mt-14 pt-8 border-t border-white/15">
             {[
-              { value: "500+", label: "Students Enrolled" },
+              { value: "170+", label: "Students Enrolled" },
               { value: "98%", label: "Pass Rate" },
-              { value: "8+", label: "Years of Excellence" },
-              { value: "120+", label: "GPA 5.00 Achievers" },
+              { value: "6+", label: "Years of Excellence" },
+              { value: "12+", label: "GPA 5.00 Achievers" },
             ].map((stat) => (
               <div key={stat.label}>
                 <div className="text-white font-black text-2xl">{stat.value}</div>
@@ -462,9 +464,9 @@ function AboutSection() {
             {/* Stats row */}
             <div className="flex flex-wrap gap-6 pt-6 border-t border-slate-200">
               {[
-                { value: "500+", label: "Students" },
+                { value: "170+", label: "Students" },
                 { value: "98%", label: "Pass Rate" },
-                { value: "15+", label: "Expert Faculty" },
+                { value: "12+", label: "Expert Faculty" },
               ].map((stat) => (
                 <div key={stat.label}>
                   <div className="font-black text-blue-600 text-2xl">{stat.value}</div>
