@@ -79,19 +79,19 @@ const aboutFeatures = [
 
 const alumni = [
   {
-    name: "Sadia Islam",
-    achievement: "GPA 5.00 — SSC 2024",
-    university: "Dhaka Medical College",
-    batch: "Batch 2022–24",
+    name: "Annie Mohuri",
+    achievement: "GPA 5.00 — SSC 2021",
+    university: "University of Chittagong",
+    batch: "Batch 2024–25",
     quote: "DCC's structured teaching and mock tests gave me the confidence to achieve a perfect GPA.",
     initials: "SI",
     color: "bg-blue-500",
   },
   {
-    name: "Mehedi Hasan",
-    achievement: "GPA 5.00 — HSC 2024",
-    university: "BUET (Engineering)",
-    batch: "Batch 2022–24",
+    name: "Asmaul Hosna Maisha",
+    achievement: "GPA 5.00 — SSC 2021",
+    university: "Cox’s Bazar Medical College ",
+    batch: "Batch 2024–25",
     quote: "The teachers here are incredibly dedicated. Their individual attention made all the difference.",
     initials: "MH",
     color: "bg-indigo-500",
@@ -213,7 +213,7 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-6">
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span className="text-white/90 text-xs font-semibold tracking-wide">Admissions Open 2025–26</span>
+            <span className="text-white/90 text-xs font-semibold tracking-wide">Admissions Open</span>
           </div>
 
           {/* Main heading */}
@@ -358,7 +358,7 @@ function AboutSection() {
               <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-slate-900/70 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-6">
                 <p className="text-white font-bold text-base">Academic Excellence</p>
-                <p className="text-white/70 text-xs mt-0.5">Empowering students since 2016</p>
+                <p className="text-white/70 text-xs mt-0.5">Empowering students since 2020</p>
               </div>
             </div>
 
@@ -368,14 +368,14 @@ function AboutSection() {
                 <Award className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <div className="font-black text-slate-900 text-base">120+ GPA 5.00</div>
-                <div className="text-slate-500 text-xs">Students in 2024</div>
+                <div className="font-black text-slate-900 text-base">12+ GPA 5.00</div>
+                <div className="text-slate-500 text-xs">Students in 2025</div>
               </div>
             </div>
 
             {/* Top badge */}
             <div className="absolute top-5 -left-4 lg:-left-8 bg-blue-600 text-white rounded-2xl shadow-xl px-4 py-3 z-10">
-              <div className="font-black text-xl leading-none">8+</div>
+              <div className="font-black text-xl leading-none">6+</div>
               <div className="text-blue-200 text-xs mt-0.5">Years Active</div>
             </div>
           </div>
