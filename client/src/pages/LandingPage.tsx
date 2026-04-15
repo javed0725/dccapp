@@ -693,7 +693,12 @@ function ContactSection() {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-sm mb-1">Email</h4>
-                <span className="text-slate-500 text-sm">info@dynamiccoachingcenter.edu.bd</span>
+                <a
+                  href="mailto:dynamicoachingcenter@gmail.com"
+                  className="text-slate-500 text-sm hover:text-blue-600 transition-colors"
+                >
+                  dynamicoachingcenter@gmail.com
+                </a>
               </div>
             </div>
 
@@ -852,7 +857,9 @@ function Footer() {
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>info@dynamiccoachingcenter.edu.bd</span>
+                <a href="mailto:dynamicoachingcenter@gmail.com" className="hover:text-blue-400 transition-colors">
+                  dynamicoachingcenter@gmail.com
+                </a>
               </li>
               <li className="flex items-start gap-2.5">
                 <Phone className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
