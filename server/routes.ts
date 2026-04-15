@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { students } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
@@ -20,6 +20,31 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupAuth(app);
+
+  // Health-check — useful for diagnosing Vercel cold starts and DB connectivity
+  app.get("/api/health", async (_req, res) => {
+    const dbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+    const sessionSecret = process.env.SESSION_SECRET;
+    try {
+      await db.execute(sql`SELECT 1`);
+      res.json({
+        status: "ok",
+        db: "connected",
+        hasDbUrl: !!dbUrl,
+        hasSessionSecret: !!sessionSecret,
+        nodeEnv: process.env.NODE_ENV,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        status: "error",
+        db: "unreachable",
+        error: err.message,
+        hasDbUrl: !!dbUrl,
+        hasSessionSecret: !!sessionSecret,
+        nodeEnv: process.env.NODE_ENV,
+      });
+    }
+  });
 
   // Public endpoint — no auth required — used by the landing page Teachers section
   app.get("/api/teachers", async (_req, res) => {
