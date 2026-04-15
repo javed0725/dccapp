@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -59,7 +60,22 @@ function Router() {
     queryKey: ["/api/user"],
     retry: false
   });
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  // When launched as an installed PWA, redirect to the portal the user chose at install time
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+
+    if (isStandalone && location === "/") {
+      const preferred = localStorage.getItem("pwa_preferred_route");
+      if (preferred && ["/student", "/teacher", "/admin"].includes(preferred)) {
+        setLocation(preferred);
+      }
+    }
+  }, []);
+
   // Role-specific home paths that match Login.tsx getRedirectPath()
   const roleHomePath =
     user?.role === "admin" ? "/admin" :

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
+import { usePWA } from "@/hooks/use-pwa";
 import { useQuery } from "@tanstack/react-query";
 import useEmblaCarousel from "embla-carousel-react";
 import {
@@ -283,7 +284,15 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
 
 /* ─── PORTALS ───────────────────────────────────────────────── */
 
-function PortalsSection({ onNavigate }: { onNavigate: (path: string) => void }) {
+function PortalsSection({
+  onNavigate,
+  onInstall,
+  canInstall,
+}: {
+  onNavigate: (path: string) => void;
+  onInstall: (preferredRoute: string) => void;
+  canInstall: boolean;
+}) {
   return (
     <section id="portals" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -301,10 +310,11 @@ function PortalsSection({ onNavigate }: { onNavigate: (path: string) => void }) 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {portals.map((portal) => {
             const Icon = portal.icon;
+            const testId = portal.title.replace(/\s+/g, "-").toLowerCase();
             return (
               <div
                 key={portal.path}
-                data-testid={`card-portal-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
+                data-testid={`card-portal-${testId}`}
                 className={`flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl ${portal.borderHover} hover:-translate-y-1 transition-all duration-300 overflow-hidden`}
               >
                 {/* Coloured top accent bar */}
@@ -323,24 +333,34 @@ function PortalsSection({ onNavigate }: { onNavigate: (path: string) => void }) 
                   {/* Buttons */}
                   <div className="flex flex-col gap-3">
                     <button
-                      data-testid={`button-login-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
+                      data-testid={`button-login-${testId}`}
                       onClick={() => onNavigate(portal.path)}
                       className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${portal.accentColor} text-white text-sm font-bold hover:opacity-90 transition-opacity shadow-sm`}
                     >
                       Login Now <ChevronRight className="w-4 h-4" />
                     </button>
-                    <button
-                      data-testid={`button-install-${portal.title.replace(/\s+/g, "-").toLowerCase()}`}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200 transition-colors"
-                    >
-                      <Download className="w-4 h-4" /> Install App
-                    </button>
+
+                    {canInstall && (
+                      <button
+                        data-testid={`button-install-${testId}`}
+                        onClick={() => onInstall(portal.path)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200 transition-colors"
+                      >
+                        <Download className="w-4 h-4" /> Install App
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
+
+        {!canInstall && (
+          <p className="text-center text-slate-400 text-xs mt-8">
+            To install the app, open this page in Chrome or Edge on Android and use the browser menu → "Add to Home Screen".
+          </p>
+        )}
       </div>
     </section>
   );
@@ -958,13 +978,23 @@ function Footer() {
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
+  const { canInstall, install } = usePWA();
+
   const navigate = (path: string) => setLocation(path);
+
+  const handleInstall = async (preferredRoute: string) => {
+    await install(preferredRoute);
+  };
 
   return (
     <div className="min-h-screen font-sans overflow-x-hidden">
       <Header onNavigate={navigate} />
       <HeroSection onNavigate={navigate} />
-      <PortalsSection onNavigate={navigate} />
+      <PortalsSection
+        onNavigate={navigate}
+        onInstall={handleInstall}
+        canInstall={canInstall}
+      />
       <AboutSection />
       <TeachersSection />
       <AlumniSection />
