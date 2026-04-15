@@ -20,7 +20,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
-import heroBg from "@assets/PXL_20251115_061413679~3_1776191730471.jpg";
+import heroBg from "@assets/hero-bg.webp";
 import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
 import aboutPhoto3 from "@assets/PXL_20251115_062309530~2_1776252686289.jpg";
 
@@ -205,12 +205,17 @@ function HeroSection({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
     <section
       id="home"
-      className="relative pt-16 min-h-screen flex items-center overflow-hidden"
+      className="relative pt-16 min-h-screen flex items-center overflow-hidden bg-slate-900"
     >
-      {/* Full-width background image */}
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${heroBg})` }}
+      {/* Full-width background image — loaded as <img> for browser-native priority */}
+      <img
+        src={heroBg}
+        alt=""
+        fetchPriority="high"
+        loading="eager"
+        decoding="async"
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover object-center"
       />
       {/* Dark gradient overlay — heavier on left for text legibility */}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-slate-900/30" />
