@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import heroBg from "@assets/PXL_20251115_061413679~3_1776191730471.jpg";
+import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
 
 /* ─── DATA ─────────────────────────────────────────────────── */
 
@@ -75,6 +76,12 @@ const aboutFeatures = [
   "Personal performance tracking",
   "Small batch sizes for focused learning",
   "Dedicated academic counselling",
+];
+
+// Add more images here to expand the About carousel
+const aboutImages = [
+  { src: aboutPhoto2, alt: "DCC students and faculty group photo" },
+  { src: heroBg,      alt: "DCC student group at the coaching centre" },
 ];
 
 const alumni = [
@@ -342,23 +349,74 @@ function AboutSection() {
     settings?.about_description ||
     "Dynamic Coaching Center provides a structured, result-oriented learning environment where students gain the knowledge, skills, and confidence to excel in their academic journey. Our expert faculty, personalised approach, and rigorous practice tests ensure every student reaches their full potential.";
 
+  // Carousel state
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+  const [aboutIdx, setAboutIdx] = useState(0);
+  const [aboutHovered, setAboutHovered] = useState(false);
+
+  const scrollToAbout = useCallback(
+    (i: number) => emblaApi && emblaApi.scrollTo(i),
+    [emblaApi]
+  );
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    const onSelect = () => setAboutIdx(emblaApi.selectedScrollSnap());
+    emblaApi.on("select", onSelect);
+    return () => { emblaApi.off("select", onSelect); };
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi || aboutHovered) return;
+    const id = setInterval(() => emblaApi.scrollNext(), 4000);
+    return () => clearInterval(id);
+  }, [emblaApi, aboutHovered]);
+
   return (
     <section id="about" className="py-20 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-          {/* Left: Visual */}
+          {/* Left: Image Carousel */}
           <div className="relative">
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl aspect-[4/5] max-w-sm mx-auto lg:mx-0">
-              <img
-                src="https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=800&q=80"
-                alt="Students in a coaching class"
-                className="w-full h-full object-cover"
-              />
-              {/* Overlay gradient at bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-slate-900/70 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-6">
-                <p className="text-white font-bold text-base">Academic Excellence</p>
+            <div
+              className="relative rounded-3xl overflow-hidden shadow-2xl aspect-[4/5] max-w-sm mx-auto lg:mx-0"
+              onMouseEnter={() => setAboutHovered(true)}
+              onMouseLeave={() => setAboutHovered(false)}
+            >
+              {/* Embla viewport */}
+              <div ref={emblaRef} className="overflow-hidden w-full h-full">
+                <div className="flex h-full">
+                  {aboutImages.map((img, i) => (
+                    <div key={i} className="flex-[0_0_100%] min-w-0 h-full">
+                      <img
+                        src={img.src}
+                        alt={img.alt}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Overlay gradient */}
+              <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-slate-900/70 to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 p-5 pointer-events-none">
+                <p className="text-white font-bold text-sm">Academic Excellence</p>
                 <p className="text-white/70 text-xs mt-0.5">Empowering students since 2020</p>
+              </div>
+
+              {/* Navigation dots */}
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
+                {aboutImages.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => scrollToAbout(i)}
+                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                      i === aboutIdx ? "bg-white scale-125" : "bg-white/50"
+                    }`}
+                    aria-label={`Go to image ${i + 1}`}
+                  />
+                ))}
               </div>
             </div>
 
