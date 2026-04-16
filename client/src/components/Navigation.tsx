@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Wallet, FileText, Key, LogOut, UserCircle, LayoutDashboard, Home, Banknote, Settings } from "lucide-react";
+import { Wallet, FileText, Key, LogOut, UserCircle, LayoutDashboard, Home, Banknote, Settings, BookUser } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { type User } from "@/lib/schemas";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -70,6 +70,7 @@ export function MobileNav() {
   const studentLinks = [
     { href: "/", label: "Home", icon: LayoutDashboard },
     { href: "/results", label: "Results", icon: FileText },
+    { href: "/teachers", label: "Teachers", icon: BookUser },
   ];
 
   const links = user.role === "admin" ? adminLinks : 

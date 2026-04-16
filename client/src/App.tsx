@@ -15,6 +15,7 @@ import LoginPage from "@/pages/Login";
 import Notifications from "@/pages/Notifications";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
+import TeacherDirectory from "@/pages/TeacherDirectory";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
@@ -154,6 +155,9 @@ function Router() {
                 {user.role === 'teacher' ? <Admission /> : <Redirect to={roleHomePath} />}
               </Route>
 
+              {user.role === 'student' && (
+                <Route path="/teachers" component={TeacherDirectory} />
+              )}
               <Route path="/income" component={Income} />
               <Route path="/results" component={EntryMarks} />
               <Route path="/marksheet" component={Marksheet} />
