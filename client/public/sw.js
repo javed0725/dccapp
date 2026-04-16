@@ -1,9 +1,9 @@
-const CACHE_NAME = 'dcc-portal-v1';
+const CACHE_NAME = 'dcc-portal-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(['/', '/manifest.json'])
+      cache.addAll(['/', '/manifest.json', '/favicon.png', '/maskable-icon.png'])
     ).then(() => self.skipWaiting())
   );
 });
