@@ -257,6 +257,7 @@ export default function Admission() {
                                 <th className="px-4 py-2 text-left font-medium">Name</th>
                                 <th className="px-4 py-2 text-left font-medium">ID</th>
                                 <th className="px-4 py-2 text-left font-medium">Class</th>
+                                <th className="px-4 py-2 text-left font-medium">Phone</th>
                                 <th className="px-4 py-2 text-left font-medium">Admitted</th>
                               </tr>
                             </thead>
@@ -266,6 +267,21 @@ export default function Admission() {
                                   <td className="px-4 py-2.5 font-medium text-slate-800">{s.name}</td>
                                   <td className="px-4 py-2.5 text-slate-500">{s.studentCustomId ?? "—"}</td>
                                   <td className="px-4 py-2.5 text-slate-600">{s.batch?.name ?? "—"}</td>
+                                  <td className="px-4 py-2.5">
+                                    {s.mobileNumber ? (
+                                      <a
+                                        href={`tel:${s.mobileNumber}`}
+                                        data-testid={`quick-call-${s.id}`}
+                                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 active:text-blue-800 transition-colors group"
+                                        title={`Call ${s.name}`}
+                                      >
+                                        <Phone className="w-5 h-5 shrink-0" />
+                                        <span className="text-xs font-medium">{s.mobileNumber}</span>
+                                      </a>
+                                    ) : (
+                                      <span className="text-slate-400 italic text-xs">—</span>
+                                    )}
+                                  </td>
                                   <td className="px-4 py-2.5 text-slate-500">{formatDate(s.admissionDate)}</td>
                                 </tr>
                               ))}
@@ -314,6 +330,7 @@ export default function Admission() {
                       <th className="px-4 py-3 text-left font-medium">Name</th>
                       <th className="px-4 py-3 text-left font-medium">ID</th>
                       <th className="px-4 py-3 text-left font-medium">Class</th>
+                      <th className="px-4 py-3 text-left font-medium">Phone</th>
                       <th className="px-4 py-3 text-left font-medium">Admitted By</th>
                       <th className="px-4 py-3 text-left font-medium">Date</th>
                     </tr>
@@ -324,6 +341,21 @@ export default function Admission() {
                         <td className="px-4 py-2.5 font-medium text-slate-800">{s.name}</td>
                         <td className="px-4 py-2.5 text-slate-500">{s.studentCustomId ?? "—"}</td>
                         <td className="px-4 py-2.5 text-slate-600">{s.batch?.name ?? "—"}</td>
+                        <td className="px-4 py-2.5">
+                          {s.mobileNumber ? (
+                            <a
+                              href={`tel:${s.mobileNumber}`}
+                              data-testid={`quick-call-admin-${s.id}`}
+                              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 active:text-blue-800 transition-colors"
+                              title={`Call ${s.name}`}
+                            >
+                              <Phone className="w-5 h-5 shrink-0" />
+                              <span className="text-xs font-medium">{s.mobileNumber}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 italic text-xs">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5">
                           {s.addedByUser ? (
                             <span className="inline-flex items-center gap-1.5 text-indigo-700 font-medium">
