@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useCreateIncome, useDeleteIncome, useBatches, useStudents } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+const DROP_HEIGHT = 220;
+
 function StudentCombobox({
   students,
   value,
@@ -38,11 +41,12 @@ function StudentCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = students.find((s) => s.id.toString() === value);
-
   const filtered = students.filter((s) => {
     const q = query.toLowerCase();
     return (
@@ -51,27 +55,109 @@ function StudentCombobox({
     );
   });
 
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      setQuery("");
-    }
-  }, [open]);
+  const calcPosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const viewH = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const viewLeft = vv ? vv.offsetLeft : 0;
+    const spaceBelow = viewH - rect.bottom;
+    const spaceAbove = rect.top - (vv ? vv.offsetTop : 0);
+    const above = spaceBelow < DROP_HEIGHT + 8 && spaceAbove >= DROP_HEIGHT;
+    setDropStyle({
+      position: "fixed",
+      left: rect.left - viewLeft,
+      width: rect.width,
+      zIndex: 9999,
+      ...(above
+        ? { bottom: viewH - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    });
+  }, []);
 
   useEffect(() => {
+    if (!open) { setQuery(""); return; }
+    calcPosition();
+    setTimeout(() => inputRef.current?.focus(), 50);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", calcPosition);
+    vv?.addEventListener("scroll", calcPosition);
+    window.addEventListener("resize", calcPosition);
+    return () => {
+      vv?.removeEventListener("resize", calcPosition);
+      vv?.removeEventListener("scroll", calcPosition);
+      window.removeEventListener("resize", calcPosition);
+    };
+  }, [open, calcPosition]);
+
+  useEffect(() => {
+    if (!open) return;
     function onPointerDown(e: PointerEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, []);
+  }, [open]);
+
+  const dropdown = open ? (
+    <div
+      ref={listRef}
+      style={dropStyle}
+      className="rounded-md border border-border bg-popover shadow-xl"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="p-2 border-b border-border">
+        <Input
+          ref={inputRef}
+          placeholder="Search name or ID..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="h-9 text-sm"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+        />
+      </div>
+      <div
+        className="overflow-y-auto overscroll-contain"
+        style={{ maxHeight: DROP_HEIGHT - 52 }}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
+        {filtered.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">No students found</div>
+        ) : (
+          filtered.map((student) => (
+            <div
+              key={student.id}
+              className="flex items-center gap-2 cursor-pointer select-none px-3 py-3 text-sm hover:bg-accent hover:text-accent-foreground active:bg-accent/80"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                onChange(student.id.toString());
+                setOpen(false);
+              }}
+            >
+              {value === student.id.toString() && (
+                <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+              )}
+              <span className={value === student.id.toString() ? "font-medium" : ""}>
+                {student.name}
+                {student.studentCustomId && (
+                  <span className="text-muted-foreground ml-1">({student.studentCustomId})</span>
+                )}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  ) : null;
 
   return (
-    <div ref={containerRef} className="relative">
+    <div>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
@@ -86,51 +172,7 @@ function StudentCombobox({
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
       </button>
-
-      {open && (
-        <div className="absolute z-[200] mt-1 w-full rounded-md border border-border bg-popover shadow-lg">
-          <div className="p-2 border-b border-border">
-            <Input
-              ref={inputRef}
-              placeholder="Search name or ID..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="h-8 text-sm"
-              onPointerDown={(e) => e.stopPropagation()}
-              autoComplete="off"
-            />
-          </div>
-          <div className="max-h-52 overflow-y-auto overscroll-contain">
-            {filtered.length === 0 ? (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                No students found
-              </div>
-            ) : (
-              filtered.map((student) => (
-                <div
-                  key={student.id}
-                  className="flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 text-sm hover:bg-accent hover:text-accent-foreground active:bg-accent/80"
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    onChange(student.id.toString());
-                    setOpen(false);
-                  }}
-                >
-                  {value === student.id.toString() && (
-                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-                  )}
-                  <span className={value === student.id.toString() ? "font-medium" : ""}>
-                    {student.name}
-                    {student.studentCustomId && (
-                      <span className="text-muted-foreground ml-1">({student.studentCustomId})</span>
-                    )}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {typeof document !== "undefined" && createPortal(dropdown, document.body)}
     </div>
   );
 }
