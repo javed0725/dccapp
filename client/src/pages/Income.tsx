@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useCreateIncome, useDeleteIncome, useBatches, useStudents } from "@/hooks/use-finance";
@@ -26,8 +26,6 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-const DROP_HEIGHT = 220;
-
 function StudentCombobox({
   students,
   value,
@@ -41,126 +39,153 @@ function StudentCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({});
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number }>({
+    left: 0,
+    width: 0,
+  });
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = students.find((s) => s.id.toString() === value);
   const filtered = students.filter((s) => {
     const q = query.toLowerCase();
-    return (
-      s.name.toLowerCase().includes(q) ||
-      (s.studentCustomId ?? "").toLowerCase().includes(q)
-    );
+    return s.name.toLowerCase().includes(q) || (s.studentCustomId ?? "").toLowerCase().includes(q);
   });
 
-  const calcPosition = useCallback(() => {
+  function calcPos() {
     if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const vv = window.visualViewport;
-    const viewH = vv ? vv.offsetTop + vv.height : window.innerHeight;
-    const viewLeft = vv ? vv.offsetLeft : 0;
-    const spaceBelow = viewH - rect.bottom;
-    const spaceAbove = rect.top - (vv ? vv.offsetTop : 0);
-    const above = spaceBelow < DROP_HEIGHT + 8 && spaceAbove >= DROP_HEIGHT;
-    setDropStyle({
-      position: "fixed",
-      left: rect.left - viewLeft,
-      width: rect.width,
-      zIndex: 9999,
-      ...(above
-        ? { bottom: viewH - rect.top + 4 }
-        : { top: rect.bottom + 4 }),
-    });
-  }, []);
+    const r = triggerRef.current.getBoundingClientRect();
+    const vvH = window.visualViewport?.height ?? window.innerHeight;
+    const spaceBelow = vvH - r.bottom;
+    const dropH = 260;
+    if (spaceBelow < dropH && r.top > spaceBelow) {
+      setPos({ bottom: vvH - r.top + 2, left: r.left, width: r.width });
+    } else {
+      setPos({ top: r.bottom + 2, left: r.left, width: r.width });
+    }
+  }
 
-  useEffect(() => {
-    if (!open) { setQuery(""); return; }
-    calcPosition();
-    setTimeout(() => inputRef.current?.focus(), 50);
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", calcPosition);
-    vv?.addEventListener("scroll", calcPosition);
-    window.addEventListener("resize", calcPosition);
-    return () => {
-      vv?.removeEventListener("resize", calcPosition);
-      vv?.removeEventListener("scroll", calcPosition);
-      window.removeEventListener("resize", calcPosition);
-    };
-  }, [open, calcPosition]);
+  function openMenu() {
+    calcPos();
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 40);
+  }
+
+  function closeMenu() {
+    setOpen(false);
+    setQuery("");
+  }
+
+  function pickStudent(id: string) {
+    onChange(id);
+    closeMenu();
+  }
 
   useEffect(() => {
     if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target) || listRef.current?.contains(target)) return;
-      setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", calcPos);
+    vv?.addEventListener("scroll", calcPos);
+    return () => {
+      vv?.removeEventListener("resize", calcPos);
+      vv?.removeEventListener("scroll", calcPos);
+    };
   }, [open]);
 
-  const dropdown = open ? (
-    <div
-      ref={listRef}
-      style={dropStyle}
-      className="rounded-md border border-border bg-popover shadow-xl"
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      <div className="p-2 border-b border-border">
-        <Input
-          ref={inputRef}
-          placeholder="Search name or ID..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="h-9 text-sm"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-        />
-      </div>
-      <div
-        className="overflow-y-auto overscroll-contain"
-        style={{ maxHeight: DROP_HEIGHT - 52 }}
-        onTouchMove={(e) => e.stopPropagation()}
-      >
-        {filtered.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">No students found</div>
-        ) : (
-          filtered.map((student) => (
-            <div
-              key={student.id}
-              className="flex items-center gap-2 cursor-pointer select-none px-3 py-3 text-sm hover:bg-accent hover:text-accent-foreground active:bg-accent/80"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                onChange(student.id.toString());
-                setOpen(false);
-              }}
-            >
-              {value === student.id.toString() && (
-                <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-              )}
-              <span className={value === student.id.toString() ? "font-medium" : ""}>
-                {student.name}
-                {student.studentCustomId && (
-                  <span className="text-muted-foreground ml-1">({student.studentCustomId})</span>
-                )}
-              </span>
+  const portalContent = open
+    ? createPortal(
+        <>
+          {/* Backdrop — closes menu on outside tap; sits below dropdown */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+            onMouseDown={closeMenu}
+            onTouchStart={closeMenu}
+          />
+
+          {/* Dropdown panel */}
+          <div
+            style={{
+              position: "fixed",
+              left: pos.left,
+              width: pos.width,
+              zIndex: 9999,
+              ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            }}
+            className="rounded-md border border-border bg-white dark:bg-popover shadow-2xl"
+            /* Stop ALL events from reaching the backdrop */
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            {/* Search input */}
+            <div className="p-2 border-b border-border">
+              <input
+                ref={inputRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name or ID..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
-          ))
-        )}
-      </div>
-    </div>
-  ) : null;
+
+            {/* Scrollable list */}
+            <div
+              className="max-h-48 overflow-y-auto overscroll-contain"
+              onTouchMove={(e) => e.stopPropagation()}
+            >
+              {filtered.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">No students found</p>
+              ) : (
+                filtered.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 px-3 py-3 text-sm cursor-pointer select-none hover:bg-accent active:bg-accent/80"
+                    /* onMouseDown fires before onBlur — keeps input focused on desktop */
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      pickStudent(s.id.toString());
+                    }}
+                    /* onTouchEnd handles taps on mobile without triggering blur */
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      pickStudent(s.id.toString());
+                    }}
+                  >
+                    {value === s.id.toString() && (
+                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    )}
+                    <span className={value === s.id.toString() ? "font-medium" : ""}>
+                      {s.name}
+                      {s.studentCustomId && (
+                        <span className="text-muted-foreground ml-1">({s.studentCustomId})</span>
+                      )}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>,
+        document.body,
+      )
+    : null;
 
   return (
-    <div>
+    <>
       <button
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((o) => !o)}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          open ? closeMenu() : openMenu();
+        }}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          open ? closeMenu() : openMenu();
+        }}
         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className={selected ? "text-foreground" : "text-muted-foreground"}>
@@ -172,8 +197,8 @@ function StudentCombobox({
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
       </button>
-      {typeof document !== "undefined" && createPortal(dropdown, document.body)}
-    </div>
+      {portalContent}
+    </>
   );
 }
 
