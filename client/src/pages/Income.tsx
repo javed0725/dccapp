@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useCreateIncome, useDeleteIncome, useBatches, useStudents } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Search, Filter, Calendar as CalendarIcon, CheckCircle, History as HistoryIcon, MessageCircle } from "lucide-react";
+import { Plus, Trash2, Search, Filter, Calendar as CalendarIcon, CheckCircle, History as HistoryIcon, MessageCircle, ChevronDown, Check } from "lucide-react";
 import { buildPaymentWhatsAppUrl } from "@/lib/whatsapp";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -24,6 +24,116 @@ const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
+
+function StudentCombobox({
+  students,
+  value,
+  onChange,
+  disabled,
+}: {
+  students: any[];
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = students.find((s) => s.id.toString() === value);
+
+  const filtered = students.filter((s) => {
+    const q = query.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(q) ||
+      (s.studentCustomId ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } else {
+      setQuery("");
+    }
+  }, [open]);
+
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className={selected ? "text-foreground" : "text-muted-foreground"}>
+          {selected
+            ? `${selected.name} (${selected.studentCustomId ?? "—"})`
+            : disabled
+            ? "Select batch first"
+            : "Select a student"}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+      </button>
+
+      {open && (
+        <div className="absolute z-[200] mt-1 w-full rounded-md border border-border bg-popover shadow-lg">
+          <div className="p-2 border-b border-border">
+            <Input
+              ref={inputRef}
+              placeholder="Search name or ID..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="h-8 text-sm"
+              onPointerDown={(e) => e.stopPropagation()}
+              autoComplete="off"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto overscroll-contain">
+            {filtered.length === 0 ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                No students found
+              </div>
+            ) : (
+              filtered.map((student) => (
+                <div
+                  key={student.id}
+                  className="flex items-center gap-2 cursor-pointer select-none px-3 py-2.5 text-sm hover:bg-accent hover:text-accent-foreground active:bg-accent/80"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    onChange(student.id.toString());
+                    setOpen(false);
+                  }}
+                >
+                  {value === student.id.toString() && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  )}
+                  <span className={value === student.id.toString() ? "font-medium" : ""}>
+                    {student.name}
+                    {student.studentCustomId && (
+                      <span className="text-muted-foreground ml-1">({student.studentCustomId})</span>
+                    )}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const formSchema = insertIncomeSchema.extend({
   amount: z.coerce.number().min(1, "Amount must be greater than 0"),
@@ -189,38 +299,14 @@ export default function Income() {
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Student</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value?.toString()} disabled={!selectedBatchId}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder={selectedBatchId ? "Select a student" : "Select batch first"} />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <div className="p-2 border-b border-border/50">
-                                                        <Input 
-                                                            placeholder="Search Student ID or Name..." 
-                                                            className="h-8 text-xs"
-                                                            onChange={(e) => {
-                                                                const val = e.target.value.toLowerCase();
-                                                                const items = document.querySelectorAll('[role="option"]');
-                                                                items.forEach((item: any) => {
-                                                                    const text = item.innerText.toLowerCase();
-                                                                    if (text.includes(val)) {
-                                                                        item.style.display = 'flex';
-                                                                    } else {
-                                                                        item.style.display = 'none';
-                                                                    }
-                                                                });
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    {filteredStudents.map((student: any) => (
-                                                        <SelectItem key={student.id} value={student.id.toString()}>
-                                                            {student.name} ({student.studentCustomId})
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <FormControl>
+                                                <StudentCombobox
+                                                    students={filteredStudents}
+                                                    value={field.value?.toString() ?? ""}
+                                                    onChange={field.onChange}
+                                                    disabled={!selectedBatchId}
+                                                />
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
