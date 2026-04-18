@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { 
   incomes, expenses, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
+  collectionTracking,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Batch, type InsertBatch,
@@ -8,9 +9,10 @@ import {
   type User, type InsertUser,
   type Result, type InsertResult,
   type ModelTestDraft,
-  type Notification
+  type Notification,
+  type CollectionTracking,
 } from "@shared/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 
 function removePassword<T extends User | null | undefined>(user: T) {
   if (!user) return user;
@@ -76,6 +78,12 @@ export interface IStorage {
   getAllSettings(): Promise<Record<string, string>>;
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string): Promise<void>;
+
+  // Collection Tracking
+  getCollectionByUserId(userId: number): Promise<CollectionTracking | undefined>;
+  getAllCollections(): Promise<(CollectionTracking & { user: Omit<User, "password"> })[]>;
+  addToCollection(userId: number, amount: number): Promise<CollectionTracking>;
+  resetCollection(userId: number): Promise<CollectionTracking>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -411,6 +419,69 @@ export class DatabaseStorage implements IStorage {
       .insert(siteSettings)
       .values({ key, value })
       .onConflictDoUpdate({ target: siteSettings.key, set: { value } });
+  }
+
+  async getCollectionByUserId(userId: number): Promise<CollectionTracking | undefined> {
+    const [row] = await db
+      .select()
+      .from(collectionTracking)
+      .where(eq(collectionTracking.userId, userId));
+    return row;
+  }
+
+  async getAllCollections(): Promise<(CollectionTracking & { user: Omit<User, "password"> })[]> {
+    const rows = await db.select().from(collectionTracking);
+    const allTeachers = await db
+      .select()
+      .from(users)
+      .where(eq(users.role, "teacher"));
+    return rows.map((row) => {
+      const user = allTeachers.find((u) => u.id === row.userId)!;
+      const { password: _p, ...safeUser } = user ?? {};
+      return { ...row, user: safeUser as Omit<User, "password"> };
+    }).filter((r) => r.user);
+  }
+
+  async addToCollection(userId: number, amount: number): Promise<CollectionTracking> {
+    const [existing] = await db
+      .select()
+      .from(collectionTracking)
+      .where(eq(collectionTracking.userId, userId));
+    if (existing) {
+      const [updated] = await db
+        .update(collectionTracking)
+        .set({ runningCollection: sql`${collectionTracking.runningCollection} + ${amount}` })
+        .where(eq(collectionTracking.userId, userId))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(collectionTracking)
+        .values({ userId, runningCollection: amount })
+        .returning();
+      return created;
+    }
+  }
+
+  async resetCollection(userId: number): Promise<CollectionTracking> {
+    const [existing] = await db
+      .select()
+      .from(collectionTracking)
+      .where(eq(collectionTracking.userId, userId));
+    if (existing) {
+      const [updated] = await db
+        .update(collectionTracking)
+        .set({ runningCollection: 0, lastResetAt: new Date() })
+        .where(eq(collectionTracking.userId, userId))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(collectionTracking)
+        .values({ userId, runningCollection: 0, lastResetAt: new Date() })
+        .returning();
+      return created;
+    }
   }
 }
 

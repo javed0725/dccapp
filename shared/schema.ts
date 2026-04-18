@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, json } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, json, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -87,9 +87,17 @@ export const siteSettings = pgTable("site_settings", {
   value: text("value").notNull(),
 });
 
+export const collectionTracking = pgTable("collection_tracking", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull().unique(),
+  runningCollection: integer("running_collection").notNull().default(0),
+  lastResetAt: timestamp("last_reset_at").defaultNow(),
+});
+
 export type ModelTestDraft = typeof modelTestDrafts.$inferSelect;
 export type InsertModelTestDraft = typeof modelTestDrafts.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
+export type CollectionTracking = typeof collectionTracking.$inferSelect;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertBatchSchema = createInsertSchema(batches).omit({ id: true });

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Search, Filter, Calendar as CalendarIcon, CheckCircle, History as HistoryIcon, MessageCircle, ChevronDown, Check } from "lucide-react";
+import { Plus, Trash2, Search, Filter, Calendar as CalendarIcon, CheckCircle, History as HistoryIcon, MessageCircle, ChevronDown, Check, Banknote } from "lucide-react";
 import { buildPaymentWhatsAppUrl } from "@/lib/whatsapp";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -240,6 +240,7 @@ export default function Income() {
       onSuccess: () => {
         setOpen(false);
         form.reset();
+        queryClient.invalidateQueries({ queryKey: ["/api/collections/me"] });
         toast({
           title: "Payment added",
           description: "Payment recorded successfully",
@@ -272,6 +273,11 @@ export default function Income() {
 
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
+
+  const { data: myCollection, refetch: refetchMyCollection } = useQuery<{ runningCollection: number; lastResetAt: string | null }>({
+    queryKey: ["/api/collections/me"],
+    enabled: isTeacher,
+  });
 
   if (user?.role === "student") {
     return (
@@ -406,6 +412,33 @@ export default function Income() {
         }
     >
         <div className="space-y-4">
+            {/* Teacher Collection Box */}
+            {isTeacher && (
+              <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg p-5 flex flex-col sm:flex-row items-center justify-between gap-4"
+                data-testid="box-my-collection"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <Banknote className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">My Current Collection</p>
+                    <p className="text-white text-3xl font-black tracking-tight" data-testid="text-my-collection-amount">
+                      ৳{(myCollection?.runningCollection ?? 0).toLocaleString()}
+                    </p>
+                    {myCollection?.lastResetAt && (
+                      <p className="text-blue-200 text-xs mt-0.5">
+                        Last cleared: {format(new Date(myCollection.lastResetAt), "dd MMM yyyy, hh:mm a")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-blue-100 text-xs text-center sm:text-right max-w-xs leading-relaxed">
+                  Cash collected since last hand-over. Authority will reset this when you submit.
+                </p>
+              </div>
+            )}
+
             {/* Search bar */}
             <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
                 <div className="p-4 flex flex-col sm:flex-row gap-4 justify-between items-center bg-muted/20">

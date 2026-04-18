@@ -282,11 +282,17 @@ export async function registerRoutes(
         });
       }
 
+      const recordedByUserId = (req.user as any).id;
       const income = await storage.createIncome({
         ...input,
-        recordedBy: (req.user as any).id,
+        recordedBy: recordedByUserId,
         addedBy: (req.user as any).username
       });
+
+      // Auto-update teacher's running collection
+      try {
+        await storage.addToCollection(recordedByUserId, input.amount);
+      } catch (_) {}
 
       // Notification trigger: payment
       try {
@@ -614,6 +620,43 @@ export async function registerRoutes(
     if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
     await storage.markAllNotificationsRead();
     res.json({ ok: true });
+  });
+
+  // Collection Tracking routes
+  // GET /api/collections/me — teacher sees their own balance
+  app.get("/api/collections/me", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = (req.user as any).id;
+    try {
+      const row = await storage.getCollectionByUserId(userId);
+      res.json({ userId, runningCollection: row?.runningCollection ?? 0, lastResetAt: row?.lastResetAt ?? null });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // GET /api/collections — admin sees all teachers
+  app.get("/api/collections", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    try {
+      const rows = await storage.getAllCollections();
+      res.json(rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // POST /api/collections/:userId/reset — admin resets a teacher's balance
+  app.post("/api/collections/:userId/reset", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user id" });
+    try {
+      const row = await storage.resetCollection(userId);
+      res.json(row);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
   });
 
   return httpServer;
