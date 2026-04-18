@@ -292,7 +292,9 @@ export async function registerRoutes(
       // Auto-update teacher's running collection
       try {
         await storage.addToCollection(recordedByUserId, input.amount);
-      } catch (_) {}
+      } catch (collErr) {
+        console.error("[collection] addToCollection failed:", collErr);
+      }
 
       // Notification trigger: payment
       try {

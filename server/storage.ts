@@ -435,11 +435,19 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(users)
       .where(eq(users.role, "teacher"));
-    return rows.map((row) => {
-      const user = allTeachers.find((u) => u.id === row.userId)!;
-      const { password: _p, ...safeUser } = user ?? {};
-      return { ...row, user: safeUser as Omit<User, "password"> };
-    }).filter((r) => r.user);
+
+    // Return one entry per teacher — fall back to 0 for those with no row yet
+    return allTeachers.map((teacher) => {
+      const { password: _p, ...safeUser } = teacher;
+      const row = rows.find((r) => r.userId === teacher.id);
+      return {
+        id: row?.id ?? 0,
+        userId: teacher.id,
+        runningCollection: row?.runningCollection ?? 0,
+        lastResetAt: row?.lastResetAt ?? null,
+        user: safeUser as Omit<User, "password">,
+      };
+    });
   }
 
   async addToCollection(userId: number, amount: number): Promise<CollectionTracking> {
@@ -448,9 +456,10 @@ export class DatabaseStorage implements IStorage {
       .from(collectionTracking)
       .where(eq(collectionTracking.userId, userId));
     if (existing) {
+      const newTotal = existing.runningCollection + amount;
       const [updated] = await db
         .update(collectionTracking)
-        .set({ runningCollection: sql`${collectionTracking.runningCollection} + ${amount}` })
+        .set({ runningCollection: newTotal })
         .where(eq(collectionTracking.userId, userId))
         .returning();
       return updated;
