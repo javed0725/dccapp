@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useCreateIncome, useDeleteIncome, useBatches, useStudents } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -39,154 +38,61 @@ function StudentCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number }>({
-    left: 0,
-    width: 0,
-  });
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = students.find((s) => s.id.toString() === value);
   const filtered = students.filter((s) => {
     const q = query.toLowerCase();
-    return s.name.toLowerCase().includes(q) || (s.studentCustomId ?? "").toLowerCase().includes(q);
+    return (
+      s.name.toLowerCase().includes(q) ||
+      (s.studentCustomId ?? "").toLowerCase().includes(q)
+    );
   });
 
-  function calcPos() {
-    if (!triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    const vvH = window.visualViewport?.height ?? window.innerHeight;
-    const spaceBelow = vvH - r.bottom;
-    const dropH = 260;
-    if (spaceBelow < dropH && r.top > spaceBelow) {
-      setPos({ bottom: vvH - r.top + 2, left: r.left, width: r.width });
-    } else {
-      setPos({ top: r.bottom + 2, left: r.left, width: r.width });
-    }
-  }
-
-  function openMenu() {
-    calcPos();
+  const openMenu = useCallback(() => {
     setOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 40);
-  }
+    setTimeout(() => inputRef.current?.focus(), 30);
+  }, []);
 
-  function closeMenu() {
+  const closeMenu = useCallback(() => {
     setOpen(false);
     setQuery("");
-  }
+  }, []);
 
-  function pickStudent(id: string) {
-    onChange(id);
-    closeMenu();
-  }
+  const pickStudent = useCallback(
+    (id: string) => {
+      onChange(id);
+      closeMenu();
+    },
+    [onChange, closeMenu],
+  );
 
+  /* Close on outside click/tap */
   useEffect(() => {
     if (!open) return;
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", calcPos);
-    vv?.addEventListener("scroll", calcPos);
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        closeMenu();
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside, { passive: true });
     return () => {
-      vv?.removeEventListener("resize", calcPos);
-      vv?.removeEventListener("scroll", calcPos);
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
     };
-  }, [open]);
-
-  const portalContent = open
-    ? createPortal(
-        <>
-          {/* Backdrop — closes menu on outside tap; sits below dropdown */}
-          <div
-            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
-            onMouseDown={closeMenu}
-            onTouchStart={closeMenu}
-          />
-
-          {/* Dropdown panel */}
-          <div
-            style={{
-              position: "fixed",
-              left: pos.left,
-              width: pos.width,
-              zIndex: 9999,
-              ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
-            }}
-            className="rounded-md border border-border bg-white dark:bg-popover shadow-2xl"
-            /* Stop ALL events from reaching the backdrop */
-            onMouseDown={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-          >
-            {/* Search input */}
-            <div className="p-2 border-b border-border">
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name or ID..."
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {/* Scrollable list */}
-            <div
-              className="max-h-48 overflow-y-auto overscroll-contain"
-              onTouchMove={(e) => e.stopPropagation()}
-            >
-              {filtered.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">No students found</p>
-              ) : (
-                filtered.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center gap-2 px-3 py-3 text-sm cursor-pointer select-none hover:bg-accent active:bg-accent/80"
-                    /* onMouseDown fires before onBlur — keeps input focused on desktop */
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      pickStudent(s.id.toString());
-                    }}
-                    /* onTouchEnd handles taps on mobile without triggering blur */
-                    onTouchEnd={(e) => {
-                      e.preventDefault();
-                      pickStudent(s.id.toString());
-                    }}
-                  >
-                    {value === s.id.toString() && (
-                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    )}
-                    <span className={value === s.id.toString() ? "font-medium" : ""}>
-                      {s.name}
-                      {s.studentCustomId && (
-                        <span className="text-muted-foreground ml-1">({s.studentCustomId})</span>
-                      )}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>,
-        document.body,
-      )
-    : null;
+  }, [open, closeMenu]);
 
   return (
-    <>
+    <div ref={wrapperRef} className="w-full">
+      {/* Trigger button */}
       <button
-        ref={triggerRef}
         type="button"
         disabled={disabled}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          open ? closeMenu() : openMenu();
-        }}
-        onTouchEnd={(e) => {
-          e.preventDefault();
-          open ? closeMenu() : openMenu();
-        }}
+        onClick={() => (open ? closeMenu() : openMenu())}
         className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        data-testid="button-student-select"
       >
         <span className={selected ? "text-foreground" : "text-muted-foreground"}>
           {selected
@@ -197,8 +103,74 @@ function StudentCombobox({
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
       </button>
-      {portalContent}
-    </>
+
+      {/*
+        Inline dropdown — NOT absolutely positioned.
+        Renders in normal flow so the Dialog's own scroll accommodates it.
+        This avoids overflow-hidden clipping and portal event-capture bugs.
+      */}
+      {open && (
+        <div className="mt-1 rounded-md border border-border bg-popover shadow-2xl">
+          {/* Search input */}
+          <div className="p-2 border-b border-border">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name or ID..."
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              data-testid="input-student-search"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Scrollable list — touch-action pan-y lets the browser handle native scroll on mobile */}
+          <div
+            className="max-h-48 overflow-y-auto overscroll-contain"
+            style={{ touchAction: "pan-y" }}
+          >
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No students found
+              </p>
+            ) : (
+              filtered.map((s) => (
+                <div
+                  key={s.id}
+                  data-testid={`item-student-${s.id}`}
+                  className="flex items-center gap-2 px-3 py-3 text-sm cursor-pointer select-none hover:bg-accent active:bg-accent/80"
+                  /*
+                    onPointerDown + preventDefault:
+                    - Fires before the browser moves focus, so the search input stays focused
+                    - Works identically for mouse clicks and touch taps
+                    - Does NOT cause the dropdown to close via the outside-click handler
+                      because wrapperRef contains the target
+                  */
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    pickStudent(s.id.toString());
+                  }}
+                >
+                  {value === s.id.toString() && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  )}
+                  <span className={value === s.id.toString() ? "font-medium" : ""}>
+                    {s.name}
+                    {s.studentCustomId && (
+                      <span className="text-muted-foreground ml-1">
+                        ({s.studentCustomId})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
