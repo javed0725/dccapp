@@ -12,7 +12,7 @@ import {
   type Notification,
   type CollectionTracking,
 } from "@shared/schema";
-import { eq, desc, inArray, sql } from "drizzle-orm";
+import { eq, desc, asc, inArray, sql } from "drizzle-orm";
 
 function removePassword<T extends User | null | undefined>(user: T) {
   if (!user) return user;
@@ -103,7 +103,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getBatches(): Promise<Batch[]> {
-    return await db.select().from(batches);
+    return await db.select().from(batches).orderBy(asc(batches.id));
   }
 
   async createBatch(insertBatch: InsertBatch): Promise<Batch> {
@@ -117,8 +117,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getStudents(): Promise<any[]> {
-    const allStudents = await db.select().from(students);
-    const allBatches = await db.select().from(batches);
+    const allStudents = await db.select().from(students).orderBy(asc(students.id));
+    const allBatches = await db.select().from(batches).orderBy(asc(batches.id));
     const allUsers = await db.select().from(users);
     console.log(`[STORAGE LOG] Students in DB: ${allStudents.length}`);
     return allStudents.map(student => ({
@@ -158,7 +158,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeachers(): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, "teacher"));
+    return await db.select().from(users).where(eq(users.role, "teacher")).orderBy(asc(users.id));
   }
 
   async createTeacher(teacherId: string, username: string, password: string, mobileNumber?: string, name?: string, subject?: string): Promise<User> {
@@ -442,7 +442,8 @@ export class DatabaseStorage implements IStorage {
     const allTeachers = await db
       .select()
       .from(users)
-      .where(eq(users.role, "teacher"));
+      .where(eq(users.role, "teacher"))
+      .orderBy(asc(users.id));
 
     // Return one entry per teacher — fall back to 0 for those with no row yet
     return allTeachers.map((teacher) => {
