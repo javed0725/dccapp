@@ -117,60 +117,57 @@ function CollectionSummaryPanel() {
 
       {/* Per-teacher cards */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-28 rounded-2xl bg-muted animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
       ) : collections.length === 0 ? (
-        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-8 text-center text-blue-400">
-          <Banknote className="w-8 h-8 mx-auto mb-2 opacity-40" />
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-6 text-center text-blue-400">
+          <Banknote className="w-7 h-7 mx-auto mb-2 opacity-40" />
           <p className="text-sm font-medium">No collection data yet</p>
           <p className="text-xs mt-1">Balances appear here as teachers record payments.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 items-stretch">
           {collections.map((col) => {
             const displayName = col.user?.name || col.user?.username || `Teacher #${col.userId}`;
             return (
               <div
                 key={col.userId}
                 data-testid={`card-collection-${col.userId}`}
-                className="rounded-2xl border border-blue-100 bg-white shadow-sm p-4 flex flex-col gap-3"
+                className="rounded-xl border border-blue-100 bg-white shadow-sm p-3 flex flex-col justify-between gap-2 h-full"
               >
-                {/* Name + amount */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                      <span className="text-blue-700 font-black text-base">
-                        {displayName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-foreground truncate text-sm" data-testid={`text-teacher-name-${col.userId}`}>
-                        {displayName}
-                      </p>
-                      {col.user?.teacherId && (
-                        <p className="text-xs text-muted-foreground">ID: {col.user.teacherId}</p>
-                      )}
-                    </div>
+                {/* Avatar + name + amount */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                    <span className="text-blue-700 font-black text-sm">
+                      {displayName.charAt(0).toUpperCase()}
+                    </span>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-muted-foreground">Collection</p>
-                    <p
-                      className={`text-xl font-black ${col.runningCollection === 0 ? "text-muted-foreground" : "text-blue-600"}`}
-                      data-testid={`text-collection-amount-${col.userId}`}
-                    >
-                      ৳{col.runningCollection.toLocaleString()}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-foreground truncate text-xs leading-tight" data-testid={`text-teacher-name-${col.userId}`}>
+                      {displayName}
                     </p>
+                    {col.user?.teacherId && (
+                      <p className="text-[10px] text-muted-foreground leading-tight">ID: {col.user.teacherId}</p>
+                    )}
                   </div>
                 </div>
 
+                {/* Amount */}
+                <p
+                  className={`text-lg font-black leading-none ${col.runningCollection === 0 ? "text-muted-foreground" : "text-blue-600"}`}
+                  data-testid={`text-collection-amount-${col.userId}`}
+                >
+                  ৳{col.runningCollection.toLocaleString()}
+                </p>
+
                 {/* Last reset + Reset button */}
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-border">
-                  <p className="text-[11px] text-muted-foreground">
+                <div className="flex items-center justify-between gap-1 pt-1 border-t border-border">
+                  <p className="text-[10px] text-muted-foreground leading-tight truncate">
                     {col.lastResetAt
-                      ? `Cleared: ${format(new Date(col.lastResetAt), "dd MMM, hh:mm a")}`
+                      ? format(new Date(col.lastResetAt), "dd MMM, h:mm a")
                       : "Never cleared"}
                   </p>
                   <Button
@@ -179,10 +176,10 @@ function CollectionSummaryPanel() {
                     disabled={col.runningCollection === 0 || resetMutation.isPending}
                     onClick={() => resetMutation.mutate(col.userId)}
                     data-testid={`button-reset-collection-${col.userId}`}
-                    className="h-7 px-3 text-xs font-bold rounded-lg border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                    className="h-6 w-6 p-0 rounded-md border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 shrink-0"
+                    title="Reset balance"
                   >
-                    <RotateCcw className="w-3 h-3 mr-1" />
-                    Reset
+                    <RotateCcw className="w-3 h-3" />
                   </Button>
                 </div>
               </div>
