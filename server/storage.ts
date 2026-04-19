@@ -235,6 +235,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteIncome(id: number): Promise<void> {
+    const [income] = await db.select().from(incomes).where(eq(incomes.id, id));
+    if (income && income.recordedBy && income.amount) {
+      const [existing] = await db.select().from(collectionTracking).where(eq(collectionTracking.userId, income.recordedBy));
+      if (existing) {
+        const newTotal = Math.max(0, Number(existing.runningCollection) - Number(income.amount));
+        await db.update(collectionTracking).set({ runningCollection: newTotal }).where(eq(collectionTracking.userId, income.recordedBy));
+      }
+    }
     await db.delete(incomes).where(eq(incomes.id, id));
   }
 

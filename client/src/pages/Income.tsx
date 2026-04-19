@@ -260,6 +260,8 @@ export default function Income() {
     if (confirm("Are you sure you want to delete this record?")) {
         deleteMutation.mutate(id, {
             onSuccess: () => {
+                queryClient.invalidateQueries({ queryKey: ["/api/collections/me"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
                 toast({ title: "Record deleted" });
             }
         });
