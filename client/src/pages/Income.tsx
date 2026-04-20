@@ -207,7 +207,22 @@ export default function Income() {
   });
 
   const selectedBatchId = form.watch("batchId");
+  const selectedStudentId = form.watch("studentId");
   const filteredStudents = ((students as any[])?.filter(s => s.batchId === Number(selectedBatchId)) || []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+
+  /* Auto-fill amount from the student's most recent payment */
+  useEffect(() => {
+    if (!selectedStudentId || Number(selectedStudentId) === 0) return;
+    const studentIncomes = (incomes as IncomeWithRelations[])?.filter(
+      (inc) => inc.studentId === Number(selectedStudentId)
+    );
+    if (studentIncomes && studentIncomes.length > 0) {
+      const sorted = [...studentIncomes].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      form.setValue("amount", sorted[0].amount);
+    }
+  }, [selectedStudentId]);
 
   const verifyMutation = useMutation({
     mutationFn: async (id: number) => {
