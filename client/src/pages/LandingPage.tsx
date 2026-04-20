@@ -548,7 +548,7 @@ function TeachersSection() {
           </div>
         ) : hasTeachers ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teachers.map((teacher, idx) => {
+            {[...teachers].sort((a, b) => a.id - b.id).map((teacher, idx) => {
               const displayName = teacher.name || teacher.username;
               const displaySubject = teacher.subject || "Teacher";
               const initials = getInitials(displayName);

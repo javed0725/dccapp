@@ -57,10 +57,12 @@ export default function Admission() {
 
   // Build admission list data
   const myStudents = isTeacher
-    ? (students as any[] | undefined)?.filter((s: any) => s.addedByUserId === (user as any)?.id) ?? []
+    ? ((students as any[] | undefined)?.filter((s: any) => s.addedByUserId === (user as any)?.id) ?? []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'))
     : [];
 
-  const allStudents = isAdmin ? (students as any[] | undefined) ?? [] : [];
+  const allStudents = isAdmin
+    ? ((students as any[] | undefined) ?? []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'))
+    : [];
 
   // Group teacher's own students by batch
   const myStudentsByBatch: Record<string, any[]> = {};

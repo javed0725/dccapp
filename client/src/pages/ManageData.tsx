@@ -220,7 +220,7 @@ export default function ManageData() {
                 <CardContent>
                   <Accordion type="multiple" className="w-full">
                     {batches?.map((batch) => {
-                      const batchStudents = students?.filter(s => s.batchId === batch.id) || [];
+                      const batchStudents = (students?.filter(s => s.batchId === batch.id) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
                       return (
                         <AccordionItem value={`batch-${batch.id}`} key={batch.id} className="border-b-0 mb-4">
                           <AccordionTrigger className="hover:no-underline py-2 px-4 bg-muted/50 rounded-lg group">
@@ -536,7 +536,7 @@ export default function ManageData() {
                   <TableBody>
                     {loadingTeachers ? (
                       <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-                    ) : teachers?.map((teacher) => (
+                    ) : [...(teachers || [])].sort((a, b) => a.id - b.id).map((teacher) => (
                       <TableRow key={teacher.id}>
                         <TableCell className="font-bold text-primary">{teacher.teacherId ?? "—"}</TableCell>
                         <TableCell className="font-medium">{teacher.username}</TableCell>

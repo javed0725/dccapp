@@ -138,7 +138,7 @@ export default function TeacherDirectory() {
 
         {!isLoading && !isError && teachers && teachers.length > 0 && (
           <div className="space-y-3">
-            {teachers.map((teacher) => (
+            {[...teachers].sort((a, b) => a.id - b.id).map((teacher) => (
               <TeacherCard key={teacher.id} teacher={teacher} />
             ))}
           </div>

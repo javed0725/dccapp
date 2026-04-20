@@ -87,8 +87,8 @@ export default function EntryMarks() {
     enabled: !!user,
   });
 
-  const batchStudents = students?.filter((s) => s.batchId === Number(selectedBatchId)) || [];
-  const modelBatchStudents = students?.filter((s) => s.batchId === Number(modelBatchId)) || [];
+  const batchStudents = (students?.filter((s) => s.batchId === Number(selectedBatchId)) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+  const modelBatchStudents = (students?.filter((s) => s.batchId === Number(modelBatchId)) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
   const availableShifts = Array.from(new Set(batchStudents.map((s) => s.shift).filter(Boolean))) as string[];
   const availableGroups = Array.from(new Set(batchStudents.map((s) => s.academicGroup).filter(Boolean))) as string[];
 
@@ -326,7 +326,7 @@ export default function EntryMarks() {
     if (!draft || !teacherSubjectName) return;
     const subj = (draft.subjects as { name: string; totalMarks: number }[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
-    const draftBatchStudents = students?.filter((s) => s.batchId === draft.batchId) || [];
+    const draftBatchStudents = (students?.filter((s) => s.batchId === draft.batchId) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
     const entries = draftBatchStudents
       .filter((s) => absentStudents[s.id] || (teacherMarks[s.id] !== undefined && teacherMarks[s.id] !== ""))
       .map((student) => ({
@@ -1008,7 +1008,7 @@ export default function EntryMarks() {
                   if (!draft) return null;
                   const draftSubjectList = draft.subjects as { name: string; totalMarks: number }[];
                   const draftGroupResults = modelTestResults.filter((r: any) => r.modelTestGroupId === selectedDraftGroupId);
-                  const draftBatchStudents = students?.filter((s) => s.batchId === draft.batchId) || [];
+                  const draftBatchStudents = (students?.filter((s) => s.batchId === draft.batchId) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
 
                   return (
                     <>

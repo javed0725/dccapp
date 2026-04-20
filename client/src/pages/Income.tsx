@@ -209,7 +209,7 @@ export default function Income() {
   });
 
   const selectedBatchId = form.watch("batchId");
-  const filteredStudents = (students as any[])?.filter(s => s.batchId === Number(selectedBatchId)) || [];
+  const filteredStudents = ((students as any[])?.filter(s => s.batchId === Number(selectedBatchId)) || []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
 
   const verifyMutation = useMutation({
     mutationFn: async (id: number) => {
