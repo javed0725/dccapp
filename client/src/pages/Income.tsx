@@ -141,17 +141,8 @@ function StudentCombobox({
                   key={s.id}
                   data-testid={`item-student-${s.id}`}
                   className="flex items-center gap-2 px-3 py-3 text-sm cursor-pointer select-none hover:bg-accent active:bg-accent/80"
-                  /*
-                    onPointerDown + preventDefault:
-                    - Fires before the browser moves focus, so the search input stays focused
-                    - Works identically for mouse clicks and touch taps
-                    - Does NOT cause the dropdown to close via the outside-click handler
-                      because wrapperRef contains the target
-                  */
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    pickStudent(s.id.toString());
-                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pickStudent(s.id.toString())}
                 >
                   {value === s.id.toString() && (
                     <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
