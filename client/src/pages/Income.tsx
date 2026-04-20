@@ -71,16 +71,23 @@ function StudentCombobox({
   /* Close on outside click/tap */
   useEffect(() => {
     if (!open) return;
-    function handleOutside(e: MouseEvent | TouchEvent) {
+    function handleOutsideMouse(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         closeMenu();
       }
     }
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside, { passive: true });
+    function handleOutsideTouch(e: TouchEvent) {
+      const touch = e.changedTouches[0];
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (wrapperRef.current && target && !wrapperRef.current.contains(target)) {
+        closeMenu();
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideMouse);
+    document.addEventListener("touchend", handleOutsideTouch, { passive: true });
     return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
+      document.removeEventListener("mousedown", handleOutsideMouse);
+      document.removeEventListener("touchend", handleOutsideTouch);
     };
   }, [open, closeMenu]);
 
