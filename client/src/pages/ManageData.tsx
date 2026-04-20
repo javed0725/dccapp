@@ -536,7 +536,7 @@ export default function ManageData() {
                   <TableBody>
                     {loadingTeachers ? (
                       <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
-                    ) : [...(teachers || [])].sort((a, b) => a.id - b.id).map((teacher) => (
+                    ) : [...(teachers || [])].sort((a, b) => parseInt((a as any).teacherId || '0') - parseInt((b as any).teacherId || '0')).map((teacher) => (
                       <TableRow key={teacher.id}>
                         <TableCell className="font-bold text-primary">{teacher.teacherId ?? "—"}</TableCell>
                         <TableCell className="font-medium">{teacher.username}</TableCell>
