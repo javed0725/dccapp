@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
-import { students } from "@shared/schema";
+import { eq, sql, desc } from "drizzle-orm";
+import { students, incomes as incomesTable } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
@@ -236,6 +236,20 @@ export async function registerRoutes(
     } catch (err) {
       res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  /* Returns the most recent payment amount for a given student (any recorder) */
+  app.get("/api/students/:id/last-payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const studentId = Number(req.params.id);
+    if (isNaN(studentId)) return res.status(400).json({ message: "Invalid student id" });
+    const [last] = await db
+      .select({ amount: incomesTable.amount })
+      .from(incomesTable)
+      .where(eq(incomesTable.studentId, studentId))
+      .orderBy(desc(incomesTable.date))
+      .limit(1);
+    return res.json(last ?? null);
   });
 
   app.get(api.incomes.list.path, async (req, res) => {

@@ -210,19 +210,21 @@ export default function Income() {
   const selectedStudentId = form.watch("studentId");
   const filteredStudents = ((students as any[])?.filter(s => s.batchId === Number(selectedBatchId)) || []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
 
-  /* Auto-fill amount from the student's most recent payment */
+  /* Fetch the last payment amount for the selected student from the server */
+  const { data: lastPayment } = useQuery<{ amount: number } | null>({
+    queryKey: ["/api/students", Number(selectedStudentId), "last-payment"],
+    enabled: Number(selectedStudentId) > 0,
+  });
+
+  /* Auto-fill amount whenever a student is picked or their last-payment data arrives */
   useEffect(() => {
-    if (!selectedStudentId || Number(selectedStudentId) === 0) return;
-    const studentIncomes = (incomes as IncomeWithRelations[])?.filter(
-      (inc) => inc.studentId === Number(selectedStudentId)
-    );
-    if (studentIncomes && studentIncomes.length > 0) {
-      const sorted = [...studentIncomes].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      form.setValue("amount", sorted[0].amount);
+    if (Number(selectedStudentId) === 0) return;
+    if (lastPayment && lastPayment.amount !== undefined) {
+      form.setValue("amount", Number(lastPayment.amount));
+    } else if (lastPayment === null) {
+      form.setValue("amount", 0);
     }
-  }, [selectedStudentId]);
+  }, [lastPayment, selectedStudentId]);
 
   const verifyMutation = useMutation({
     mutationFn: async (id: number) => {
