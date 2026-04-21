@@ -109,16 +109,16 @@ const alumni = [
     color: "bg-indigo-500",
   },
   {
-    name: "Fatema Tuj Zohora",
-    achievement: "GPA 5.00 — SSC 2023",
-    university: "Rajshahi University",
-    batch: "Batch 2021–23",
+    name: "Ariful Islam",
+    achievement: "GPA 5.00 — SSC 2020",
+    university: "CVASU",
+    batch: "Batch 2023–24",
     quote: "DCC is not just a coaching centre — it's a family. The environment pushed me to be my best.",
     initials: "FZ",
     color: "bg-violet-500",
   },
   {
-    name: "Raiyan Ahmed",
+    name: "Govina Das",
     achievement: "GPA 4.92 — HSC 2023",
     university: "Chittagong University",
     batch: "Batch 2021–23",
@@ -166,7 +166,7 @@ function Logo() {
       </div>
       <div>
         <div className="font-black text-slate-900 text-lg leading-none tracking-tight">DCC</div>
-        <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic Coaching</div>
+        <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic Coaching Center</div>
       </div>
     </div>
   );
@@ -753,7 +753,7 @@ function ContactSection() {
                 <p className="text-slate-500 text-sm leading-relaxed">
                   Khotija Bhavan, Opposite of Land Office<br />
                   (Lane beside Shahid Computer)<br />
-                  Jaldi, Banskhali, Chattogram
+                  Jaldi, Banhskhali, Chattogram
                 </p>
               </div>
             </div>
@@ -873,11 +873,11 @@ function Footer() {
               </div>
               <div>
                 <div className="font-black text-white text-lg leading-none">DCC</div>
-                <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic Coaching</div>
+                <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic CoachingCenters Center</div>
               </div>
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-5">
-              Empowering students to achieve academic excellence and build a brighter future since 2016.
+              Empowering students to achieve academic excellence and build a brighter future since 2020.
             </p>
             {/* Newsletter */}
             <div className="flex items-center gap-2">
@@ -942,7 +942,7 @@ function Footer() {
             <ul className="space-y-4 text-slate-400 text-sm">
               <li className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-                <span>Khotija Bhavan, Opposite of Land Office<br />(Lane beside Shahid Computer)<br />Jaldi, Banskhali, Chattogram</span>
+                <span>Khotija Bhavan, Opposite of Land Office<br />(Lane beside Shahid Computer)<br />Jaldi, Banshkhali, Chattogram</span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-blue-400 shrink-0" />
