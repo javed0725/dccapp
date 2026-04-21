@@ -24,6 +24,7 @@ import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import heroBg from "@assets/hero-bg.webp";
 import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
 import aboutPhoto3 from "@assets/PXL_20251115_062309530~2_1776252686289.jpg";
+import aboutPhoto4 from "@assets/IMG_20260417_163713~2.jpg.jpeg";
 
 /* ─── DATA ─────────────────────────────────────────────────── */
 
@@ -85,6 +86,7 @@ const aboutImages = [
   { src: aboutPhoto2, alt: "DCC students and faculty group photo" },
   { src: heroBg,      alt: "DCC student group at the coaching centre" },
   { src: aboutPhoto3, alt: "DCC student group outdoor photo" },
+  { src: aboutPhoto4, alt: "DCC student group outdoor photo" },
 ];
 
 const alumni = [
