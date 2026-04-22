@@ -281,7 +281,8 @@ export default function Dashboard() {
 
         {monthlyData.length > 0 && (() => {
           const currentMonthName = MONTHS_FULL[new Date().getMonth()];
-          const defaultOpen = monthlyData.filter(m => m.month === currentMonthName).map(m => m.month);
+          const previousMonthName = MONTHS_FULL[(new Date().getMonth() + 11) % 12];
+          const defaultOpen = monthlyData.filter(m => m.month === previousMonthName).map(m => m.month);
           return (
             <div>
               <div className="flex items-center gap-3 mb-6">
