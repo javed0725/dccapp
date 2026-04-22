@@ -19,6 +19,10 @@ import {
   ArrowRight,
   Users,
   BookOpen,
+  Trophy,
+  Medal,
+  ChevronLeft,
+  Search,
 } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import heroBg from "@assets/hero-bg.webp";
@@ -33,6 +37,7 @@ const navLinks = [
   { label: "About", href: "#about" },
   { label: "Programs", href: "#portals" },
   { label: "Teachers", href: "#teachers" },
+  { label: "Results", href: "#results" },
   { label: "Alumni", href: "#alumni" },
   { label: "Contact", href: "#contact" },
 ];
@@ -724,6 +729,229 @@ function AlumniSection() {
   );
 }
 
+/* ─── RESULTS ───────────────────────────────────────────────── */
+
+type PublicResult = {
+  id: number;
+  studentId: number;
+  studentName: string;
+  batchId: number;
+  batchName: string;
+  subject: string;
+  examName: string;
+  totalMarks: number;
+  obtainedMarks: number;
+};
+
+const PAGE_SIZE = 10;
+
+function ResultsSection() {
+  const { data: results = [], isLoading } = useQuery<PublicResult[]>({
+    queryKey: ["/api/public/results"],
+    refetchInterval: 15000,
+  });
+
+  const [batch, setBatch] = useState<string>("");
+  const [examName, setExamName] = useState<string>("");
+  const [subject, setSubject] = useState<string>("");
+  const [page, setPage] = useState(1);
+
+  const batches = Array.from(new Set(results.map(r => r.batchName).filter(Boolean))).sort();
+  const examsForBatch = Array.from(
+    new Set(results.filter(r => !batch || r.batchName === batch).map(r => r.examName).filter(Boolean))
+  ).sort();
+  const subjectsForFilter = Array.from(
+    new Set(
+      results
+        .filter(r => (!batch || r.batchName === batch) && (!examName || r.examName === examName))
+        .map(r => r.subject)
+        .filter(Boolean)
+    )
+  ).sort();
+
+  useEffect(() => { setPage(1); }, [batch, examName, subject]);
+  useEffect(() => {
+    if (examName && !examsForBatch.includes(examName)) setExamName("");
+  }, [batch]);
+  useEffect(() => {
+    if (subject && !subjectsForFilter.includes(subject)) setSubject("");
+  }, [batch, examName]);
+
+  const filtered = results
+    .filter(r => (!batch || r.batchName === batch))
+    .filter(r => (!examName || r.examName === examName))
+    .filter(r => (!subject || r.subject === subject));
+
+  const ranked = [...filtered]
+    .sort((a, b) => b.obtainedMarks - a.obtainedMarks)
+    .map((r, i) => ({ ...r, rank: i + 1 }));
+
+  const totalPages = Math.max(1, Math.ceil(ranked.length / PAGE_SIZE));
+  const paged = ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const allFiltersSelected = batch && examName && subject;
+
+  const rankBadge = (rank: number) => {
+    if (rank === 1) return "bg-amber-100 text-amber-700 ring-1 ring-amber-300";
+    if (rank === 2) return "bg-slate-200 text-slate-700 ring-1 ring-slate-300";
+    if (rank === 3) return "bg-orange-100 text-orange-700 ring-1 ring-orange-300";
+    return "bg-blue-50 text-blue-700 ring-1 ring-blue-100";
+  };
+
+  const rowHighlight = (rank: number) => {
+    if (rank === 1) return "bg-gradient-to-r from-amber-50 to-white";
+    if (rank === 2) return "bg-gradient-to-r from-slate-50 to-white";
+    if (rank === 3) return "bg-gradient-to-r from-orange-50 to-white";
+    return "bg-white";
+  };
+
+  return (
+    <section id="results" className="py-20 bg-gradient-to-b from-blue-50 via-white to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-10">
+          <p className="text-blue-600 text-sm font-bold uppercase tracking-widest mb-3">Academic Performance</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">
+            Exam <span className="text-blue-600">Results</span>
+          </h2>
+          <p className="text-slate-600 max-w-2xl mx-auto">
+            Browse published exam results by batch, exam, and subject. Top performers are highlighted.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-4 sm:p-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Batch</label>
+              <select
+                value={batch}
+                onChange={e => setBatch(e.target.value)}
+                data-testid="select-batch"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select Batch</option>
+                {batches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Exam Name</label>
+              <select
+                value={examName}
+                onChange={e => setExamName(e.target.value)}
+                data-testid="select-exam"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60"
+                disabled={!batch}
+              >
+                <option value="">Select Exam Name</option>
+                {examsForBatch.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Subject</label>
+              <select
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                data-testid="select-subject"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60"
+                disabled={!examName}
+              >
+                <option value="">Select Subject</option>
+                {subjectsForFilter.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden">
+          {isLoading ? (
+            <div className="py-20 text-center text-slate-500 text-sm">Loading results...</div>
+          ) : !allFiltersSelected ? (
+            <div className="py-16 px-6 text-center">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 mb-4">
+                <Search className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Select filters to view results</h3>
+              <p className="text-sm text-slate-500">Choose a batch, exam, and subject to see published marks and ranks.</p>
+            </div>
+          ) : ranked.length === 0 ? (
+            <div className="py-16 px-6 text-center">
+              <h3 className="text-lg font-bold text-slate-900 mb-1">No results found</h3>
+              <p className="text-sm text-slate-500">Nothing has been published for this combination yet.</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" data-testid="table-results">
+                  <thead className="bg-blue-600 text-white">
+                    <tr>
+                      <th className="py-3 px-3 sm:px-4 text-left font-semibold whitespace-nowrap">ID</th>
+                      <th className="py-3 px-3 sm:px-4 text-left font-semibold">Student Name</th>
+                      <th className="py-3 px-3 sm:px-4 text-center font-semibold whitespace-nowrap">Total</th>
+                      <th className="py-3 px-3 sm:px-4 text-center font-semibold whitespace-nowrap">Obtained</th>
+                      <th className="py-3 px-3 sm:px-4 text-center font-semibold whitespace-nowrap">Rank</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paged.map(r => (
+                      <tr
+                        key={r.id}
+                        data-testid={`row-result-${r.id}`}
+                        className={`border-t border-slate-100 ${rowHighlight(r.rank)}`}
+                      >
+                        <td className="py-3 px-3 sm:px-4 font-mono text-xs text-slate-500">{r.studentId}</td>
+                        <td className="py-3 px-3 sm:px-4 font-semibold text-slate-800">
+                          <div className="flex items-center gap-2">
+                            {r.rank === 1 && <Trophy className="w-4 h-4 text-amber-500 shrink-0" />}
+                            {r.rank === 2 && <Medal className="w-4 h-4 text-slate-400 shrink-0" />}
+                            {r.rank === 3 && <Medal className="w-4 h-4 text-orange-500 shrink-0" />}
+                            <span className="truncate">{r.studentName}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 sm:px-4 text-center text-slate-700">{r.totalMarks}</td>
+                        <td className="py-3 px-3 sm:px-4 text-center font-bold text-blue-700">{r.obtainedMarks}</td>
+                        <td className="py-3 px-3 sm:px-4 text-center">
+                          <span className={`inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-full text-xs font-bold ${rankBadge(r.rank)}`}>
+                            #{r.rank}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                <p className="text-xs text-slate-500" data-testid="text-results-count">
+                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, ranked.length)} of {ranked.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    data-testid="button-prev-page"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-blue-50 hover:border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Prev
+                  </button>
+                  <span className="text-xs font-semibold text-slate-600" data-testid="text-page-info">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    data-testid="button-next-page"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── CONTACT ───────────────────────────────────────────────── */
 
 function ContactSection() {
@@ -999,6 +1227,7 @@ export default function LandingPage() {
       />
       <AboutSection />
       <TeachersSection />
+      <ResultsSection />
       <AlumniSection />
       <ContactSection />
       <Footer />

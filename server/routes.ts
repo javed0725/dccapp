@@ -443,6 +443,31 @@ export async function registerRoutes(
     }
   });
 
+  // Public Results Route (for Landing Page)
+  app.get("/api/public/results", async (_req, res) => {
+    try {
+      const allResults = await storage.getResults();
+      const publishedGroupIds = await storage.getPublishedModelTestGroupIds();
+      const visible = allResults.filter(r =>
+        !r.isModelTest || !r.modelTestGroupId || publishedGroupIds.includes(r.modelTestGroupId)
+      );
+      const sanitized = visible.map(r => ({
+        id: r.id,
+        studentId: r.studentId,
+        studentName: r.student?.name ?? "",
+        batchId: r.batchId,
+        batchName: r.batch?.name ?? "",
+        subject: r.subject,
+        examName: r.examName,
+        totalMarks: r.totalMarks,
+        obtainedMarks: r.obtainedMarks,
+      }));
+      res.json(sanitized);
+    } catch {
+      res.status(500).json({ message: "Failed to load results" });
+    }
+  });
+
   // Results Routes
   app.get("/api/results", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
