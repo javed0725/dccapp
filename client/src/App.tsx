@@ -10,6 +10,7 @@ import Admission from "@/pages/Admission";
 import Expenses from "@/pages/Expenses";
 import ManageData from "@/pages/ManageData";
 import EntryMarks from "@/pages/EntryMarks";
+import Attendance from "@/pages/Attendance";
 import Marksheet from "@/pages/Marksheet";
 import LoginPage from "@/pages/Login";
 import Notifications from "@/pages/Notifications";
@@ -160,6 +161,9 @@ function Router() {
               )}
               <Route path="/income" component={Income} />
               <Route path="/results" component={EntryMarks} />
+              {(user.role === 'teacher' || user.role === 'admin') && (
+                <Route path="/attendance" component={Attendance} />
+              )}
               <Route path="/marksheet" component={Marksheet} />
               <Route path="/admission">
                 {user.role === 'teacher' ? <Admission /> : <Redirect to={roleHomePath} />}

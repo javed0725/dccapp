@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { 
   incomes, expenses, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
-  collectionTracking,
+  collectionTracking, attendance,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Batch, type InsertBatch,
@@ -11,6 +11,7 @@ import {
   type ModelTestDraft,
   type Notification,
   type CollectionTracking,
+  type Attendance, type InsertAttendance,
 } from "@shared/schema";
 import { eq, desc, asc, inArray, sql } from "drizzle-orm";
 
@@ -60,6 +61,12 @@ export interface IStorage {
   deleteResult(id: number): Promise<void>;
   deleteResultsByGroupIdAndSubject(groupId: string, subject: string): Promise<void>;
   deleteResultsByExam(batchId: number, examName: string, subject?: string): Promise<number>;
+
+  // Attendance
+  upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance>;
+  getAttendanceByDate(batchId: number, date: string): Promise<Attendance | undefined>;
+  getAttendanceHistory(batchId?: number): Promise<Attendance[]>;
+  getAttendanceSummary(): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>>;
 
   // Model Test Drafts
   getModelTestDrafts(): Promise<any[]>;
@@ -509,6 +516,68 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return created;
     }
+  }
+  // Attendance
+  async upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance> {
+    const { and } = await import("drizzle-orm");
+    const [existing] = await db.select().from(attendance).where(and(eq(attendance.date, data.date), eq(attendance.batchId, data.batchId)));
+    if (existing) {
+      const [updated] = await db.update(attendance)
+        .set({ absentStudentIds: data.absentStudentIds, totalStudents: data.totalStudents, teacherId: data.teacherId ?? existing.teacherId })
+        .where(eq(attendance.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(attendance).values({
+      date: data.date,
+      batchId: data.batchId,
+      teacherId: data.teacherId,
+      absentStudentIds: data.absentStudentIds,
+      totalStudents: data.totalStudents,
+    }).returning();
+    return created;
+  }
+
+  async getAttendanceByDate(batchId: number, date: string): Promise<Attendance | undefined> {
+    const { and } = await import("drizzle-orm");
+    const [row] = await db.select().from(attendance).where(and(eq(attendance.batchId, batchId), eq(attendance.date, date)));
+    return row;
+  }
+
+  async getAttendanceHistory(batchId?: number): Promise<Attendance[]> {
+    if (batchId) {
+      return db.select().from(attendance).where(eq(attendance.batchId, batchId)).orderBy(desc(attendance.date));
+    }
+    return db.select().from(attendance).orderBy(desc(attendance.date));
+  }
+
+  async getAttendanceSummary(): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>> {
+    const allBatches = await this.getBatches();
+    const allAttendance = await db.select().from(attendance);
+    return allBatches.map(b => {
+      const sessions = allAttendance.filter(a => a.batchId === b.id);
+      const totalSessions = sessions.length;
+      let avg = 0;
+      if (totalSessions > 0) {
+        const ratios = sessions.map(s => {
+          const total = s.totalStudents || 0;
+          if (total === 0) return 0;
+          const present = total - (s.absentStudentIds?.length || 0);
+          return Math.max(0, Math.min(1, present / total));
+        });
+        avg = ratios.reduce((a, b) => a + b, 0) / totalSessions;
+      }
+      const lastDate = sessions.length > 0
+        ? sessions.map(s => s.date).sort().slice(-1)[0]
+        : null;
+      return {
+        batchId: b.id,
+        batchName: b.name,
+        totalSessions,
+        averageAttendance: Math.round(avg * 1000) / 10, // percentage with 1 decimal
+        lastDate,
+      };
+    });
   }
 }
 

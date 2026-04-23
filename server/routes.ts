@@ -544,6 +544,46 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  // Attendance Routes
+  app.get("/api/attendance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "teacher" && role !== "admin") return res.sendStatus(403);
+    const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
+    const date = req.query.date ? String(req.query.date) : undefined;
+    if (batchId && date) {
+      const row = await storage.getAttendanceByDate(batchId, date);
+      return res.json(row || null);
+    }
+    const rows = await storage.getAttendanceHistory(batchId);
+    res.json(rows);
+  });
+
+  app.post("/api/attendance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "teacher" && user.role !== "admin") return res.sendStatus(403);
+    try {
+      const date = String(req.body.date || "");
+      const batchId = Number(req.body.batchId);
+      const absentStudentIds = Array.isArray(req.body.absentStudentIds) ? req.body.absentStudentIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n)) : [];
+      const totalStudents = Number(req.body.totalStudents) || 0;
+      if (!date || !batchId) return res.status(400).json({ message: "date and batchId required" });
+      const saved = await storage.upsertAttendance({
+        date, batchId, teacherId: user.id, absentStudentIds, totalStudents,
+      });
+      res.status(201).json(saved);
+    } catch (err: any) {
+      res.status(400).json({ message: err?.message || "Invalid data" });
+    }
+  });
+
+  app.get("/api/attendance/summary", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    const summary = await storage.getAttendanceSummary();
+    res.json(summary);
+  });
+
   // Bulk delete an entire exam (all student results matching batch + exam, optional subject)
   app.delete("/api/results/exam/bulk", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);

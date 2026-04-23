@@ -1,5 +1,5 @@
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
-import { LayoutDashboard, Wallet, Receipt, Settings, LogOut, FileCheck, Home, Bell } from "lucide-react";
+import { LayoutDashboard, Wallet, Receipt, Settings, LogOut, FileCheck, Home, Bell, ClipboardCheck } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -35,6 +35,7 @@ export function AppSidebar() {
     { title: "Home", url: "/admission", icon: Home, roles: ["teacher"] },
     { title: "Payment", url: "/income", icon: Wallet, roles: ["teacher", "admin"] },
     { title: "Results", url: "/results", icon: FileCheck, roles: ["teacher", "student"] },
+    { title: "Attendance", url: "/attendance", icon: ClipboardCheck, roles: ["teacher", "admin"] },
     { title: "Expenses", url: "/expenses", icon: Receipt, roles: ["admin"] },
     { title: "Manage", url: "/manage", icon: Settings, roles: ["admin"] },
     { title: "Notifications", url: "/notifications", icon: Bell, roles: ["admin"] },

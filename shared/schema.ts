@@ -87,6 +87,16 @@ export const siteSettings = pgTable("site_settings", {
   value: text("value").notNull(),
 });
 
+export const attendance = pgTable("attendance", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  batchId: integer("batch_id").references(() => batches.id).notNull(),
+  teacherId: integer("teacher_id").references(() => users.id),
+  absentStudentIds: integer("absent_student_ids").array().notNull().default([]),
+  totalStudents: integer("total_students").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const collectionTracking = pgTable("collection_tracking", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull().unique(),
@@ -128,6 +138,8 @@ export type Student = typeof students.$inferSelect;
 export type Income = typeof incomes.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Result = typeof results.$inferSelect;
+export type Attendance = typeof attendance.$inferSelect;
+export type InsertAttendance = typeof attendance.$inferInsert;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertBatch = z.infer<typeof insertBatchSchema>;
