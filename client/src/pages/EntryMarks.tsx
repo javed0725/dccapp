@@ -15,6 +15,7 @@ import { type User } from "@/lib/schemas";
 import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
@@ -139,6 +140,25 @@ export default function EntryMarks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
       toast({ title: "Result deleted" });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const [examToDelete, setExamToDelete] = useState<{ batchId: number; batchName: string; examName: string } | null>(null);
+
+  const deleteExamMutation = useMutation({
+    mutationFn: async ({ batchId, examName }: { batchId: number; examName: string }) => {
+      const params = new URLSearchParams({ batchId: String(batchId), examName });
+      const res = await apiRequest("DELETE", `/api/results/exam/bulk?${params.toString()}`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/results"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/public/results"] });
+      toast({ title: "Exam deleted", description: `${data?.deleted ?? 0} result${(data?.deleted ?? 0) !== 1 ? "s" : ""} removed.` });
+      setExamToDelete(null);
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -598,12 +618,35 @@ export default function EntryMarks() {
                                     className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50/50"
                                   >
                                     <AccordionTrigger className="px-4 py-2.5 hover:no-underline hover:bg-slate-100/70 [&[data-state=open]]:bg-slate-100/70">
-                                      <div className="flex items-center gap-2.5">
+                                      <div className="flex items-center gap-2.5 flex-1">
                                         <ClipboardList className="w-4 h-4 text-blue-400 shrink-0" />
                                         <span className="font-semibold text-slate-700 text-sm">{examName}</span>
                                         <Badge className="text-xs bg-blue-100 text-blue-700 border-0 hover:bg-blue-100">
                                           {studentCount} student{studentCount !== 1 ? "s" : ""}
                                         </Badge>
+                                        {isAdmin && (
+                                          <span
+                                            role="button"
+                                            tabIndex={0}
+                                            data-testid={`button-delete-exam-${batchId}-${examName}`}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setExamToDelete({ batchId: Number(batchId), batchName: getBatchName(Number(batchId)), examName });
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setExamToDelete({ batchId: Number(batchId), batchName: getBatchName(Number(batchId)), examName });
+                                              }
+                                            }}
+                                            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">Delete Exam</span>
+                                          </span>
+                                        )}
                                       </div>
                                     </AccordionTrigger>
                                     <AccordionContent className="p-0">
@@ -1199,6 +1242,40 @@ export default function EntryMarks() {
           </div>
         )}
       </div>
+
+      {/* Bulk Delete Exam Confirmation */}
+      <AlertDialog open={!!examToDelete} onOpenChange={(open) => !open && !deleteExamMutation.isPending && setExamToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete entire exam?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this entire exam and all associated student results?
+              {examToDelete && (
+                <span className="block mt-2 text-slate-700 font-medium">
+                  {examToDelete.batchName} — {examToDelete.examName}
+                </span>
+              )}
+              <span className="block mt-2 text-rose-600 font-medium">This action cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteExamMutation.isPending} data-testid="button-cancel-delete-exam">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-confirm-delete-exam"
+              disabled={deleteExamMutation.isPending}
+              className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-600"
+              onClick={(e) => {
+                e.preventDefault();
+                if (examToDelete) {
+                  deleteExamMutation.mutate({ batchId: examToDelete.batchId, examName: examToDelete.examName });
+                }
+              }}
+            >
+              {deleteExamMutation.isPending ? "Deleting..." : "Delete Exam"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit Result Dialog — admin only */}
       <Dialog open={!!editingResult} onOpenChange={(open) => !open && setEditingResult(null)}>

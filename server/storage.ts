@@ -59,6 +59,7 @@ export interface IStorage {
   updateResult(id: number, data: Partial<{ examName: string; subject: string; obtainedMarks: number; totalMarks: number }>): Promise<Result>;
   deleteResult(id: number): Promise<void>;
   deleteResultsByGroupIdAndSubject(groupId: string, subject: string): Promise<void>;
+  deleteResultsByExam(batchId: number, examName: string, subject?: string): Promise<number>;
 
   // Model Test Drafts
   getModelTestDrafts(): Promise<any[]>;
@@ -319,6 +320,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(results).where(
       and(eq(results.modelTestGroupId, groupId), eq(results.subject, subject))
     );
+  }
+
+  async deleteResultsByExam(batchId: number, examName: string, subject?: string): Promise<number> {
+    const { and } = await import("drizzle-orm");
+    const conditions = [eq(results.batchId, batchId), eq(results.examName, examName)];
+    if (subject) conditions.push(eq(results.subject, subject));
+    const deleted = await db.delete(results).where(and(...conditions)).returning({ id: results.id });
+    return deleted.length;
   }
 
   async saveModelTestSubjectMarks(

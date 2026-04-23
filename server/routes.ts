@@ -544,6 +544,19 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  // Bulk delete an entire exam (all student results matching batch + exam, optional subject)
+  app.delete("/api/results/exam/bulk", async (req, res) => {
+    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    const batchId = Number(req.query.batchId);
+    const examName = String(req.query.examName || "");
+    const subject = req.query.subject ? String(req.query.subject) : undefined;
+    if (!batchId || isNaN(batchId) || !examName) {
+      return res.status(400).json({ message: "batchId and examName are required" });
+    }
+    const count = await storage.deleteResultsByExam(batchId, examName, subject);
+    res.json({ deleted: count });
+  });
+
   app.get("/api/results/model-test/:groupId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
