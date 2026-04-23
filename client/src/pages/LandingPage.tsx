@@ -757,30 +757,30 @@ function ResultsSection() {
   const [page, setPage] = useState(1);
 
   const batches = Array.from(new Set(results.map(r => r.batchName).filter(Boolean))).sort();
-  const examsForBatch = Array.from(
-    new Set(results.filter(r => !batch || r.batchName === batch).map(r => r.examName).filter(Boolean))
+  const subjectsForBatch = Array.from(
+    new Set(results.filter(r => !batch || r.batchName === batch).map(r => r.subject).filter(Boolean))
   ).sort();
-  const subjectsForFilter = Array.from(
+  const examsForFilter = Array.from(
     new Set(
       results
-        .filter(r => (!batch || r.batchName === batch) && (!examName || r.examName === examName))
-        .map(r => r.subject)
+        .filter(r => (!batch || r.batchName === batch) && (!subject || r.subject === subject))
+        .map(r => r.examName)
         .filter(Boolean)
     )
   ).sort();
 
-  useEffect(() => { setPage(1); }, [batch, examName, subject]);
+  useEffect(() => { setPage(1); }, [batch, subject, examName]);
   useEffect(() => {
-    if (examName && !examsForBatch.includes(examName)) setExamName("");
+    if (subject && !subjectsForBatch.includes(subject)) setSubject("");
   }, [batch]);
   useEffect(() => {
-    if (subject && !subjectsForFilter.includes(subject)) setSubject("");
-  }, [batch, examName]);
+    if (examName && !examsForFilter.includes(examName)) setExamName("");
+  }, [batch, subject]);
 
   const filtered = results
     .filter(r => (!batch || r.batchName === batch))
-    .filter(r => (!examName || r.examName === examName))
-    .filter(r => (!subject || r.subject === subject));
+    .filter(r => (!subject || r.subject === subject))
+    .filter(r => (!examName || r.examName === examName));
 
   const ranked = [...filtered]
     .sort((a, b) => b.obtainedMarks - a.obtainedMarks)
@@ -833,29 +833,29 @@ function ResultsSection() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Exam Name</label>
-              <select
-                value={examName}
-                onChange={e => setExamName(e.target.value)}
-                data-testid="select-exam"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60"
-                disabled={!batch}
-              >
-                <option value="">Select Exam Name</option>
-                {examsForBatch.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Subject</label>
               <select
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 data-testid="select-subject"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60"
-                disabled={!examName}
+                disabled={!batch}
               >
                 <option value="">Select Subject</option>
-                {subjectsForFilter.map(s => <option key={s} value={s}>{s}</option>)}
+                {subjectsForBatch.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Exam Name</label>
+              <select
+                value={examName}
+                onChange={e => setExamName(e.target.value)}
+                data-testid="select-exam"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-60"
+                disabled={!subject}
+              >
+                <option value="">Select Exam Name</option>
+                {examsForFilter.map(e => <option key={e} value={e}>{e}</option>)}
               </select>
             </div>
           </div>

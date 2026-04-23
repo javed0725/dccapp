@@ -414,12 +414,12 @@ export default function EntryMarks() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Exam Name</label>
-                      <Input placeholder="e.g. Monthly Test 1" value={examName} onChange={(e) => setExamName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
                       <label className="text-sm font-medium">Subject</label>
                       <Input placeholder="e.g. Physics" value={subject} onChange={(e) => setSubject(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Exam Name / Topic</label>
+                      <Input placeholder="e.g. চল তড়িৎ" value={examName} onChange={(e) => setExamName(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Total Marks</label>
