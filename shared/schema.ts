@@ -92,6 +92,9 @@ export const attendance = pgTable("attendance", {
   date: text("date").notNull(), // YYYY-MM-DD
   batchId: integer("batch_id").references(() => batches.id).notNull(),
   teacherId: integer("teacher_id").references(() => users.id),
+  subject: text("subject").notNull().default(""),
+  academicGroup: text("academic_group").notNull().default(""),
+  shift: text("shift").notNull().default(""),
   absentStudentIds: integer("absent_student_ids").array().notNull().default([]),
   totalStudents: integer("total_students").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),

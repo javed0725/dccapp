@@ -551,11 +551,14 @@ export async function registerRoutes(
     if (role !== "teacher" && role !== "admin") return res.sendStatus(403);
     const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
     const date = req.query.date ? String(req.query.date) : undefined;
+    const subject = req.query.subject ? String(req.query.subject) : undefined;
+    const academicGroup = req.query.academicGroup ? String(req.query.academicGroup) : undefined;
+    const shift = req.query.shift ? String(req.query.shift) : undefined;
     if (batchId && date) {
-      const row = await storage.getAttendanceByDate(batchId, date);
+      const row = await storage.getAttendanceByKey({ batchId, date, subject, academicGroup, shift });
       return res.json(row || null);
     }
-    const rows = await storage.getAttendanceHistory(batchId);
+    const rows = await storage.getAttendanceHistory({ batchId, subject, academicGroup, shift });
     res.json(rows);
   });
 
@@ -566,11 +569,14 @@ export async function registerRoutes(
     try {
       const date = String(req.body.date || "");
       const batchId = Number(req.body.batchId);
+      const subject = req.body.subject ? String(req.body.subject) : "";
+      const academicGroup = req.body.academicGroup ? String(req.body.academicGroup) : "";
+      const shift = req.body.shift ? String(req.body.shift) : "";
       const absentStudentIds = Array.isArray(req.body.absentStudentIds) ? req.body.absentStudentIds.map((n: any) => Number(n)).filter((n: number) => !isNaN(n)) : [];
       const totalStudents = Number(req.body.totalStudents) || 0;
       if (!date || !batchId) return res.status(400).json({ message: "date and batchId required" });
       const saved = await storage.upsertAttendance({
-        date, batchId, teacherId: user.id, absentStudentIds, totalStudents,
+        date, batchId, teacherId: user.id, subject, academicGroup, shift, absentStudentIds, totalStudents,
       });
       res.status(201).json(saved);
     } catch (err: any) {
@@ -580,7 +586,10 @@ export async function registerRoutes(
 
   app.get("/api/attendance/summary", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
-    const summary = await storage.getAttendanceSummary();
+    const subject = req.query.subject ? String(req.query.subject) : undefined;
+    const academicGroup = req.query.academicGroup ? String(req.query.academicGroup) : undefined;
+    const shift = req.query.shift ? String(req.query.shift) : undefined;
+    const summary = await storage.getAttendanceSummary({ subject, academicGroup, shift });
     res.json(summary);
   });
 

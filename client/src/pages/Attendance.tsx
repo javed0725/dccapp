@@ -14,13 +14,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3 } from "lucide-react";
+import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen } from "lucide-react";
 
 type AttendanceRow = {
   id: number;
   date: string;
   batchId: number;
   teacherId: number | null;
+  subject: string;
+  academicGroup: string;
+  shift: string;
   absentStudentIds: number[];
   totalStudents: number;
 };
@@ -35,6 +38,26 @@ type SummaryRow = {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Parse YYYY-MM-DD as a local date to avoid timezone shifting the day name
+const parseLocalDate = (iso: string): Date | null => {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const formatDayName = (iso: string): string => {
+  const dt = parseLocalDate(iso);
+  return dt ? dt.toLocaleDateString("en-US", { weekday: "long" }) : "";
+};
+
+const formatFullDate = (iso: string): string => {
+  const dt = parseLocalDate(iso);
+  return dt
+    ? dt.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    : iso;
+};
+
 export default function Attendance() {
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
   const isAdmin = user?.role === "admin";
@@ -45,26 +68,75 @@ export default function Attendance() {
   const { data: students = [] } = useStudents();
 
   const [selectedBatchId, setSelectedBatchId] = useState<string>("");
+  const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedShift, setSelectedShift] = useState<string>("all");
+  const [subject, setSubject] = useState<string>("");
   const [date, setDate] = useState<string>(todayISO());
   const [presence, setPresence] = useState<Record<number, boolean>>({});
 
-  const studentsInBatch = useMemo(
+  // Auto-clear downstream filters when batch changes (matches Result section pattern)
+  useEffect(() => {
+    setSelectedGroup("all");
+    setSelectedShift("all");
+  }, [selectedBatchId]);
+
+  const batchStudents = useMemo(
     () => (students || []).filter((s: any) => String(s.batchId) === selectedBatchId),
     [students, selectedBatchId]
   );
 
+  const availableGroups = useMemo(
+    () => Array.from(new Set(batchStudents.map((s: any) => s.academicGroup).filter(Boolean))) as string[],
+    [batchStudents]
+  );
+  const availableShifts = useMemo(
+    () => Array.from(new Set(batchStudents.map((s: any) => s.shift).filter(Boolean))) as string[],
+    [batchStudents]
+  );
+
+  // Filter students by group + shift (mirrors EntryMarks pattern)
+  const studentsInBatch = useMemo(
+    () => batchStudents.filter((s: any) => {
+      const matchGroup = selectedGroup === "all" || s.academicGroup === selectedGroup;
+      const matchShift = selectedShift === "all" || s.shift === selectedShift;
+      return matchGroup && matchShift;
+    }).sort((a: any, b: any) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0")),
+    [batchStudents, selectedGroup, selectedShift]
+  );
+
+  // Fetch all results to extract a list of subjects for the dropdown suggestions
+  const { data: allResults = [] } = useQuery<any[]>({ queryKey: ["/api/results"] });
+  const { data: allAttendance = [] } = useQuery<AttendanceRow[]>({ queryKey: ["/api/attendance"] });
+
+  const subjectOptions = useMemo(() => {
+    const set = new Set<string>();
+    (allResults || []).forEach((r: any) => { if (r.subject) set.add(String(r.subject)); });
+    (allAttendance || []).forEach((a: AttendanceRow) => { if (a.subject) set.add(a.subject); });
+    if (user?.subject) set.add(user.subject);
+    return Array.from(set).sort();
+  }, [allResults, allAttendance, user]);
+
+  // Effective values sent to the API ("" means "general / unspecified")
+  const effGroup = selectedGroup === "all" ? "" : selectedGroup;
+  const effShift = selectedShift === "all" ? "" : selectedShift;
+  const effSubject = subject.trim();
+
   const { data: existing } = useQuery<AttendanceRow | null>({
-    queryKey: ["/api/attendance", selectedBatchId, date],
+    queryKey: ["/api/attendance", selectedBatchId, date, effSubject, effGroup, effShift],
     queryFn: async () => {
       if (!selectedBatchId || !date) return null;
-      const res = await fetch(`/api/attendance?batchId=${selectedBatchId}&date=${date}`);
+      const params = new URLSearchParams({ batchId: selectedBatchId, date });
+      if (effSubject) params.set("subject", effSubject);
+      if (effGroup) params.set("academicGroup", effGroup);
+      if (effShift) params.set("shift", effShift);
+      const res = await fetch(`/api/attendance?${params.toString()}`);
       if (!res.ok) return null;
       return res.json();
     },
     enabled: !!selectedBatchId && !!date,
   });
 
-  // Hydrate presence map whenever batch / date / existing record changes
+  // Hydrate presence map whenever filters or existing record change
   useEffect(() => {
     const initial: Record<number, boolean> = {};
     const absentSet = new Set<number>(existing?.absentStudentIds || []);
@@ -72,7 +144,7 @@ export default function Attendance() {
       initial[s.id] = !absentSet.has(s.id);
     });
     setPresence(initial);
-  }, [selectedBatchId, date, existing, studentsInBatch.length]);
+  }, [selectedBatchId, date, effSubject, effGroup, effShift, existing, studentsInBatch.length]);
 
   const presentCount = Object.values(presence).filter(Boolean).length;
   const absentCount = studentsInBatch.length - presentCount;
@@ -83,6 +155,9 @@ export default function Attendance() {
       const res = await apiRequest("POST", "/api/attendance", {
         date,
         batchId: Number(selectedBatchId),
+        subject: effSubject,
+        academicGroup: effGroup,
+        shift: effShift,
         absentStudentIds,
         totalStudents: studentsInBatch.length,
       });
@@ -122,7 +197,7 @@ export default function Attendance() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Selection</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Batch / Class</Label>
                 <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
@@ -134,18 +209,72 @@ export default function Attendance() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Group</Label>
+                <Select value={selectedGroup} onValueChange={setSelectedGroup} disabled={!selectedBatchId || availableGroups.length === 0}>
+                  <SelectTrigger data-testid="select-group">
+                    <SelectValue placeholder={availableGroups.length === 0 ? "—" : "All Groups"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Groups</SelectItem>
+                    {availableGroups.map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Shift</Label>
+                <Select value={selectedShift} onValueChange={setSelectedShift} disabled={!selectedBatchId || availableShifts.length === 0}>
+                  <SelectTrigger data-testid="select-shift">
+                    <SelectValue placeholder={availableShifts.length === 0 ? "—" : "All Shifts"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Shifts</SelectItem>
+                    {availableShifts.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Subject</Label>
+                <div className="relative">
+                  <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <Input
+                    list="attendance-subjects"
+                    placeholder="e.g. Math, Physics"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    data-testid="input-subject"
+                    className="pl-9"
+                  />
+                  <datalist id="attendance-subjects">
+                    {subjectOptions.map((s) => <option key={s} value={s} />)}
+                  </datalist>
+                </div>
+              </div>
+
+              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Date</Label>
                 <div className="relative">
                   <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <Input
                     type="date"
                     value={date}
-                    onChange={e => setDate(e.target.value)}
+                    onChange={(e) => setDate(e.target.value)}
                     data-testid="input-date"
                     className="pl-9"
                   />
                 </div>
+                {date && (
+                  <p className="text-xs font-medium text-slate-600" data-testid="text-day-name">
+                    {formatFullDate(date)}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -154,11 +283,14 @@ export default function Attendance() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Users className="w-4 h-4 text-blue-500" />
                     <CardTitle className="text-base">Students ({studentsInBatch.length})</CardTitle>
+                    {effSubject && <Badge variant="outline" className="text-xs">{effSubject}</Badge>}
+                    {effGroup && <Badge variant="outline" className="text-xs">{effGroup}</Badge>}
+                    {effShift && <Badge variant="outline" className="text-xs">{effShift}</Badge>}
                     {existing && (
-                      <Badge variant="secondary" className="text-xs">Saved on this date</Badge>
+                      <Badge variant="secondary" className="text-xs">Saved for this session</Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -173,7 +305,7 @@ export default function Attendance() {
               </CardHeader>
               <CardContent>
                 {studentsInBatch.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-8">No students in this batch.</p>
+                  <p className="text-sm text-slate-500 text-center py-8">No students match the selected filters.</p>
                 ) : (
                   <>
                     <div className="flex flex-wrap gap-2 mb-4">
@@ -195,7 +327,11 @@ export default function Attendance() {
                           >
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
-                              <p className="text-[11px] text-slate-500 truncate">{s.studentCustomId || `ID ${s.id}`}</p>
+                              <p className="text-[11px] text-slate-500 truncate">
+                                {s.studentCustomId || `ID ${s.id}`}
+                                {s.academicGroup && ` · ${s.academicGroup}`}
+                                {s.shift && ` · ${s.shift}`}
+                              </p>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <span className={`text-[11px] font-bold uppercase tracking-wider ${present ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -230,13 +366,13 @@ export default function Attendance() {
 
         {/* HISTORY TAB */}
         <TabsContent value="history" className="space-y-4">
-          <HistoryView batches={batches} students={students} />
+          <HistoryView batches={batches} students={students} subjectOptions={subjectOptions} />
         </TabsContent>
 
         {/* SUMMARY TAB (admin) */}
         {isAdmin && (
           <TabsContent value="summary" className="space-y-4">
-            <SummaryView />
+            <SummaryView subjectOptions={subjectOptions} />
           </TabsContent>
         )}
       </Tabs>
@@ -244,13 +380,27 @@ export default function Attendance() {
   );
 }
 
-function HistoryView({ batches, students }: { batches: any[]; students: any[] }) {
+function HistoryView({ batches, students, subjectOptions }: { batches: any[]; students: any[]; subjectOptions: string[] }) {
   const [batchId, setBatchId] = useState<string>("");
+  const [group, setGroup] = useState<string>("all");
+  const [filterSubject, setFilterSubject] = useState<string>("");
+
+  const batchStudents = (students || []).filter((s: any) => !batchId || String(s.batchId) === batchId);
+  const availableGroups = Array.from(new Set(batchStudents.map((s: any) => s.academicGroup).filter(Boolean))) as string[];
+
+  // Auto-clear group when batch changes
+  useEffect(() => {
+    setGroup("all");
+  }, [batchId]);
+
   const { data: rows = [], isLoading } = useQuery<AttendanceRow[]>({
-    queryKey: ["/api/attendance", batchId || "all"],
+    queryKey: ["/api/attendance", "history", batchId || "all", group, filterSubject],
     queryFn: async () => {
-      const url = batchId ? `/api/attendance?batchId=${batchId}` : `/api/attendance`;
-      const res = await fetch(url);
+      const params = new URLSearchParams();
+      if (batchId) params.set("batchId", batchId);
+      if (group !== "all") params.set("academicGroup", group);
+      if (filterSubject) params.set("subject", filterSubject);
+      const res = await fetch(`/api/attendance${params.toString() ? `?${params.toString()}` : ''}`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -259,7 +409,7 @@ function HistoryView({ batches, students }: { batches: any[]; students: any[] })
   const studentName = (id: number) => students.find((s: any) => s.id === id)?.name || `Student #${id}`;
   const batchName = (id: number) => batches.find((b: any) => b.id === id)?.name || `Batch #${id}`;
 
-  // Group by batch then date
+  // Group rows by batch
   const byBatch: Record<number, AttendanceRow[]> = {};
   rows.forEach(r => {
     if (!byBatch[r.batchId]) byBatch[r.batchId] = [];
@@ -273,14 +423,37 @@ function HistoryView({ batches, students }: { batches: any[]; students: any[] })
           <CardTitle className="text-base flex items-center gap-2">
             <HistoryIcon className="w-4 h-4 text-blue-500" /> Attendance History
           </CardTitle>
-          <div className="w-full sm:w-64">
-            <Select value={batchId || "__all__"} onValueChange={(v) => setBatchId(v === "__all__" ? "" : v)}>
-              <SelectTrigger data-testid="select-history-batch"><SelectValue placeholder="All Batches" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Batches</SelectItem>
-                {batches.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+          <Select value={batchId || "__all__"} onValueChange={(v) => setBatchId(v === "__all__" ? "" : v)}>
+            <SelectTrigger data-testid="select-history-batch"><SelectValue placeholder="All Batches" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Batches</SelectItem>
+              {batches.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={group} onValueChange={setGroup} disabled={!batchId || availableGroups.length === 0}>
+            <SelectTrigger data-testid="select-history-group"><SelectValue placeholder={availableGroups.length === 0 ? "—" : "All Groups"} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Groups</SelectItem>
+              {availableGroups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <div className="relative">
+            <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Input
+              list="attendance-history-subjects"
+              placeholder="All Subjects"
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+              data-testid="input-history-subject"
+              className="pl-9"
+            />
+            <datalist id="attendance-history-subjects">
+              {subjectOptions.map((s) => <option key={s} value={s} />)}
+            </datalist>
           </div>
         </div>
       </CardHeader>
@@ -288,7 +461,7 @@ function HistoryView({ batches, students }: { batches: any[]; students: any[] })
         {isLoading ? (
           <p className="text-sm text-slate-500 text-center py-6">Loading...</p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">No attendance records yet.</p>
+          <p className="text-sm text-slate-500 text-center py-8">No attendance records match these filters.</p>
         ) : (
           <Accordion type="multiple" className="space-y-2">
             {Object.entries(byBatch).map(([bId, sessions]) => (
@@ -307,9 +480,12 @@ function HistoryView({ batches, students }: { batches: any[]; students: any[] })
                       return (
                         <div key={s.id} className="px-4 py-3" data-testid={`history-row-${s.id}`}>
                           <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <CalendarDays className="w-4 h-4 text-slate-400" />
-                              <span className="font-semibold text-sm text-slate-800">{s.date}</span>
+                              <span className="font-semibold text-sm text-slate-800">{formatDayName(s.date)}, {s.date}</span>
+                              {s.subject && <Badge variant="outline" className="text-[10px] h-5">{s.subject}</Badge>}
+                              {s.academicGroup && <Badge variant="outline" className="text-[10px] h-5">{s.academicGroup}</Badge>}
+                              {s.shift && <Badge variant="outline" className="text-[10px] h-5">{s.shift}</Badge>}
                               <Badge className={`text-xs border-0 ${pct >= 75 ? 'bg-emerald-100 text-emerald-700' : pct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
                                 {pct}% present
                               </Badge>
@@ -340,10 +516,25 @@ function HistoryView({ batches, students }: { batches: any[]; students: any[] })
   );
 }
 
-function SummaryView() {
+function SummaryView({ subjectOptions }: { subjectOptions: string[] }) {
+  const [filterSubject, setFilterSubject] = useState<string>("");
+  const [filterGroup, setFilterGroup] = useState<string>("");
+
   const { data: summary = [], isLoading } = useQuery<SummaryRow[]>({
-    queryKey: ["/api/attendance/summary"],
+    queryKey: ["/api/attendance/summary", filterSubject, filterGroup],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filterSubject) params.set("subject", filterSubject);
+      if (filterGroup) params.set("academicGroup", filterGroup);
+      const res = await fetch(`/api/attendance/summary${params.toString() ? `?${params.toString()}` : ''}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
+
+  // Pull groups out of all attendance records (for the filter dropdown)
+  const { data: allAttendance = [] } = useQuery<AttendanceRow[]>({ queryKey: ["/api/attendance"] });
+  const allGroups = Array.from(new Set((allAttendance || []).map(a => a.academicGroup).filter(Boolean))) as string[];
 
   const barColor = (pct: number) => pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
 
@@ -353,6 +544,30 @@ function SummaryView() {
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-blue-500" /> Batch Attendance Summary
         </CardTitle>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+          <Select value={filterGroup || "__all__"} onValueChange={(v) => setFilterGroup(v === "__all__" ? "" : v)}>
+            <SelectTrigger data-testid="select-summary-group"><SelectValue placeholder="All Groups" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Groups</SelectItem>
+              {allGroups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <div className="relative">
+            <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Input
+              list="attendance-summary-subjects"
+              placeholder="All Subjects"
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+              data-testid="input-summary-subject"
+              className="pl-9"
+            />
+            <datalist id="attendance-summary-subjects">
+              {subjectOptions.map((s) => <option key={s} value={s} />)}
+            </datalist>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -368,7 +583,7 @@ function SummaryView() {
                     <p className="font-bold text-slate-800">{s.batchName}</p>
                     <p className="text-[11px] text-slate-500">
                       {s.totalSessions} session{s.totalSessions !== 1 ? 's' : ''}
-                      {s.lastDate && ` · last on ${s.lastDate}`}
+                      {s.lastDate && ` · last on ${formatDayName(s.lastDate)}, ${s.lastDate}`}
                     </p>
                   </div>
                   <span className="text-2xl font-extrabold text-slate-800">{s.averageAttendance.toFixed(1)}%</span>

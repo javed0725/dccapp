@@ -63,10 +63,10 @@ export interface IStorage {
   deleteResultsByExam(batchId: number, examName: string, subject?: string): Promise<number>;
 
   // Attendance
-  upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance>;
-  getAttendanceByDate(batchId: number, date: string): Promise<Attendance | undefined>;
-  getAttendanceHistory(batchId?: number): Promise<Attendance[]>;
-  getAttendanceSummary(): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>>;
+  upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; subject?: string; academicGroup?: string; shift?: string; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance>;
+  getAttendanceByKey(filter: { batchId: number; date: string; subject?: string; academicGroup?: string; shift?: string; }): Promise<Attendance | undefined>;
+  getAttendanceHistory(filter?: { batchId?: number; subject?: string; academicGroup?: string; shift?: string }): Promise<Attendance[]>;
+  getAttendanceSummary(filter?: { subject?: string; academicGroup?: string; shift?: string }): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>>;
 
   // Model Test Drafts
   getModelTestDrafts(): Promise<any[]>;
@@ -518,9 +518,18 @@ export class DatabaseStorage implements IStorage {
     }
   }
   // Attendance
-  async upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance> {
+  async upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; subject?: string; academicGroup?: string; shift?: string; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance> {
     const { and } = await import("drizzle-orm");
-    const [existing] = await db.select().from(attendance).where(and(eq(attendance.date, data.date), eq(attendance.batchId, data.batchId)));
+    const subject = data.subject ?? "";
+    const academicGroup = data.academicGroup ?? "";
+    const shift = data.shift ?? "";
+    const [existing] = await db.select().from(attendance).where(and(
+      eq(attendance.date, data.date),
+      eq(attendance.batchId, data.batchId),
+      eq(attendance.subject, subject),
+      eq(attendance.academicGroup, academicGroup),
+      eq(attendance.shift, shift),
+    ));
     if (existing) {
       const [updated] = await db.update(attendance)
         .set({ absentStudentIds: data.absentStudentIds, totalStudents: data.totalStudents, teacherId: data.teacherId ?? existing.teacherId })
@@ -532,30 +541,51 @@ export class DatabaseStorage implements IStorage {
       date: data.date,
       batchId: data.batchId,
       teacherId: data.teacherId,
+      subject,
+      academicGroup,
+      shift,
       absentStudentIds: data.absentStudentIds,
       totalStudents: data.totalStudents,
     }).returning();
     return created;
   }
 
-  async getAttendanceByDate(batchId: number, date: string): Promise<Attendance | undefined> {
+  async getAttendanceByKey(filter: { batchId: number; date: string; subject?: string; academicGroup?: string; shift?: string; }): Promise<Attendance | undefined> {
     const { and } = await import("drizzle-orm");
-    const [row] = await db.select().from(attendance).where(and(eq(attendance.batchId, batchId), eq(attendance.date, date)));
+    const [row] = await db.select().from(attendance).where(and(
+      eq(attendance.batchId, filter.batchId),
+      eq(attendance.date, filter.date),
+      eq(attendance.subject, filter.subject ?? ""),
+      eq(attendance.academicGroup, filter.academicGroup ?? ""),
+      eq(attendance.shift, filter.shift ?? ""),
+    ));
     return row;
   }
 
-  async getAttendanceHistory(batchId?: number): Promise<Attendance[]> {
-    if (batchId) {
-      return db.select().from(attendance).where(eq(attendance.batchId, batchId)).orderBy(desc(attendance.date));
+  async getAttendanceHistory(filter?: { batchId?: number; subject?: string; academicGroup?: string; shift?: string }): Promise<Attendance[]> {
+    const { and } = await import("drizzle-orm");
+    const conds: any[] = [];
+    if (filter?.batchId) conds.push(eq(attendance.batchId, filter.batchId));
+    if (filter?.subject) conds.push(eq(attendance.subject, filter.subject));
+    if (filter?.academicGroup) conds.push(eq(attendance.academicGroup, filter.academicGroup));
+    if (filter?.shift) conds.push(eq(attendance.shift, filter.shift));
+    if (conds.length > 0) {
+      return db.select().from(attendance).where(and(...conds)).orderBy(desc(attendance.date));
     }
     return db.select().from(attendance).orderBy(desc(attendance.date));
   }
 
-  async getAttendanceSummary(): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>> {
+  async getAttendanceSummary(filter?: { subject?: string; academicGroup?: string; shift?: string }): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>> {
     const allBatches = await this.getBatches();
     const allAttendance = await db.select().from(attendance);
+    const filtered = allAttendance.filter(a => {
+      if (filter?.subject && a.subject !== filter.subject) return false;
+      if (filter?.academicGroup && a.academicGroup !== filter.academicGroup) return false;
+      if (filter?.shift && a.shift !== filter.shift) return false;
+      return true;
+    });
     return allBatches.map(b => {
-      const sessions = allAttendance.filter(a => a.batchId === b.id);
+      const sessions = filtered.filter(a => a.batchId === b.id);
       const totalSessions = sessions.length;
       let avg = 0;
       if (totalSessions > 0) {
