@@ -524,6 +524,50 @@ function TeachersSection() {
 
   const hasTeachers = teachers && teachers.length > 0;
 
+  const sortedTeachers = hasTeachers
+    ? [...teachers].sort((a, b) => parseInt((a as any).teacherId || '0') - parseInt((b as any).teacherId || '0'))
+    : [];
+
+  // Loop only when there are enough cards to actually need scrolling
+  const enableLoop = sortedTeachers.length >= 4;
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: enableLoop,
+    align: "start",
+    slidesToScroll: 1,
+    dragFree: true,
+    containScroll: "trimSnaps",
+  });
+
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [scrollSnaps, setScrollSnaps] = useState<number[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const scrollTo = useCallback(
+    (index: number) => emblaApi?.scrollTo(index),
+    [emblaApi],
+  );
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    const onSelect = () => setSelectedIndex(emblaApi.selectedScrollSnap());
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+    setScrollSnaps(emblaApi.scrollSnapList());
+    onSelect();
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
+    };
+  }, [emblaApi, sortedTeachers.length]);
+
+  // Auto-advance every 5s on desktop, pause on hover
+  useEffect(() => {
+    if (!emblaApi || isPaused || !enableLoop) return;
+    const timer = setInterval(() => emblaApi.scrollNext(), 5000);
+    return () => clearInterval(timer);
+  }, [emblaApi, isPaused, enableLoop]);
+
   return (
     <section id="teachers" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -538,9 +582,9 @@ function TeachersSection() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 animate-pulse">
+          <div className="flex gap-4 overflow-hidden">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex-none w-[78%] sm:w-1/2 lg:w-1/3 xl:w-1/4 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 animate-pulse">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 rounded-full bg-slate-200" />
                   <div className="flex-1 space-y-2">
@@ -554,41 +598,75 @@ function TeachersSection() {
             ))}
           </div>
         ) : hasTeachers ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...teachers].sort((a, b) => parseInt((a as any).teacherId || '0') - parseInt((b as any).teacherId || '0')).map((teacher, idx) => {
-              const displayName = teacher.name || teacher.username;
-              const displaySubject = teacher.subject || "Teacher";
-              const initials = getInitials(displayName);
-              const avatarColor = TEACHER_AVATAR_COLORS[idx % TEACHER_AVATAR_COLORS.length];
-              return (
-                <div
-                  key={teacher.id}
-                  data-testid={`card-teacher-${teacher.id}`}
-                  className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-100 hover:-translate-y-1 transition-all duration-300 p-6"
-                >
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className={`w-16 h-16 rounded-2xl ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0`}>
-                      <span className="font-black text-white text-xl">{initials}</span>
+          <>
+            <div
+              ref={emblaRef}
+              className="overflow-hidden -mx-3 px-3"
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => setIsPaused(false)}
+            >
+              <div className="flex">
+                {sortedTeachers.map((teacher, idx) => {
+                  const displayName = teacher.name || teacher.username;
+                  const displaySubject = teacher.subject || "Teacher";
+                  const initials = getInitials(displayName);
+                  const avatarColor = TEACHER_AVATAR_COLORS[idx % TEACHER_AVATAR_COLORS.length];
+                  return (
+                    <div
+                      key={teacher.id}
+                      /* Mobile shows ~1.3 cards (78%); larger screens show 2/3/4 */
+                      className="flex-none w-[78%] sm:w-1/2 lg:w-1/3 xl:w-1/4 px-3"
+                    >
+                      <div
+                        data-testid={`card-teacher-${teacher.id}`}
+                        className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300 p-6 h-full cursor-default"
+                      >
+                        <div className="flex items-center gap-4 mb-5">
+                          <div className={`w-16 h-16 rounded-2xl ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0 group-hover:scale-110 transition-transform duration-300`}>
+                            <span className="font-black text-white text-xl">{initials}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 text-base truncate">{displayName}</h4>
+                            <p className="text-blue-600 text-xs font-semibold mt-0.5 truncate">{displaySubject}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 mb-4">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className="w-3.5 h-3.5 fill-blue-400 text-blue-400" />
+                          ))}
+                          <span className="text-slate-400 text-xs ml-1">5.0</span>
+                        </div>
+                        <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                          <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span className="text-slate-600 text-xs">Expert faculty at Dynamic Coaching Center</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-base">{displayName}</h4>
-                      <p className="text-blue-600 text-xs font-semibold mt-0.5">{displaySubject}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-blue-400 text-blue-400" />
-                    ))}
-                    <span className="text-slate-400 text-xs ml-1">5.0</span>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                    <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="text-slate-600 text-xs">Expert faculty at Dynamic Coaching Center</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pagination dots — only when there's more than one snap */}
+            {scrollSnaps.length > 1 && (
+              <div className="flex justify-center gap-2 mt-8">
+                {scrollSnaps.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => scrollTo(index)}
+                    aria-label={`Go to slide ${index + 1}`}
+                    data-testid={`dot-teacher-${index}`}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      index === selectedIndex ? 'w-6 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Subtle hint for mobile users */}
+            <p className="text-center text-xs text-slate-400 mt-3 sm:hidden">Swipe to see more teachers →</p>
+          </>
         ) : (
           <div className="text-center py-16 rounded-2xl bg-slate-50 border border-slate-200">
             <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
