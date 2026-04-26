@@ -9,6 +9,7 @@ export interface User {
   mobileNumber: string | null;
   name: string | null;
   subject: string | null;
+  imageUrl: string | null;
 }
 
 export interface Batch {

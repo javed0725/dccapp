@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Users, Layers, ShieldCheck, Key, UserX, UserCheck, ChevronDown, ChevronRight, Pencil, Phone, UserPlus } from "lucide-react";
+import { Plus, Trash2, Users, Layers, ShieldCheck, Key, UserX, UserCheck, ChevronDown, ChevronRight, Pencil, Phone, UserPlus, Upload, ImageOff } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -104,6 +104,25 @@ export default function ManageData() {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
   });
+
+  const [uploadingTeacherId, setUploadingTeacherId] = useState<number | null>(null);
+
+  async function fileToResizedDataUrl(file: File, maxSize = 512, quality = 0.85): Promise<string> {
+    if (!file.type.startsWith("image/")) {
+      throw new Error("Please choose an image file.");
+    }
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not process the image.");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  }
 
   const updateTeacherMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
@@ -524,6 +543,7 @@ export default function ManageData() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Photo</TableHead>
                       <TableHead>Teacher ID</TableHead>
                       <TableHead>Username</TableHead>
                       <TableHead>Display Name</TableHead>
@@ -535,9 +555,79 @@ export default function ManageData() {
                   </TableHeader>
                   <TableBody>
                     {loadingTeachers ? (
-                      <TableRow><TableCell colSpan={7} className="text-center">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
                     ) : [...(teachers || [])].sort((a, b) => parseInt((a as any).teacherId || '0') - parseInt((b as any).teacherId || '0')).map((teacher) => (
                       <TableRow key={teacher.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {teacher.imageUrl ? (
+                              <img
+                                src={teacher.imageUrl}
+                                alt={teacher.name || teacher.username}
+                                data-testid={`img-teacher-thumb-${teacher.id}`}
+                                className="w-10 h-10 rounded-lg object-cover ring-1 ring-slate-200"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400">
+                                <ImageOff className="w-4 h-4" />
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-1">
+                              <label
+                                className="cursor-pointer inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                data-testid={`label-upload-teacher-${teacher.id}`}
+                              >
+                                <Upload className="w-3 h-3" />
+                                {uploadingTeacherId === teacher.id ? "Uploading…" : (teacher.imageUrl ? "Replace" : "Upload")}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  data-testid={`input-upload-teacher-${teacher.id}`}
+                                  disabled={uploadingTeacherId !== null}
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = "";
+                                    if (!file) return;
+                                    try {
+                                      setUploadingTeacherId(teacher.id);
+                                      const dataUrl = await fileToResizedDataUrl(file);
+                                      await new Promise<void>((resolve, reject) => {
+                                        updateTeacherMutation.mutate(
+                                          { id: teacher.id, data: { imageUrl: dataUrl } },
+                                          { onSuccess: () => resolve(), onError: (err) => reject(err) },
+                                        );
+                                      });
+                                    } catch (err: any) {
+                                      toast({
+                                        variant: "destructive",
+                                        title: "Upload failed",
+                                        description: err?.message || "Could not upload the image.",
+                                      });
+                                    } finally {
+                                      setUploadingTeacherId(null);
+                                    }
+                                  }}
+                                />
+                              </label>
+                              {teacher.imageUrl && (
+                                <button
+                                  type="button"
+                                  data-testid={`button-remove-teacher-image-${teacher.id}`}
+                                  className="text-xs text-destructive hover:underline text-left"
+                                  disabled={uploadingTeacherId !== null}
+                                  onClick={() => {
+                                    if (confirm(`Remove photo for ${teacher.name || teacher.username}?`)) {
+                                      updateTeacherMutation.mutate({ id: teacher.id, data: { imageUrl: null } });
+                                    }
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
                         <TableCell className="font-bold text-primary">{teacher.teacherId ?? "—"}</TableCell>
                         <TableCell className="font-medium">{teacher.username}</TableCell>
                         <TableCell className="text-slate-700">{(teacher as any).name ?? <span className="text-muted-foreground text-xs">Not set</span>}</TableCell>

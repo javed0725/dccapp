@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   mobileNumber: text("mobile_number"),
   name: text("name"),
   subject: text("subject"),
+  imageUrl: text("image_url"),
 });
 
 export const batches = pgTable("batches", {

@@ -619,9 +619,11 @@ function TeachersSection() {
                   const displaySubject = teacher.subject || "Teacher";
                   const initials = getInitials(displayName);
                   const avatarColor = TEACHER_AVATAR_COLORS[idx % TEACHER_AVATAR_COLORS.length];
-                  const teacherImage = (teacher as any).teacherId
-                    ? TEACHER_IMAGES[(teacher as any).teacherId]
-                    : undefined;
+                  const teacherImage =
+                    (teacher as any).imageUrl ||
+                    ((teacher as any).teacherId
+                      ? TEACHER_IMAGES[(teacher as any).teacherId]
+                      : undefined);
                   return (
                     <div
                       key={teacher.id}

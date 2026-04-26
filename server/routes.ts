@@ -403,15 +403,35 @@ export async function registerRoutes(
   app.patch("/api/admin/teachers/:id", async (req, res) => {
     if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
     const id = Number(req.params.id);
-    const { password, role, name, subject } = req.body;
-    const updateData: any = {};
-    if (password) updateData.password = await bcrypt.hash(password, 10);
-    if (role) updateData.role = role;
-    if (name !== undefined) updateData.name = name;
-    if (subject !== undefined) updateData.subject = subject;
-    
-    const user = await storage.updateUser(id, updateData);
-    res.json(removePassword(user));
+    try {
+      const body = z.object({
+        password: z.string().min(6).optional(),
+        role: z.string().optional(),
+        name: z.string().nullable().optional(),
+        subject: z.string().nullable().optional(),
+        imageUrl: z
+          .string()
+          .max(2_000_000)
+          .nullable()
+          .optional()
+          .refine(
+            (v) => v == null || v === "" || /^data:image\/(png|jpe?g|webp|gif);base64,/.test(v),
+            { message: "imageUrl must be a data:image/* base64 URL" },
+          ),
+      }).parse(req.body);
+
+      const updateData: any = {};
+      if (body.password) updateData.password = await bcrypt.hash(body.password, 10);
+      if (body.role) updateData.role = body.role;
+      if (body.name !== undefined) updateData.name = body.name;
+      if (body.subject !== undefined) updateData.subject = body.subject;
+      if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl || null;
+
+      const user = await storage.updateUser(id, updateData);
+      res.json(removePassword(user));
+    } catch (err: any) {
+      res.status(400).json({ message: err?.message || "Invalid teacher update" });
+    }
   });
 
   app.delete("/api/admin/teachers/:id", async (req, res) => {
