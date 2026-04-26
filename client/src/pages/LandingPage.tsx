@@ -29,6 +29,14 @@ import heroBg from "@assets/hero-bg.webp";
 import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
 import aboutPhoto3 from "@assets/PXL_20251115_062309530~2_1776252686289.jpg";
 import aboutPhoto4 from "@assets/IMG_20260417_163713~2.jpg.jpeg";
+import teacherMdJavedIqbal from "@assets/PXL_20260417_102623247~2_1777220273356.jpg";
+
+/* ─── TEACHER IMAGES ───────────────────────────────────────── */
+/* Map a teacher's teacherId to their photo. Teachers without an */
+/* entry here will fall back to the colored initials avatar.    */
+const TEACHER_IMAGES: Record<string, string> = {
+  "202001": teacherMdJavedIqbal,
+};
 
 /* ─── DATA ─────────────────────────────────────────────────── */
 
@@ -611,6 +619,9 @@ function TeachersSection() {
                   const displaySubject = teacher.subject || "Teacher";
                   const initials = getInitials(displayName);
                   const avatarColor = TEACHER_AVATAR_COLORS[idx % TEACHER_AVATAR_COLORS.length];
+                  const teacherImage = (teacher as any).teacherId
+                    ? TEACHER_IMAGES[(teacher as any).teacherId]
+                    : undefined;
                   return (
                     <div
                       key={teacher.id}
@@ -622,9 +633,19 @@ function TeachersSection() {
                         className="group bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 hover:scale-[1.02] transition-all duration-300 p-6 h-full cursor-default"
                       >
                         <div className="flex items-center gap-4 mb-5">
-                          <div className={`w-16 h-16 rounded-2xl ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0 group-hover:scale-110 transition-transform duration-300`}>
-                            <span className="font-black text-white text-xl">{initials}</span>
-                          </div>
+                          {teacherImage ? (
+                            <img
+                              src={teacherImage}
+                              alt={displayName}
+                              loading="lazy"
+                              data-testid={`img-teacher-${teacher.id}`}
+                              className="w-16 h-16 rounded-2xl object-cover border-4 border-white ring-1 ring-slate-200 shadow-md shrink-0 group-hover:scale-110 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className={`w-16 h-16 rounded-2xl ${avatarColor} flex items-center justify-center border-4 border-white shadow-md shrink-0 group-hover:scale-110 transition-transform duration-300`}>
+                              <span className="font-black text-white text-xl">{initials}</span>
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <h4 className="font-bold text-slate-900 text-base truncate">{displayName}</h4>
                             <p className="text-blue-600 text-xs font-semibold mt-0.5 truncate">{displaySubject}</p>
