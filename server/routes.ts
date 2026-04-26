@@ -401,7 +401,8 @@ export async function registerRoutes(
   });
 
   app.patch("/api/admin/teachers/:id", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Your session has expired. Please log in again." });
+    if ((req.user as any).role !== 'admin') return res.status(403).json({ message: "Only the Authority account can update teachers." });
     const id = Number(req.params.id);
     try {
       const body = z.object({
