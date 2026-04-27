@@ -549,13 +549,14 @@ export default function ManageData() {
                       <TableHead>Display Name</TableHead>
                       <TableHead>Subject</TableHead>
                       <TableHead>Mobile</TableHead>
+                      <TableHead>Authority</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingTeachers ? (
-                      <TableRow><TableCell colSpan={8} className="text-center">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="text-center">Loading...</TableCell></TableRow>
                     ) : [...(teachers || [])].sort((a, b) => parseInt((a as any).teacherId || '0') - parseInt((b as any).teacherId || '0')).map((teacher) => (
                       <TableRow key={teacher.id}>
                         <TableCell>
@@ -634,6 +635,15 @@ export default function ManageData() {
                         <TableCell className="text-slate-700">{(teacher as any).subject ?? <span className="text-muted-foreground text-xs">Not set</span>}</TableCell>
                         <TableCell className="text-slate-500 text-sm">{teacher.mobileNumber ?? "—"}</TableCell>
                         <TableCell>
+                          {(teacher as any).isAuthority ? (
+                            <span className="flex items-center gap-1 text-indigo-600 text-xs font-bold">
+                              <ShieldCheck className="w-3 h-3" /> Yes
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           {teacher.role === "teacher" ? (
                             <span className="flex items-center gap-1 text-emerald-600 text-xs font-bold">
                               <UserCheck className="w-3 h-3" /> Active
@@ -657,6 +667,24 @@ export default function ManageData() {
                             }}
                           >
                             <Key className="w-3 h-3 mr-1" /> Reset Pass
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            data-testid={`button-toggle-authority-${teacher.id}`}
+                            className={`h-8 ${(teacher as any).isAuthority ? "border-indigo-300 text-indigo-600 hover:bg-indigo-50" : "border-slate-200"}`}
+                            onClick={() => {
+                              const grant = !(teacher as any).isAuthority;
+                              const msg = grant
+                                ? `Grant Authority access to ${teacher.username}? They will be able to switch to the Admin portal.`
+                                : `Revoke Authority access from ${teacher.username}?`;
+                              if (confirm(msg)) {
+                                updateTeacherMutation.mutate({ id: teacher.id, data: { isAuthority: grant } });
+                              }
+                            }}
+                          >
+                            <ShieldCheck className="w-3 h-3 mr-1" />
+                            {(teacher as any).isAuthority ? "Revoke Auth" : "Grant Auth"}
                           </Button>
                           <Button
                             variant="outline"
@@ -685,7 +713,7 @@ export default function ManageData() {
                       </TableRow>
                     ))}
                     {teachers?.length === 0 && (
-                      <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No teachers registered.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No teachers registered.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>

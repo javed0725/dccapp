@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   name: text("name"),
   subject: text("subject"),
   imageUrl: text("image_url"),
+  isAuthority: boolean("is_authority").notNull().default(false),
 });
 
 export const batches = pgTable("batches", {

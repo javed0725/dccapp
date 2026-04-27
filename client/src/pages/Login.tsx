@@ -90,6 +90,12 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
 
       const redirectPath = getRedirectPath(user.role);
       localStorage.setItem("last_portal", redirectPath);
+      // Authority teachers always start in Teacher portal; clear any previous admin mode
+      if (user.isAuthority) {
+        localStorage.setItem("activePortal", "teacher");
+      } else {
+        localStorage.removeItem("activePortal");
+      }
       queryClient.setQueryData(["/api/user"], user);
       setLocation(redirectPath);
       toast({ title: "Logged in successfully" });

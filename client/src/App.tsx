@@ -21,12 +21,14 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
 import { Bell } from "lucide-react";
+import { PortalProvider, usePortal } from "@/lib/portal-context";
 
-function NotificationHeader({ user }: { user: User }) {
+function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
   const [, setLocation] = useLocation();
+  const isAdmin = effectiveRole === "admin";
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
-    enabled: user?.role === "admin",
+    enabled: isAdmin,
     refetchInterval: 30000,
   });
   const unreadCount = unreadData?.count ?? 0;
@@ -39,7 +41,7 @@ function NotificationHeader({ user }: { user: User }) {
           Dynamic Coaching Center
         </div>
       </div>
-      {user?.role === "admin" && (
+      {isAdmin && (
         <button
           data-testid="button-notification-bell"
           onClick={() => setLocation("/notifications")}
@@ -76,11 +78,16 @@ function PortalAwareRedirect() {
 }
 
 function Router() {
-  const { data: user, isLoading } = useQuery<User>({ 
+  const { data: user, isLoading } = useQuery<User>({
     queryKey: ["/api/user"],
-    retry: false
+    retry: false,
   });
   const [location, setLocation] = useLocation();
+  const { activePortal } = usePortal();
+
+  // Authority teachers can act as admin when they've switched to the admin portal
+  const effectiveRole: string =
+    user?.isAuthority && activePortal === "admin" ? "admin" : (user?.role ?? "");
 
   // When launched as an installed PWA, redirect to the portal the user chose at install time
   useEffect(() => {
@@ -96,15 +103,13 @@ function Router() {
     }
   }, []);
 
-  // Role-specific home paths that match Login.tsx getRedirectPath()
+  // Home path based on effective role
   const roleHomePath =
-    user?.role === "admin" ? "/admin" :
-    user?.role === "teacher" ? "/teacher" :
-    user?.role === "student" ? "/student" : "/";
+    effectiveRole === "admin" ? "/admin" :
+    effectiveRole === "teacher" ? "/teacher" :
+    effectiveRole === "student" ? "/student" : "/";
 
-  // During auth check, render public pages immediately so there is never a blank screen.
-  // Vercel serverless cold starts can take several seconds — returning null causes
-  // a white page for the entire duration of that request.
+  // During auth check, show public pages immediately — no blank screen
   if (isLoading) {
     return (
       <Switch>
@@ -126,15 +131,9 @@ function Router() {
     return (
       <Switch>
         <Route path="/" component={LandingPage} />
-        <Route path="/student">
-          <LoginPage fixedRole="student" />
-        </Route>
-        <Route path="/teacher">
-          <LoginPage fixedRole="teacher" />
-        </Route>
-        <Route path="/admin">
-          <LoginPage fixedRole="admin" />
-        </Route>
+        <Route path="/student"><LoginPage fixedRole="student" /></Route>
+        <Route path="/teacher"><LoginPage fixedRole="teacher" /></Route>
+        <Route path="/admin"><LoginPage fixedRole="admin" /></Route>
         <Route path="/login" component={LoginPage} />
         <Route><PortalAwareRedirect /></Route>
       </Switch>
@@ -144,56 +143,52 @@ function Router() {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-svh w-full overflow-hidden bg-background">
-        <AppSidebar />
+        <AppSidebar effectiveRole={effectiveRole} />
         <div className="flex flex-col flex-1 overflow-hidden relative">
-          <NotificationHeader user={user} />
+          <NotificationHeader effectiveRole={effectiveRole} />
 
           <main className="flex-1 overflow-auto bg-muted/30 px-2 py-3 md:p-6 pb-28 md:pb-28 w-full">
             <Switch>
-              {/* Root: admins and students see Dashboard; teachers redirect to /teacher */}
-              {user.role === 'admin' ? (
+              {/* Root redirect based on effective role */}
+              {effectiveRole === "admin" ? (
                 <Route path="/" component={Dashboard} />
-              ) : user.role === 'student' ? (
+              ) : effectiveRole === "student" ? (
                 <Route path="/" component={Dashboard} />
               ) : (
-                <Route path="/">
-                  <Redirect to="/teacher" />
-                </Route>
+                <Route path="/"><Redirect to="/teacher" /></Route>
               )}
 
-              {/* Role-specific entry points — these are where Login.tsx now redirects */}
+              {/* Role-specific entry points */}
               <Route path="/admin">
-                {user.role === 'admin' ? <Dashboard /> : <Redirect to={roleHomePath} />}
+                {effectiveRole === "admin" ? <Dashboard /> : <Redirect to={roleHomePath} />}
               </Route>
               <Route path="/student">
-                {user.role === 'student' ? <Dashboard /> : <Redirect to={roleHomePath} />}
+                {effectiveRole === "student" ? <Dashboard /> : <Redirect to={roleHomePath} />}
               </Route>
               <Route path="/teacher">
-                {user.role === 'teacher' ? <Admission /> : <Redirect to={roleHomePath} />}
+                {(effectiveRole === "teacher" || (user.isAuthority && activePortal === "teacher")) ? <Admission /> : <Redirect to={roleHomePath} />}
               </Route>
 
-              {user.role === 'student' && (
+              {effectiveRole === "student" && (
                 <Route path="/teachers" component={TeacherDirectory} />
               )}
               <Route path="/income" component={Income} />
               <Route path="/results" component={EntryMarks} />
-              {(user.role === 'teacher' || user.role === 'admin') && (
+              {(effectiveRole === "teacher" || effectiveRole === "admin") && (
                 <Route path="/attendance" component={Attendance} />
               )}
               <Route path="/marksheet" component={Marksheet} />
               <Route path="/admission">
-                {user.role === 'teacher' ? <Admission /> : <Redirect to={roleHomePath} />}
+                {(effectiveRole === "teacher" || (user.isAuthority && activePortal === "teacher")) ? <Admission /> : <Redirect to={roleHomePath} />}
               </Route>
-              {user.role === 'admin' && (
+              {effectiveRole === "admin" && (
                 <>
                   <Route path="/expenses" component={Expenses} />
                   <Route path="/manage" component={ManageData} />
                   <Route path="/notifications" component={Notifications} />
                 </>
               )}
-              <Route path="/login">
-                <Redirect to={roleHomePath} />
-              </Route>
+              <Route path="/login"><Redirect to={roleHomePath} /></Route>
               <Route component={NotFound} />
             </Switch>
           </main>
@@ -206,10 +201,12 @@ function Router() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Router />
-        <Toaster />
-      </TooltipProvider>
+      <PortalProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </PortalProvider>
     </QueryClientProvider>
   );
 }

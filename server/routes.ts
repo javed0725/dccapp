@@ -40,7 +40,8 @@ function requireAdmin(req: any, res: any): boolean {
     res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
     return false;
   }
-  if ((req.user as any).role !== "admin") {
+  const u = req.user as any;
+  if (u.role !== "admin" && !u.isAuthority) {
     res.status(403).json({ message: ADMIN_ONLY_MESSAGE });
     return false;
   }
@@ -459,6 +460,7 @@ export async function registerRoutes(
         role: z.string().optional(),
         name: z.string().nullable().optional(),
         subject: z.string().nullable().optional(),
+        isAuthority: z.boolean().optional(),
         imageUrl: z
           .string()
           .max(2_000_000)
@@ -475,6 +477,7 @@ export async function registerRoutes(
       if (body.role) updateData.role = body.role;
       if (body.name !== undefined) updateData.name = body.name;
       if (body.subject !== undefined) updateData.subject = body.subject;
+      if (body.isAuthority !== undefined) updateData.isAuthority = body.isAuthority;
       if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl || null;
 
       const user = await storage.updateUser(id, updateData);

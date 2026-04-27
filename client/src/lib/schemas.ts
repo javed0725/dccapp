@@ -10,6 +10,7 @@ export interface User {
   name: string | null;
   subject: string | null;
   imageUrl: string | null;
+  isAuthority: boolean;
 }
 
 export interface Batch {

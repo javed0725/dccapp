@@ -1,16 +1,22 @@
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
-import { LayoutDashboard, Wallet, Receipt, Settings, LogOut, FileCheck, Home, Bell, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, Wallet, Receipt, Settings, LogOut, FileCheck, Home, Bell, ClipboardCheck, ShieldCheck, GraduationCap } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { type User } from "@/lib/schemas";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
+import { usePortal } from "@/lib/portal-context";
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  effectiveRole: string;
+}
+
+export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
   const [location] = useLocation();
   const [, setLocation] = useLocation();
+  const { activePortal, setActivePortal } = usePortal();
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -18,18 +24,19 @@ export function AppSidebar() {
     },
     onSuccess: () => {
       const loginPath =
-        user?.role === "teacher" ? "/teacher" :
+        user?.role === "teacher" || user?.isAuthority ? "/teacher" :
         user?.role === "admin" ? "/admin" :
         "/student";
       localStorage.setItem("last_portal", loginPath);
+      localStorage.removeItem("activePortal");
       queryClient.clear();
       setLocation(loginPath);
-    }
+    },
   });
 
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
-    enabled: user?.role === "admin",
+    enabled: effectiveRole === "admin",
     refetchInterval: 30000,
   });
   const unreadCount = unreadData?.count ?? 0;
@@ -43,7 +50,20 @@ export function AppSidebar() {
     { title: "Expenses", url: "/expenses", icon: Receipt, roles: ["admin"] },
     { title: "Manage", url: "/manage", icon: Settings, roles: ["admin"] },
     { title: "Notifications", url: "/notifications", icon: Bell, roles: ["admin"] },
-  ].filter(item => user && item.roles.includes(user.role));
+  ].filter(item => item.roles.includes(effectiveRole));
+
+  const isAuthorityTeacher = user?.isAuthority && user?.role === "teacher";
+  const inAdminMode = isAuthorityTeacher && activePortal === "admin";
+
+  function handleSwitchPortal() {
+    if (inAdminMode) {
+      setActivePortal("teacher");
+      setLocation("/teacher");
+    } else {
+      setActivePortal("admin");
+      setLocation("/admin");
+    }
+  }
 
   return (
     <Sidebar className="border-r border-border/40 shadow-2xl bg-white/95 backdrop-blur-xl z-[110] h-[calc(100svh-80px)] max-h-[calc(100svh-80px)] overflow-hidden">
@@ -56,7 +76,7 @@ export function AppSidebar() {
           <span className="text-[10px] text-muted-foreground uppercase tracking-[0.3em] font-bold mt-0.5">Center</span>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent className="px-3 py-4 overflow-y-auto">
         <SidebarGroup>
           <SidebarGroupContent>
@@ -68,8 +88,8 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive} size="lg" className={`
                       transition-all duration-300 rounded-xl px-4 h-11
-                      ${isActive 
-                        ? "bg-primary text-white shadow-lg shadow-primary/30 hover:bg-primary" 
+                      ${isActive
+                        ? "bg-primary text-white shadow-lg shadow-primary/30 hover:bg-primary"
                         : "hover:bg-primary/5 text-primary/80 hover:text-primary font-bold"
                       }
                     `}>
@@ -106,14 +126,38 @@ export function AppSidebar() {
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold text-primary truncate">{user?.username}</span>
-              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">{user?.role}</span>
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-widest flex items-center gap-1">
+                {inAdminMode ? "authority" : user?.role}
+                {isAuthorityTeacher && (
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 ml-0.5" title="Dual access" />
+                )}
+              </span>
             </div>
           </div>
-          <Button 
-            variant="destructive" 
+
+          {/* Portal switch button — only for authority teachers */}
+          {isAuthorityTeacher && (
+            <Button
+              data-testid="button-switch-portal"
+              variant="outline"
+              size="sm"
+              onClick={handleSwitchPortal}
+              className="w-full rounded-xl h-9 font-black uppercase tracking-widest border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 flex items-center justify-center gap-2 text-xs"
+            >
+              {inAdminMode ? (
+                <><GraduationCap className="w-4 h-4" /><span>Switch to Teacher</span></>
+              ) : (
+                <><ShieldCheck className="w-4 h-4" /><span>Switch to Authority</span></>
+              )}
+            </Button>
+          )}
+
+          <Button
+            variant="destructive"
             size="sm"
             onClick={() => logoutMutation.mutate()}
             disabled={logoutMutation.isPending}
+            data-testid="button-logout"
             className="w-full rounded-xl h-9 font-black uppercase tracking-widest shadow-lg shadow-destructive/20 flex items-center justify-center gap-2 text-xs"
           >
             <LogOut className="w-4 h-4" />
