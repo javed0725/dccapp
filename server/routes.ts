@@ -90,18 +90,31 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/_git_push", async (_req, res) => {
+  app.get("/api/_git_push", async (req, res) => {
     try {
-      const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
-      if (!token) return res.status(500).json({ error: "No token" });
+      const token = process.env.GITHUB_TOKEN || process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+      if (!token) return res.status(500).json({ error: "No GitHub token found. Set GITHUB_TOKEN in secrets." });
+      const message = (req.query.msg as string) || "Update from Replit";
       const cwd = process.cwd();
-      execSync(`git remote set-url origin https://x-access-token:${token}@github.com/javed0725/dccapp.git`, { cwd });
-      execSync("git add -A", { cwd });
-      execSync('git commit -m "Add Teacher Directory to Student Panel" --allow-empty', { cwd });
+      // Remove stale lock file if it exists
+      const lockFile = `${cwd}/.git/index.lock`;
+      try { (await import("fs")).unlinkSync(lockFile); } catch {}
+      execSync(`git remote set-url origin https://x-access-token:${token}@github.com/javed0725/dccapp.git`, { cwd, stdio: "pipe" });
+      execSync(`git config user.email "replit@dcc.app"`, { cwd, stdio: "pipe" });
+      execSync(`git config user.name "DCC Replit"`, { cwd, stdio: "pipe" });
+      execSync("git add -A", { cwd, stdio: "pipe" });
+      const status = execSync("git status --porcelain", { cwd, stdio: "pipe" }).toString().trim();
+      if (status) {
+        execSync(`git commit -m "${message.replace(/"/g, "'")}"`, { cwd, stdio: "pipe" });
+      }
       const out = execSync("git push origin main 2>&1", { cwd, timeout: 60000 }).toString();
-      res.json({ ok: true, out });
+      // Reset URL to remove token
+      execSync("git remote set-url origin https://github.com/javed0725/dccapp", { cwd, stdio: "pipe" });
+      res.json({ ok: true, committed: !!status, out: out || "Already up to date" });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      // Reset URL even on error
+      try { execSync("git remote set-url origin https://github.com/javed0725/dccapp", { cwd: process.cwd(), stdio: "pipe" }); } catch {}
+      res.status(500).json({ error: err.stderr?.toString() || err.message });
     }
   });
 
