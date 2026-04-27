@@ -14,7 +14,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen } from "lucide-react";
+import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone } from "lucide-react";
+import { SiWhatsapp } from "react-icons/si";
 
 type AttendanceRow = {
   id: number;
@@ -407,6 +408,20 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
   });
 
   const studentName = (id: number) => students.find((s: any) => s.id === id)?.name || `Student #${id}`;
+  const studentMobile = (id: number): string | null => {
+    const s = students.find((st: any) => st.id === id);
+    return s?.mobileNumber || null;
+  };
+  const buildAbsentMessage = (date: string, subject: string | null | undefined, name: string) => {
+    const subjPart = subject && subject.trim() ? `${subject} ক্লাসে` : "ক্লাসে";
+    return `আসসালামু আলাইকুম, আজ ${date} তারিখে ${subjPart} ${name} অনুপস্থিত ছিল। ধন্যবাদ - ডায়নামিক কোচিং সেন্টার।`;
+  };
+  const toWaNumber = (mobile: string) => {
+    const digits = mobile.replace(/\D/g, "");
+    if (digits.startsWith("880")) return digits;
+    if (digits.startsWith("0")) return `880${digits.slice(1)}`;
+    return digits;
+  };
   const batchName = (id: number) => batches.find((b: any) => b.id === id)?.name || `Batch #${id}`;
 
   // Group rows by batch
@@ -493,13 +508,57 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
                             <span className="text-xs text-slate-500">{present}/{s.totalStudents} present</span>
                           </div>
                           {s.absentStudentIds?.length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1.5">
-                              <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 mr-1">Absent:</span>
-                              {s.absentStudentIds.map(sid => (
-                                <span key={sid} className="text-xs px-2 py-0.5 bg-rose-50 text-rose-700 rounded-md border border-rose-100">
-                                  {studentName(sid)}
-                                </span>
-                              ))}
+                            <div className="mt-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 mb-1.5">
+                                Absent ({s.absentStudentIds.length})
+                              </p>
+                              <div className="space-y-1.5">
+                                {s.absentStudentIds.map(sid => {
+                                  const name = studentName(sid);
+                                  const mobile = studentMobile(sid);
+                                  const message = buildAbsentMessage(s.date, s.subject, name);
+                                  const waHref = mobile
+                                    ? `https://wa.me/${toWaNumber(mobile)}?text=${encodeURIComponent(message)}`
+                                    : null;
+                                  return (
+                                    <div
+                                      key={sid}
+                                      className="flex items-center justify-between gap-2 px-3 py-2 bg-rose-50 border border-rose-100 rounded-lg"
+                                      data-testid={`absent-row-${s.id}-${sid}`}
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium text-slate-800 truncate" data-testid={`text-absent-name-${sid}`}>
+                                          {name}
+                                        </p>
+                                        {mobile ? (
+                                          <a
+                                            href={`tel:${mobile.replace(/\s+/g, '')}`}
+                                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5"
+                                            data-testid={`link-call-${sid}`}
+                                          >
+                                            <Phone className="w-3 h-3" />
+                                            {mobile}
+                                          </a>
+                                        ) : (
+                                          <span className="text-[11px] text-slate-400">No phone on file</span>
+                                        )}
+                                      </div>
+                                      {waHref && (
+                                        <a
+                                          href={waHref}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                                          aria-label={`Send WhatsApp message to ${name}'s guardian`}
+                                          data-testid={`link-whatsapp-${sid}`}
+                                        >
+                                          <SiWhatsapp className="w-4 h-4" />
+                                        </a>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
