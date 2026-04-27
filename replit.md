@@ -37,6 +37,12 @@ The `shared/` directory contains code used by both frontend and backend:
 - `schema.ts`: Database table definitions and Zod insert schemas
 - `routes.ts`: API route definitions with paths, methods, and response schemas
 
+### Recent Changes (April 27, 2026)
+- Completed migration from Replit Agent to Replit environment: configured workflow to run `npm run dev` on port 5000 with webview output, verified all npm packages are installed, confirmed app launches successfully.
+- Confirmed no external auth providers or third-party API integrations require replacement — app uses Passport.js local strategy with PostgreSQL sessions.
+- SESSION_SECRET is configured as a Replit secret.
+- All end-to-end tests pass: landing page, navigation, and admin login (username: dynamic, password: dcc2020) verified working.
+
 ### Recent Changes (January 26, 2026)
 - Added dedicated login entry routes for `/student`, `/teacher`, and `/admin`, each with a fixed-role login form and automatic redirects for authenticated users.
 - Migrated the project for Replit runtime compatibility: configured the web workflow on port 5000, added Vite preview host support, and verified the app launches successfully in the Replit preview.
