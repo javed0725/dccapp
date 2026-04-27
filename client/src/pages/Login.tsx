@@ -88,8 +88,10 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
         return;
       }
 
+      const redirectPath = getRedirectPath(user.role);
+      localStorage.setItem("last_portal", redirectPath);
       queryClient.setQueryData(["/api/user"], user);
-      setLocation(getRedirectPath(user.role));
+      setLocation(redirectPath);
       toast({ title: "Logged in successfully" });
     },
     onError: (error: Error) => {

@@ -57,6 +57,24 @@ function NotificationHeader({ user }: { user: User }) {
   );
 }
 
+/**
+ * Determines which portal login to redirect to when a user is unauthenticated.
+ * Priority: URL path prefix → localStorage last_portal → landing page.
+ */
+function getPortalLoginPath(currentPath: string): string {
+  if (currentPath.startsWith("/student")) return "/student";
+  if (currentPath.startsWith("/teacher")) return "/teacher";
+  if (currentPath.startsWith("/admin")) return "/admin";
+  const lastPortal = localStorage.getItem("last_portal");
+  if (lastPortal && ["/student", "/teacher", "/admin"].includes(lastPortal)) return lastPortal;
+  return "/";
+}
+
+function PortalAwareRedirect() {
+  const [location] = useLocation();
+  return <Redirect to={getPortalLoginPath(location)} />;
+}
+
 function Router() {
   const { data: user, isLoading } = useQuery<User>({ 
     queryKey: ["/api/user"],
@@ -118,9 +136,7 @@ function Router() {
           <LoginPage fixedRole="admin" />
         </Route>
         <Route path="/login" component={LoginPage} />
-        <Route>
-          <Redirect to="/" />
-        </Route>
+        <Route><PortalAwareRedirect /></Route>
       </Switch>
     );
   }
