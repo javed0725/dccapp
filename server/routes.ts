@@ -16,6 +16,49 @@ function removePassword<T extends { password?: string } | null | undefined>(user
   return safeUser;
 }
 
+// --- Auth guards --------------------------------------------------------
+// Distinguish between "not signed in" (401) and "signed in but lacks
+// permission" (403) so the UI can react appropriately (e.g. redirect to
+// /login on 401 instead of showing a confusing "Forbidden" message).
+const SESSION_EXPIRED_MESSAGE =
+  "Your session has expired. Please log in again.";
+const ADMIN_ONLY_MESSAGE =
+  "Only the Authority account can perform this action.";
+const ROLE_FORBIDDEN_MESSAGE =
+  "You don't have permission to perform this action.";
+
+function requireAuth(req: any, res: any): boolean {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
+    return false;
+  }
+  return true;
+}
+
+function requireAdmin(req: any, res: any): boolean {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
+    return false;
+  }
+  if ((req.user as any).role !== "admin") {
+    res.status(403).json({ message: ADMIN_ONLY_MESSAGE });
+    return false;
+  }
+  return true;
+}
+
+function requireRoles(req: any, res: any, roles: string[]): boolean {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
+    return false;
+  }
+  if (!roles.includes((req.user as any).role)) {
+    res.status(403).json({ message: ROLE_FORBIDDEN_MESSAGE });
+    return false;
+  }
+  return true;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -84,9 +127,7 @@ export async function registerRoutes(
 
   // Admin-only: update site settings
   app.patch("/api/settings", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") {
-      return res.sendStatus(403);
-    }
+    if (!requireAdmin(req, res)) return;
     try {
       const updates = z.record(z.string()).parse(req.body);
       for (const [key, value] of Object.entries(updates)) {
@@ -104,15 +145,13 @@ export async function registerRoutes(
   });
 
   app.get(api.batches.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const batches = await storage.getBatches();
     res.json(batches);
   });
 
   app.post(api.batches.create.path, async (req, res) => {
-    if (!req.isAuthenticated() || ((req.user as any).role !== 'admin' && (req.user as any).role !== 'teacher')) {
-      return res.sendStatus(403);
-    }
+    if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     try {
       const input = api.batches.create.input.parse(req.body);
       const batch = await storage.createBatch(input);
@@ -130,7 +169,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.batches.delete.path, async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       await storage.deleteBatch(Number(req.params.id));
       res.sendStatus(204);
@@ -144,16 +183,14 @@ export async function registerRoutes(
   });
 
   app.get(api.students.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const students = await storage.getStudents();
     console.log(`[BACKEND LOG] Fetched ${students.length} students`);
     res.json(students);
   });
 
   app.post(api.students.create.path, async (req, res) => {
-    if (!req.isAuthenticated() || ((req.user as any).role !== 'admin' && (req.user as any).role !== 'teacher')) {
-      return res.sendStatus(403);
-    }
+    if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     try {
       const payload = {
         ...req.body,
@@ -205,7 +242,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/students/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     try {
       const id = Number(req.params.id);
       const oldStudent = await storage.getStudent(id);
@@ -229,7 +266,7 @@ export async function registerRoutes(
   });
 
   app.delete(api.students.delete.path, async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       await storage.deleteStudent(Number(req.params.id));
       res.sendStatus(204);
@@ -240,7 +277,7 @@ export async function registerRoutes(
 
   /* Returns the most recent payment amount for a given student (any recorder) */
   app.get("/api/students/:id/last-payment", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const studentId = Number(req.params.id);
     if (isNaN(studentId)) return res.status(400).json({ message: "Invalid student id" });
     const [last] = await db
@@ -253,7 +290,7 @@ export async function registerRoutes(
   });
 
   app.get(api.incomes.list.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const user = req.user as any;
 
     if (user.role === 'student') {
@@ -278,7 +315,7 @@ export async function registerRoutes(
   });
 
   app.post(api.incomes.create.path, async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     try {
       const input = api.incomes.create.input.parse({
         ...req.body,
@@ -334,20 +371,20 @@ export async function registerRoutes(
   });
 
   app.delete(api.incomes.delete.path, async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     await storage.deleteIncome(Number(req.params.id));
     res.sendStatus(204);
   });
 
   app.get(api.expenses.list.path, async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const expenses = await storage.getExpenses();
     console.log(`[BACKEND LOG] Fetched ${expenses.length} total expenses`);
     res.json(expenses);
   });
 
   app.post(api.expenses.create.path, async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       const input = api.expenses.create.input.parse({
           ...req.body,
@@ -368,20 +405,20 @@ export async function registerRoutes(
   });
 
   app.delete(api.expenses.delete.path, async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     await storage.deleteExpense(Number(req.params.id));
     res.sendStatus(204);
   });
 
   // Teacher Management Routes
   app.get("/api/admin/teachers", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const teachers = await storage.getTeachers();
     res.json(teachers.map(removePassword));
   });
 
   app.post("/api/admin/teachers", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       const { teacherId, username, password, mobileNumber, name, subject } = z.object({
         teacherId: z.string().min(1),
@@ -401,8 +438,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/admin/teachers/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Your session has expired. Please log in again." });
-    if ((req.user as any).role !== 'admin') return res.status(403).json({ message: "Only the Authority account can update teachers." });
+    if (!requireAdmin(req, res)) return;
     const id = Number(req.params.id);
     try {
       const body = z.object({
@@ -436,13 +472,13 @@ export async function registerRoutes(
   });
 
   app.delete("/api/admin/teachers/:id", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     await storage.deleteUser(Number(req.params.id));
     res.sendStatus(204);
   });
 
   app.patch(api.incomes.updateStatus.path, async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== 'admin') return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       const { status } = z.object({ status: z.enum(["Pending", "Verified"]) }).parse(req.body);
       const income = await storage.updateIncomeStatus(Number(req.params.id), status);
@@ -453,7 +489,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/user/password", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     try {
       const { password } = z.object({ password: z.string().min(6) }).parse(req.body);
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -491,7 +527,7 @@ export async function registerRoutes(
 
   // Results Routes
   app.get("/api/results", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const user = req.user as any;
     if (user.role === "student") {
       const student = await storage.getStudentByUserId(user.id);
@@ -508,9 +544,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/results", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = (req.user as any).role;
-    if (role !== "teacher" && role !== "admin") return res.sendStatus(403);
+    if (!requireRoles(req, res, ['teacher', 'admin'])) return;
     try {
       const { insertResultSchema } = await import("@shared/schema");
       const data = insertResultSchema.parse({
@@ -540,7 +574,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/results/:id", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const id = Number(req.params.id);
     if (isNaN(id)) return res.sendStatus(400);
     try {
@@ -558,7 +592,7 @@ export async function registerRoutes(
   });
 
   app.delete("/api/results/:id", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const id = Number(req.params.id);
     if (isNaN(id)) return res.sendStatus(400);
     await storage.deleteResult(id);
@@ -567,9 +601,7 @@ export async function registerRoutes(
 
   // Attendance Routes
   app.get("/api/attendance", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = (req.user as any).role;
-    if (role !== "teacher" && role !== "admin") return res.sendStatus(403);
+    if (!requireRoles(req, res, ['teacher', 'admin'])) return;
     const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
     const date = req.query.date ? String(req.query.date) : undefined;
     const subject = req.query.subject ? String(req.query.subject) : undefined;
@@ -584,9 +616,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/attendance", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireRoles(req, res, ['teacher', 'admin'])) return;
     const user = req.user as any;
-    if (user.role !== "teacher" && user.role !== "admin") return res.sendStatus(403);
     try {
       const date = String(req.body.date || "");
       const batchId = Number(req.body.batchId);
@@ -606,7 +637,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/attendance/summary", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const subject = req.query.subject ? String(req.query.subject) : undefined;
     const academicGroup = req.query.academicGroup ? String(req.query.academicGroup) : undefined;
     const shift = req.query.shift ? String(req.query.shift) : undefined;
@@ -616,7 +647,7 @@ export async function registerRoutes(
 
   // Bulk delete an entire exam (all student results matching batch + exam, optional subject)
   app.delete("/api/results/exam/bulk", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const batchId = Number(req.query.batchId);
     const examName = String(req.query.examName || "");
     const subject = req.query.subject ? String(req.query.subject) : undefined;
@@ -628,7 +659,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/results/model-test/:groupId", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const user = req.user as any;
     if (user.role === "student") {
       const student = await storage.getStudentByUserId(user.id);
@@ -642,15 +673,13 @@ export async function registerRoutes(
 
   // Model Test Drafts Routes
   app.get("/api/model-test-drafts", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = (req.user as any).role;
-    if (role === "student") return res.sendStatus(403);
+    if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     const drafts = await storage.getModelTestDrafts();
     res.json(drafts);
   });
 
   app.post("/api/model-test-drafts", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       const { examName, batchId, subjects } = req.body;
       if (!examName || !batchId || !Array.isArray(subjects) || subjects.length === 0) {
@@ -671,7 +700,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/model-test-drafts/:groupId/publish", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       const draft = await storage.publishModelTestDraft(req.params.groupId);
       res.json(draft);
@@ -681,13 +710,13 @@ export async function registerRoutes(
   });
 
   app.delete("/api/model-test-drafts/:groupId", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     await storage.deleteModelTestDraft(req.params.groupId);
     res.sendStatus(204);
   });
 
   app.delete("/api/model-test-drafts/:groupId/subject", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const { subject } = req.body;
     if (!subject) return res.status(400).json({ message: "subject required" });
     await storage.deleteResultsByGroupIdAndSubject(req.params.groupId, subject);
@@ -695,9 +724,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/model-test-drafts/:groupId/marks", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = (req.user as any).role;
-    if (role !== "admin" && role !== "teacher") return res.sendStatus(403);
+    if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     try {
       const { groupId } = req.params;
       const { entries } = req.body as {
@@ -729,19 +756,19 @@ export async function registerRoutes(
 
   // Notification API routes
   app.get("/api/notifications", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const notifs = await storage.getNotifications(20);
     res.json(notifs);
   });
 
   app.get("/api/notifications/unread-count", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const count = await storage.getUnreadNotificationCount();
     res.json({ count });
   });
 
   app.patch("/api/notifications/read-all", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     await storage.markAllNotificationsRead();
     res.json({ ok: true });
   });
@@ -749,7 +776,7 @@ export async function registerRoutes(
   // Collection Tracking routes
   // GET /api/collections/me — teacher sees their own balance
   app.get("/api/collections/me", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!requireAuth(req, res)) return;
     const userId = (req.user as any).id;
     try {
       const row = await storage.getCollectionByUserId(userId);
@@ -761,7 +788,7 @@ export async function registerRoutes(
 
   // GET /api/collections — admin sees all teachers
   app.get("/api/collections", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     try {
       const rows = await storage.getAllCollections();
       res.json(rows);
@@ -772,7 +799,7 @@ export async function registerRoutes(
 
   // POST /api/collections/:userId/reset — admin resets a teacher's balance
   app.post("/api/collections/:userId/reset", async (req, res) => {
-    if (!req.isAuthenticated() || (req.user as any).role !== "admin") return res.sendStatus(403);
+    if (!requireAdmin(req, res)) return;
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ message: "Invalid user id" });
     try {

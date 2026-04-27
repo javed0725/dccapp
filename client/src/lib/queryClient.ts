@@ -1,19 +1,57 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
+
+const SESSION_EXPIRED_FALLBACK =
+  "Your session has expired. Please log in again.";
+
+function isAuthCheckUrl(url: string): boolean {
+  try {
+    const path = url.startsWith("http") ? new URL(url).pathname : url.split("?")[0];
+    return path === "/api/user" || path === "/api/login" || path === "/api/logout";
+  } catch {
+    return false;
+  }
+}
+
+let lastUnauthorizedAt = 0;
+function handleUnauthorized(message: string) {
+  const now = Date.now();
+  if (now - lastUnauthorizedAt < 1500) return;
+  lastUnauthorizedAt = now;
+
+  queryClient.setQueryData(["/api/user"], null);
+
+  toast({
+    title: "Session expired",
+    description: message,
+    variant: "destructive",
+  });
+
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    const safePaths = new Set(["/", "/login", "/admin", "/teacher", "/student"]);
+    if (!safePaths.has(path)) {
+      window.location.href = "/login";
+    }
+  }
+}
+
+async function parseErrorMessage(res: Response): Promise<string> {
+  const text = (await res.text()) || res.statusText;
+  try {
+    const json = JSON.parse(text);
+    if (json.message) return json.message as string;
+    if (json.error) return json.error as string;
+  } catch {
+    /* not JSON */
+  }
+  return text || `Request failed with status ${res.status}`;
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    try {
-      const json = JSON.parse(text);
-      if (json.message) throw new Error(json.message);
-      if (json.error) throw new Error(json.error);
-    } catch (e) {
-      if (e instanceof SyntaxError) {
-        throw new Error(text || `Request failed with status ${res.status}`);
-      }
-      throw e;
-    }
-    throw new Error(text || `Request failed with status ${res.status}`);
+    const message = await parseErrorMessage(res);
+    throw new Error(message);
   }
 }
 
@@ -29,6 +67,14 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  if (res.status === 401 && !isAuthCheckUrl(url)) {
+    const message = await parseErrorMessage(res.clone()).catch(
+      () => SESSION_EXPIRED_FALLBACK,
+    );
+    handleUnauthorized(message || SESSION_EXPIRED_FALLBACK);
+    throw new Error(message || SESSION_EXPIRED_FALLBACK);
+  }
+
   await throwIfResNotOk(res);
   return res;
 }
@@ -39,12 +85,22 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    const res = await fetch(url, {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
+      if (!isAuthCheckUrl(url)) {
+        const message = await parseErrorMessage(res.clone()).catch(
+          () => SESSION_EXPIRED_FALLBACK,
+        );
+        handleUnauthorized(message || SESSION_EXPIRED_FALLBACK);
+        throw new Error(message || SESSION_EXPIRED_FALLBACK);
+      }
     }
 
     await throwIfResNotOk(res);
