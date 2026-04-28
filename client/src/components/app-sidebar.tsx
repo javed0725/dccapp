@@ -70,11 +70,16 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
 
   const isAuthorityTeacher = user?.isAuthority && user?.role === "teacher";
   const inAdminMode = isAuthorityTeacher && activePortal === "admin";
+  // Admin/Authority portal viewers — pure admins or authority teachers in admin mode
+  const inAuthorityPortal = effectiveRole === "admin" || inAdminMode;
+  // Show the switch button for: authority teachers (either portal), or any admin in the Authority portal
+  const showSwitchPortalButton = isAuthorityTeacher || inAuthorityPortal;
 
   function handleSwitchPortal() {
     // Log out and redirect to the OPPOSITE portal's login page so the
     // appropriate UI loads cleanly after the user logs back in.
-    switchPortalMutation.mutate(inAdminMode ? "teacher" : "admin");
+    const target: "teacher" | "admin" = inAuthorityPortal ? "teacher" : "admin";
+    switchPortalMutation.mutate(target);
   }
 
   return (
@@ -147,16 +152,18 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
             </div>
           </div>
 
-          {/* Portal switch button — only for authority teachers */}
-          {isAuthorityTeacher && (
+          {/* Portal switch button — authority teachers in either portal,
+              or any admin viewing the Authority portal */}
+          {showSwitchPortalButton && (
             <Button
               data-testid="button-switch-portal"
               variant="outline"
               size="sm"
               onClick={handleSwitchPortal}
+              disabled={switchPortalMutation.isPending}
               className="w-full rounded-xl h-9 font-black uppercase tracking-widest border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 flex items-center justify-center gap-2 text-xs"
             >
-              {inAdminMode ? (
+              {inAuthorityPortal ? (
                 <><GraduationCap className="w-4 h-4" /><span>Switch to Teacher</span></>
               ) : (
                 <><ShieldCheck className="w-4 h-4" /><span>Switch to Authority</span></>
