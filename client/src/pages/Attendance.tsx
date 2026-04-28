@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone } from "lucide-react";
+import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 
 type AttendanceRow = {
@@ -243,7 +243,9 @@ export default function Attendance() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Subject</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                  Subject <span className="text-rose-600" aria-hidden="true">*</span>
+                </Label>
                 <div className="relative">
                   <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <Input
@@ -251,13 +253,21 @@ export default function Attendance() {
                     placeholder="e.g. Math, Physics"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
+                    required
+                    aria-required="true"
+                    aria-invalid={!effSubject}
                     data-testid="input-subject"
-                    className="pl-9"
+                    className={`pl-9 ${!effSubject ? 'border-rose-300 focus-visible:ring-rose-300' : ''}`}
                   />
                   <datalist id="attendance-subjects">
                     {subjectOptions.map((s) => <option key={s} value={s} />)}
                   </datalist>
                 </div>
+                {!effSubject && (
+                  <p className="text-[11px] text-rose-600" data-testid="text-subject-required">
+                    Subject is required to save attendance.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2 sm:col-span-2 lg:col-span-1">
@@ -349,15 +359,24 @@ export default function Attendance() {
                         );
                       })}
                     </div>
-                    <div className="flex justify-end mt-4">
+                    <div className="flex flex-col items-end gap-1 mt-4">
                       <Button
-                        onClick={() => saveMutation.mutate()}
-                        disabled={saveMutation.isPending}
+                        onClick={() => {
+                          if (!effSubject) {
+                            toast({ variant: "destructive", title: "Subject required", description: "Please enter or select a subject before saving." });
+                            return;
+                          }
+                          saveMutation.mutate();
+                        }}
+                        disabled={saveMutation.isPending || !effSubject}
                         data-testid="button-save-attendance"
                         className="bg-blue-600 hover:bg-blue-700"
                       >
                         {saveMutation.isPending ? "Saving..." : existing ? "Update Attendance" : "Save Attendance"}
                       </Button>
+                      {!effSubject && (
+                        <p className="text-[11px] text-rose-600">Enter a subject to enable saving.</p>
+                      )}
                     </div>
                   </>
                 )}
@@ -411,6 +430,27 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
     staleTime: 0,
     refetchOnMount: "always",
   });
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/attendance/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
+      toast({ title: "Session deleted", description: "Attendance session and its records were removed." });
+    },
+    onError: (err: any) => toast({ variant: "destructive", title: "Delete failed", description: err?.message || "Could not delete session" }),
+  });
+
+  const handleDeleteSession = (s: AttendanceRow) => {
+    const label = `${s.date}${s.subject ? ` · ${s.subject}` : ''}`;
+    if (confirm(`Are you sure you want to delete this attendance session (${label})? This will remove all student records in this session and cannot be undone.`)) {
+      deleteMutation.mutate(s.id);
+    }
+  };
 
   const studentName = (id: number) => students.find((s: any) => s.id === id)?.name || `Student #${id}`;
   const studentMobile = (id: number): string | null => {
@@ -510,7 +550,20 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
                                 {pct}% present
                               </Badge>
                             </div>
-                            <span className="text-xs text-slate-500">{present}/{s.totalStudents} present</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-slate-500">{present}/{s.totalStudents} present</span>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDeleteSession(s)}
+                                disabled={deleteMutation.isPending}
+                                aria-label="Delete session"
+                                className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                data-testid={`button-delete-session-${s.id}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
                           {s.absentStudentIds?.length > 0 && (
                             <div className="mt-2">

@@ -669,6 +669,21 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/attendance/:id", async (req, res) => {
+    if (!requireRoles(req, res, ['teacher', 'admin'])) return;
+    const user = req.user as any;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    const session = await storage.getAttendanceById(id);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    // Teachers may only delete sessions they recorded; admins can delete any.
+    if (user.role !== 'admin' && session.teacherId !== user.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    await storage.deleteAttendance(id);
+    res.sendStatus(204);
+  });
+
   app.get("/api/attendance/summary", async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const subject = req.query.subject ? String(req.query.subject) : undefined;

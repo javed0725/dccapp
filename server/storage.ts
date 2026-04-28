@@ -66,6 +66,8 @@ export interface IStorage {
   upsertAttendance(data: { date: string; batchId: number; teacherId: number | null; subject?: string; academicGroup?: string; shift?: string; absentStudentIds: number[]; totalStudents: number; }): Promise<Attendance>;
   getAttendanceByKey(filter: { batchId: number; date: string; subject?: string; academicGroup?: string; shift?: string; }): Promise<Attendance | undefined>;
   getAttendanceHistory(filter?: { batchId?: number; subject?: string; academicGroup?: string; shift?: string; teacherId?: number }): Promise<Attendance[]>;
+  getAttendanceById(id: number): Promise<Attendance | undefined>;
+  deleteAttendance(id: number): Promise<void>;
   getAttendanceSummary(filter?: { subject?: string; academicGroup?: string; shift?: string }): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>>;
 
   // Model Test Drafts
@@ -574,6 +576,15 @@ export class DatabaseStorage implements IStorage {
       return db.select().from(attendance).where(and(...conds)).orderBy(desc(attendance.date));
     }
     return db.select().from(attendance).orderBy(desc(attendance.date));
+  }
+
+  async getAttendanceById(id: number): Promise<Attendance | undefined> {
+    const [row] = await db.select().from(attendance).where(eq(attendance.id, id));
+    return row;
+  }
+
+  async deleteAttendance(id: number): Promise<void> {
+    await db.delete(attendance).where(eq(attendance.id, id));
   }
 
   async getAttendanceSummary(filter?: { subject?: string; academicGroup?: string; shift?: string }): Promise<Array<{ batchId: number; batchName: string; totalSessions: number; averageAttendance: number; lastDate: string | null }>> {
