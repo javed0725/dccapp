@@ -2,12 +2,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { api, buildUrl } from "@shared/routes";
 import { Income, Expense, Batch, Student, InsertIncome, InsertExpense } from "@/lib/schemas";
+import { usePortal } from "@/lib/portal-context";
 
 export function useIncomes() {
+  const { activePortal } = usePortal();
   return useQuery<any[]>({
-    queryKey: [api.incomes.list.path],
+    queryKey: [api.incomes.list.path, activePortal],
     queryFn: async () => {
-      const res = await fetch(api.incomes.list.path);
+      const url = `${api.incomes.list.path}?portal=${activePortal}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch incomes");
       return res.json();
     },

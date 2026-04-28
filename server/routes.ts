@@ -317,14 +317,19 @@ export async function registerRoutes(
 
     const allIncomes = await storage.getIncomes();
     console.log(`[BACKEND LOG] Fetched ${allIncomes.length} total incomes`);
-    
-    // Teachers only see their own entries — authority teachers always see all
-    if (user.role === 'teacher' && !user.isAuthority) {
+
+    // Determine effective portal — authority teachers can switch between
+    // "teacher" (own records only) and "admin" (all records) portals.
+    const requestedPortal = String(req.query.portal ?? "").toLowerCase();
+    const inTeacherPortal =
+      user.role === 'teacher' && (!user.isAuthority || requestedPortal === 'teacher');
+
+    if (inTeacherPortal) {
       const filtered = allIncomes.filter(inc => inc.recordedBy === user.id);
-      console.log(`[BACKEND LOG] Teacher ${user.username} sees ${filtered.length} incomes`);
+      console.log(`[BACKEND LOG] Teacher ${user.username} (portal=${requestedPortal || 'teacher'}) sees ${filtered.length} incomes`);
       return res.json(filtered);
     }
-    
+
     res.json(allIncomes);
   });
 
