@@ -623,6 +623,7 @@ export async function registerRoutes(
   // Attendance Routes
   app.get("/api/attendance", async (req, res) => {
     if (!requireRoles(req, res, ['teacher', 'admin'])) return;
+    const user = req.user as any;
     const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
     const date = req.query.date ? String(req.query.date) : undefined;
     const subject = req.query.subject ? String(req.query.subject) : undefined;
@@ -632,7 +633,18 @@ export async function registerRoutes(
       const row = await storage.getAttendanceByKey({ batchId, date, subject, academicGroup, shift });
       return res.json(row || null);
     }
-    const rows = await storage.getAttendanceHistory({ batchId, subject, academicGroup, shift });
+
+    // Determine effective portal — authority teachers can switch between
+    // "teacher" (own records only) and "admin" (all records) portals.
+    const requestedPortal = String(req.query.portal ?? "").toLowerCase();
+    const inTeacherPortal =
+      user.role === 'teacher' && (!user.isAuthority || requestedPortal === 'teacher');
+
+    const teacherIdFilter = inTeacherPortal ? user.id : undefined;
+    const rows = await storage.getAttendanceHistory({ batchId, subject, academicGroup, shift, teacherId: teacherIdFilter });
+    if (inTeacherPortal) {
+      console.log(`[BACKEND LOG] Teacher ${user.username} (portal=${requestedPortal || 'teacher'}) sees ${rows.length} attendance sessions`);
+    }
     res.json(rows);
   });
 

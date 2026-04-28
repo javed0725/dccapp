@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { type User } from "@/lib/schemas";
+import { usePortal } from "@/lib/portal-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -385,6 +386,7 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
   const [batchId, setBatchId] = useState<string>("");
   const [group, setGroup] = useState<string>("all");
   const [filterSubject, setFilterSubject] = useState<string>("");
+  const { activePortal } = usePortal();
 
   const batchStudents = (students || []).filter((s: any) => !batchId || String(s.batchId) === batchId);
   const availableGroups = Array.from(new Set(batchStudents.map((s: any) => s.academicGroup).filter(Boolean))) as string[];
@@ -395,16 +397,19 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
   }, [batchId]);
 
   const { data: rows = [], isLoading } = useQuery<AttendanceRow[]>({
-    queryKey: ["/api/attendance", "history", batchId || "all", group, filterSubject],
+    queryKey: ["/api/attendance", "history", batchId || "all", group, filterSubject, activePortal],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (batchId) params.set("batchId", batchId);
       if (group !== "all") params.set("academicGroup", group);
       if (filterSubject) params.set("subject", filterSubject);
-      const res = await fetch(`/api/attendance${params.toString() ? `?${params.toString()}` : ''}`);
+      params.set("portal", activePortal);
+      const res = await fetch(`/api/attendance?${params.toString()}`);
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const studentName = (id: number) => students.find((s: any) => s.id === id)?.name || `Student #${id}`;
