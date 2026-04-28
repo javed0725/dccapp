@@ -16,7 +16,7 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
   const [location] = useLocation();
   const [, setLocation] = useLocation();
-  const { activePortal, setActivePortal } = usePortal();
+  const { activePortal } = usePortal();
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -31,6 +31,22 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
       localStorage.removeItem("activePortal");
       queryClient.clear();
       setLocation(loginPath);
+    },
+  });
+
+  // Switch-portal button: log out and route to the OTHER portal's login page
+  // so each portal loads its own clean UI (sidebar/bottom bar/tabs) on next login.
+  const switchPortalMutation = useMutation({
+    mutationFn: async (target: "teacher" | "admin") => {
+      await apiRequest("POST", "/api/logout");
+      return target;
+    },
+    onSuccess: (target) => {
+      const targetLoginPath = target === "admin" ? "/admin" : "/teacher";
+      localStorage.setItem("last_portal", targetLoginPath);
+      localStorage.removeItem("activePortal");
+      queryClient.clear();
+      setLocation(targetLoginPath);
     },
   });
 
@@ -56,21 +72,9 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   const inAdminMode = isAuthorityTeacher && activePortal === "admin";
 
   function handleSwitchPortal() {
-    if (inAdminMode) {
-      setActivePortal("teacher");
-      // Clear all cached data so teacher portal fetches only own records
-      queryClient.removeQueries({ queryKey: ["/api/incomes"] });
-      queryClient.removeQueries({ queryKey: ["/api/expenses"] });
-      queryClient.removeQueries({ queryKey: ["/api/collections"] });
-      setLocation("/teacher");
-    } else {
-      setActivePortal("admin");
-      // Clear cached data so authority portal fetches full global dataset
-      queryClient.removeQueries({ queryKey: ["/api/incomes"] });
-      queryClient.removeQueries({ queryKey: ["/api/expenses"] });
-      queryClient.removeQueries({ queryKey: ["/api/collections"] });
-      setLocation("/");
-    }
+    // Log out and redirect to the OPPOSITE portal's login page so the
+    // appropriate UI loads cleanly after the user logs back in.
+    switchPortalMutation.mutate(inAdminMode ? "teacher" : "admin");
   }
 
   return (
