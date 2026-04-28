@@ -1202,7 +1202,7 @@ function Footer() {
               </div>
               <div>
                 <div className="font-black text-white text-lg leading-none">DCC</div>
-                <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic CoachingCenters Center</div>
+                <div className="text-slate-400 text-[10px] leading-none tracking-wide">Dynamic Coaching Center</div>
               </div>
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-5">
