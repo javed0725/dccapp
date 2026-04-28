@@ -318,8 +318,8 @@ export async function registerRoutes(
     const allIncomes = await storage.getIncomes();
     console.log(`[BACKEND LOG] Fetched ${allIncomes.length} total incomes`);
     
-    // Teachers only see their own entries
-    if (user.role === 'teacher') {
+    // Teachers only see their own entries — authority teachers always see all
+    if (user.role === 'teacher' && !user.isAuthority) {
       const filtered = allIncomes.filter(inc => inc.recordedBy === user.id);
       console.log(`[BACKEND LOG] Teacher ${user.username} sees ${filtered.length} incomes`);
       return res.json(filtered);

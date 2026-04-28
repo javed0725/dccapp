@@ -58,10 +58,18 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   function handleSwitchPortal() {
     if (inAdminMode) {
       setActivePortal("teacher");
+      // Clear all cached data so teacher portal fetches only own records
+      queryClient.removeQueries({ queryKey: ["/api/incomes"] });
+      queryClient.removeQueries({ queryKey: ["/api/expenses"] });
+      queryClient.removeQueries({ queryKey: ["/api/collections"] });
       setLocation("/teacher");
     } else {
       setActivePortal("admin");
-      setLocation("/admin");
+      // Clear cached data so authority portal fetches full global dataset
+      queryClient.removeQueries({ queryKey: ["/api/incomes"] });
+      queryClient.removeQueries({ queryKey: ["/api/expenses"] });
+      queryClient.removeQueries({ queryKey: ["/api/collections"] });
+      setLocation("/");
     }
   }
 
