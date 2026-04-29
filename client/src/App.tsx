@@ -77,6 +77,41 @@ function PortalAwareRedirect() {
   return <Redirect to={getPortalLoginPath(location)} />;
 }
 
+/**
+ * Returns the portal this browser/PWA is locked into, or null for first-time
+ * visitors who can still see the public landing page. Lock-in is established
+ * when the user installs the PWA with a preferred route or visits any portal
+ * login page (Login.tsx writes `last_portal` on mount).
+ */
+function getLockedPortal(): string | null {
+  const isStandalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true);
+  if (isStandalone) {
+    const preferred = localStorage.getItem("pwa_preferred_route");
+    if (preferred && ["/student", "/teacher", "/admin"].includes(preferred)) {
+      return preferred;
+    }
+  }
+  const lastPortal = localStorage.getItem("last_portal");
+  if (lastPortal && ["/student", "/teacher", "/admin"].includes(lastPortal)) {
+    return lastPortal;
+  }
+  return null;
+}
+
+/**
+ * Root ("/") route. If the browser is locked into a portal, redirect to that
+ * portal's login page so the public landing page stays hidden. Otherwise show
+ * the landing page for first-time visitors.
+ */
+function RootRoute() {
+  const locked = getLockedPortal();
+  if (locked) return <Redirect to={locked} />;
+  return <LandingPage />;
+}
+
 function Router() {
   const { data: user, isLoading } = useQuery<User>({
     queryKey: ["/api/user"],
@@ -89,19 +124,15 @@ function Router() {
   const effectiveRole: string =
     user?.isAuthority && activePortal === "admin" ? "admin" : (user?.role ?? "");
 
-  // When launched as an installed PWA, redirect to the portal the user chose at install time
+  // When launched at root and the browser is already locked into a portal
+  // (PWA preferred route or last visited portal login), bounce to that portal
+  // immediately. This belt-and-suspenders the <RootRoute> redirect for cases
+  // where the route hasn't switched yet.
   useEffect(() => {
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
-
-    if (isStandalone && location === "/") {
-      const preferred = localStorage.getItem("pwa_preferred_route");
-      if (preferred && ["/student", "/teacher", "/admin"].includes(preferred)) {
-        setLocation(preferred);
-      }
-    }
-  }, []);
+    if (location !== "/") return;
+    const locked = getLockedPortal();
+    if (locked) setLocation(locked);
+  }, [location]);
 
   // Home path based on effective role
   const roleHomePath =
@@ -113,7 +144,7 @@ function Router() {
   if (isLoading) {
     return (
       <Switch>
-        <Route path="/" component={LandingPage} />
+        <Route path="/" component={RootRoute} />
         <Route path="/student"><LoginPage fixedRole="student" /></Route>
         <Route path="/teacher"><LoginPage fixedRole="teacher" /></Route>
         <Route path="/admin"><LoginPage fixedRole="admin" /></Route>
@@ -130,7 +161,7 @@ function Router() {
   if (!user) {
     return (
       <Switch>
-        <Route path="/" component={LandingPage} />
+        <Route path="/" component={RootRoute} />
         <Route path="/student"><LoginPage fixedRole="student" /></Route>
         <Route path="/teacher"><LoginPage fixedRole="teacher" /></Route>
         <Route path="/admin"><LoginPage fixedRole="admin" /></Route>

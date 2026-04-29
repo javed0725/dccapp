@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -57,6 +57,16 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
   const [showPassword, setShowPassword] = useState(false);
   const selectedRole = fixedRole ?? role;
   const selectedRoleDetails = selectedRole ? roleDetails[selectedRole] : null;
+
+  // Lock the browser/PWA into this portal as soon as the user lands on a
+  // portal-specific login page. Once set, the root route (/) and any
+  // unmatched fallback redirects will route here instead of the landing page.
+  useEffect(() => {
+    if (fixedRole) {
+      const portalPath = roleDetails[fixedRole].path;
+      localStorage.setItem("last_portal", portalPath);
+    }
+  }, [fixedRole]);
 
   const loginMutation = useMutation({
     mutationFn: async (data: any) => {
