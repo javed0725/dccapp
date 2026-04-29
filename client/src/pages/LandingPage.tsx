@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   Search,
 } from "lucide-react";
+import { SiFacebook } from "react-icons/si";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import heroBg from "@assets/hero-bg.webp";
 import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
@@ -203,13 +204,16 @@ function Header({ onNavigate }: { onNavigate: (path: string) => void }) {
             </a>
           ))}
         </nav>
-        <button
-          data-testid="button-nav-get-in-touch"
-          onClick={() => onNavigate("/student")}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+        <a
+          data-testid="button-nav-facebook"
+          href="https://www.facebook.com/dcoachingcenter"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#1877F2] text-white text-sm font-semibold hover:bg-[#166FE5] transition-colors shadow-sm"
         >
-          Get In Touch <ArrowRight className="w-4 h-4" />
-        </button>
+          <SiFacebook className="w-4 h-4" />
+          Our Facebook
+        </a>
       </div>
     </header>
   );
