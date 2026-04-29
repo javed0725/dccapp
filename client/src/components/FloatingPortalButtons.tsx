@@ -31,7 +31,7 @@ export function FloatingPortalButtons() {
           <button
             type="button"
             onClick={() => {
-              window.location.href = "/";
+              window.location.replace("/");
             }}
             data-testid="button-floating-website"
             aria-label="Visit Website"
