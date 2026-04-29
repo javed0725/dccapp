@@ -4,6 +4,7 @@ import { Bell, UserPlus, Wallet, FileCheck, CheckCheck, Banknote, RefreshCw, Rot
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { MobileNav } from "@/components/Navigation";
 import type { Notification } from "@shared/schema";
 
 const TYPE_CONFIG = {
@@ -309,6 +310,10 @@ export default function Notifications() {
           </div>
         )}
       </div>
+
+      {/* Bottom navigation bar — same floating bar used by every other admin tab.
+          MobileNav is position:fixed, so it overlays the viewport regardless of where it's mounted. */}
+      <MobileNav />
     </div>
   );
 }
