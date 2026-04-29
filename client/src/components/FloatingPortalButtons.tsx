@@ -1,4 +1,3 @@
-import { Link } from "wouter";
 import { SiFacebook } from "react-icons/si";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
@@ -29,8 +28,11 @@ export function FloatingPortalButtons() {
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link
-            href="/"
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "/";
+            }}
             data-testid="button-floating-website"
             aria-label="Visit Website"
             className="w-12 h-12 rounded-full bg-white p-1.5 flex items-center justify-center shadow-lg shadow-black/25 hover:scale-110 active:scale-95 transition-transform duration-200 ring-1 ring-black/10 overflow-hidden"
@@ -40,7 +42,7 @@ export function FloatingPortalButtons() {
               alt="Visit Website"
               className="w-full h-full object-contain rounded-full"
             />
-          </Link>
+          </button>
         </TooltipTrigger>
         <TooltipContent side="left" className="font-bold">
           Visit Website
