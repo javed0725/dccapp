@@ -121,6 +121,13 @@ function Router() {
   const effectiveRole: string =
     user?.isAuthority && activePortal === "admin" ? "admin" : (user?.role ?? "");
 
+  // Root ("/") is a NEUTRAL public zone — always show the landing page,
+  // regardless of auth state. This must run before any auth/role redirects
+  // so logged-in users can manually navigate back to "/" and stay there.
+  if (location === "/") {
+    return <RootRoute />;
+  }
+
   // Home path based on effective role
   const roleHomePath =
     effectiveRole === "admin" ? "/admin" :
