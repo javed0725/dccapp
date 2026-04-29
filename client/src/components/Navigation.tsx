@@ -54,7 +54,7 @@ export function MobileNav() {
   if (!user) return null;
 
   const adminLinks = [
-    { href: "/", label: "Home", icon: Home },
+    { href: "/admin", label: "Home", icon: Home },
     { href: "/income", label: "Payment", icon: Wallet },
     { href: "/results", label: "Results", icon: FileText },
     { href: "/attendance", label: "Attendance", icon: ClipboardCheck },
@@ -70,7 +70,7 @@ export function MobileNav() {
   ];
 
   const studentLinks = [
-    { href: "/", label: "Home", icon: LayoutDashboard },
+    { href: "/student", label: "Home", icon: LayoutDashboard },
     { href: "/results", label: "Results", icon: FileText },
     { href: "/teachers", label: "Teachers", icon: BookUser },
   ];
