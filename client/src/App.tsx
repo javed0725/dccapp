@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -102,13 +101,11 @@ function getLockedPortal(): string | null {
 }
 
 /**
- * Root ("/") route. If the browser is locked into a portal, redirect to that
- * portal's login page so the public landing page stays hidden. Otherwise show
- * the landing page for first-time visitors.
+ * Root ("/") route. Always renders the public landing page — no auth checks
+ * and no portal lock-in redirects. Users who want to enter a portal must
+ * click into a portal route explicitly.
  */
 function RootRoute() {
-  const locked = getLockedPortal();
-  if (locked) return <Redirect to={locked} />;
   return <LandingPage />;
 }
 
@@ -117,22 +114,12 @@ function Router() {
     queryKey: ["/api/user"],
     retry: false,
   });
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const { activePortal } = usePortal();
 
   // Authority teachers can act as admin when they've switched to the admin portal
   const effectiveRole: string =
     user?.isAuthority && activePortal === "admin" ? "admin" : (user?.role ?? "");
-
-  // When launched at root and the browser is already locked into a portal
-  // (PWA preferred route or last visited portal login), bounce to that portal
-  // immediately. This belt-and-suspenders the <RootRoute> redirect for cases
-  // where the route hasn't switched yet.
-  useEffect(() => {
-    if (location !== "/") return;
-    const locked = getLockedPortal();
-    if (locked) setLocation(locked);
-  }, [location]);
 
   // Home path based on effective role
   const roleHomePath =
