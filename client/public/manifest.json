@@ -1,6 +1,6 @@
 {
-  "name": "DCC Portal",
-  "short_name": "DCC Portal",
+  "name": "DCC",
+  "short_name": "DCC",
   "description": "Dynamic Coaching Center — Student, Teacher & Admin Portal",
   "start_url": "/",
   "display": "standalone",
