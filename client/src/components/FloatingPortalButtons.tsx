@@ -31,6 +31,7 @@ export function FloatingPortalButtons() {
           <button
             type="button"
             onClick={() => {
+              sessionStorage.setItem("intent_landing", "1");
               window.location.href = "/";
             }}
             data-testid="button-floating-website"

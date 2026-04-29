@@ -101,11 +101,23 @@ function getLockedPortal(): string | null {
 }
 
 /**
- * Root ("/") route. Always renders the public landing page — no auth checks
- * and no portal lock-in redirects. Users who want to enter a portal must
- * click into a portal route explicitly.
+ * Root ("/") route. The landing page is reachable ONLY when the user
+ * intentionally navigated there (the floating logo button sets a session
+ * flag before navigating to "/"). On any other entry to "/" — fresh PWA
+ * launch, direct URL, browser refresh in a new tab — we send the user to
+ * the portal login page their app context is bound to.
+ *
+ * First-time visitors with no portal binding still see the public landing
+ * page (there's nowhere else for them to go).
  */
 function RootRoute() {
+  if (typeof window !== "undefined") {
+    const intent = sessionStorage.getItem("intent_landing");
+    if (!intent) {
+      const locked = getLockedPortal();
+      if (locked) return <Redirect to={locked} />;
+    }
+  }
   return <LandingPage />;
 }
 
