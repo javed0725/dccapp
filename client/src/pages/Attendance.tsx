@@ -172,13 +172,14 @@ export default function Attendance() {
         title: "Attendance saved successfully!",
         description: `${presentCount} present, ${absentCount} absent.`,
       });
-      // Reset form to default state, ready for the next entry.
-      // Keep batch + date so the teacher can quickly mark another subject
-      // for the same class on the same day; clear the subject and presence.
+      // Fully reset the form so the teacher can start a fresh selection.
+      // Batch, group, shift, subject, and the student presence list are all
+      // cleared. Date stays as today (the page default).
+      setSelectedBatchId("");
+      setSelectedGroup("all");
+      setSelectedShift("all");
       setSubject("");
-      const reset: Record<number, boolean> = {};
-      studentsInBatch.forEach((s: any) => { reset[s.id] = true; });
-      setPresence(reset);
+      setPresence({});
     },
     onError: (err: any) => toast({ variant: "destructive", title: "Save failed", description: err.message }),
   });
