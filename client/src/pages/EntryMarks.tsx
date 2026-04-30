@@ -111,6 +111,19 @@ export default function EntryMarks() {
     },
   });
 
+  // Batch save: one HTTP call for many results, one consolidated notification.
+  const createResultsBatchMutation = useMutation({
+    mutationFn: async (entries: any[]) => {
+      await apiRequest("POST", "/api/results/batch", { entries });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/results"] });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   const [editingResult, setEditingResult] = useState<{
     id: number;
     examName: string;
@@ -189,19 +202,17 @@ export default function EntryMarks() {
     // Snapshot subject for the toast — state will be cleared right after.
     const savedSubject = subject;
     try {
-      await Promise.all(
-        allEntries.map(({ studentId, obtainedMarks }) =>
-          createResultMutation.mutateAsync({
-            studentId,
-            batchId: Number(selectedBatchId),
-            examName,
-            subject,
-            totalMarks: Number(totalMarks),
-            obtainedMarks,
-            isModelTest: false,
-          })
-        )
-      );
+      const payload = allEntries.map(({ studentId, obtainedMarks }) => ({
+        studentId,
+        batchId: Number(selectedBatchId),
+        examName,
+        subject,
+        totalMarks: Number(totalMarks),
+        obtainedMarks,
+        isModelTest: false,
+      }));
+      // Single batch call — one network round-trip, one notification.
+      await createResultsBatchMutation.mutateAsync(payload);
       toast({
         title: `Marks for ${savedSubject} saved successfully!`,
         description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} recorded.`,
@@ -260,7 +271,8 @@ export default function EntryMarks() {
     }
     const savedExam = modelExamName;
     try {
-      await Promise.all(payloads.map((p) => createResultMutation.mutateAsync(p)));
+      // Single batch call — one network round-trip, one notification.
+      await createResultsBatchMutation.mutateAsync(payloads);
       toast({
         title: `Model Test "${savedExam}" saved successfully!`,
         description: `${payloads.length} result${payloads.length !== 1 ? "s" : ""} recorded.`,
@@ -541,10 +553,10 @@ export default function EntryMarks() {
                       <CardTitle>Students List</CardTitle>
                       <Button
                         onClick={handleSaveMarks}
-                        disabled={createResultMutation.isPending || Object.values(markErrors).some((e) => e !== "")}
+                        disabled={createResultsBatchMutation.isPending || Object.values(markErrors).some((e) => e !== "")}
                         data-testid="button-save-all-marks"
                       >
-                        {createResultMutation.isPending ? (
+                        {createResultsBatchMutation.isPending ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                             Saving...

@@ -576,19 +576,58 @@ export async function registerRoutes(
         modelTestGroupId: req.body.modelTestGroupId || null,
       });
       const result = await storage.createResult(data);
+      // NOTE: No notification here. Single-result POSTs are used in loops
+      // (one call per student). Sending a notification per call would spam
+      // the Authority. Use POST /api/results/batch for one consolidated
+      // notification per save action.
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ message: "Invalid data" });
+    }
+  });
 
-      // Notification trigger: result upload
+  // Batch result upload — saves many results at once and emits exactly ONE
+  // notification for the entire action (e.g. a teacher saving marks for a
+  // whole class in one click).
+  app.post("/api/results/batch", async (req, res) => {
+    if (!requireRoles(req, res, ['teacher', 'admin'])) return;
+    try {
+      const { insertResultSchema } = await import("@shared/schema");
+      const rawEntries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+      if (rawEntries.length === 0) {
+        return res.status(400).json({ message: "entries array is required" });
+      }
+      const parsed = rawEntries.map((entry: any) =>
+        insertResultSchema.parse({
+          ...entry,
+          totalMarks: Number(entry.totalMarks),
+          obtainedMarks: Number(entry.obtained_marks ?? entry.obtainedMarks),
+          isModelTest: Boolean(entry.isModelTest),
+          modelTestGroupId: entry.modelTestGroupId || null,
+        })
+      );
+
+      const created = [];
+      for (const data of parsed) {
+        created.push(await storage.createResult(data));
+      }
+
+      // ONE consolidated notification for the whole batch.
       try {
+        const first = parsed[0];
         const allBatches = await storage.getBatches();
-        const batch = allBatches.find(b => b.id === data.batchId);
+        const batch = allBatches.find(b => b.id === first.batchId);
+        const batchName = batch?.name ?? "a batch";
         const teacherName = (req.user as any).username;
+        const uniqueSubjects = Array.from(new Set(parsed.map(p => p.subject)));
+        const label = uniqueSubjects.length === 1 ? uniqueSubjects[0] : first.examName;
         await storage.createNotification(
-          `${teacherName} has uploaded results for ${batch?.name ?? "a batch"} in ${data.subject}.`,
+          `${teacherName} has uploaded results for ${label} - ${batchName}.`,
           "result"
         );
       } catch (_) {}
 
-      res.status(201).json(result);
+      res.status(201).json({ saved: created.length });
     } catch (err) {
       res.status(400).json({ message: "Invalid data" });
     }
