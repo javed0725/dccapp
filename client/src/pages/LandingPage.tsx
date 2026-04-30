@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   Search,
 } from "lucide-react";
-import { SiFacebook } from "react-icons/si";
+import { SiFacebook, SiWhatsapp } from "react-icons/si";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import heroBg from "@assets/hero-bg.webp";
 import aboutPhoto2 from "@assets/PXL_20251115_062454776~2_1776221702373.jpg";
@@ -204,16 +204,30 @@ function Header({ onNavigate }: { onNavigate: (path: string) => void }) {
             </a>
           ))}
         </nav>
-        <a
-          data-testid="button-nav-facebook"
-          href="https://www.facebook.com/dcoachingcenter"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#1877F2] text-white text-sm font-semibold hover:bg-[#166FE5] transition-colors shadow-sm"
-        >
-          <SiFacebook className="w-4 h-4" />
-          Our Facebook
-        </a>
+        <div className="flex items-center gap-2">
+          <a
+            data-testid="link-nav-facebook"
+            href="https://www.facebook.com/dcoachingcenter"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit our Facebook page"
+            title="Facebook"
+            className="flex items-center justify-center w-10 h-10 rounded-full text-slate-600 hover:text-[#1877F2] hover:bg-slate-100 transition-colors"
+          >
+            <SiFacebook className="w-5 h-5" />
+          </a>
+          <a
+            data-testid="link-nav-whatsapp"
+            href="https://wa.me/8801973157313"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Chat with us on WhatsApp"
+            title="WhatsApp"
+            className="flex items-center justify-center w-10 h-10 rounded-full text-slate-600 hover:text-[#25D366] hover:bg-slate-100 transition-colors"
+          >
+            <SiWhatsapp className="w-5 h-5" />
+          </a>
+        </div>
       </div>
     </header>
   );
