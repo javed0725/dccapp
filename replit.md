@@ -1,5 +1,7 @@
 # Dynamic Coaching Center - Finance Manager
 
+> Note (2026-04-30): User dismissed the GitHub Replit integration during import. If GitHub access is needed later, ask whether to retry the integration or to store a Personal Access Token as a secret instead.
+
 ## Overview
 
 Dynamic Coaching Center is a personal finance management application designed for tracking tuition-based income and expenses. It provides a dashboard with visual analytics, payment tracking by student/batch/month, and expense categorization. The application follows a full-stack TypeScript architecture with a React frontend and Express backend, using PostgreSQL for data persistence.
