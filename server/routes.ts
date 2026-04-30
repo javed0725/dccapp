@@ -532,6 +532,7 @@ export async function registerRoutes(
       const sanitized = visible.map(r => ({
         id: r.id,
         studentId: r.studentId,
+        studentCustomId: r.student?.studentCustomId ?? null,
         studentName: r.student?.name ?? "",
         batchId: r.batchId,
         batchName: r.batch?.name ?? "",

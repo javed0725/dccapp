@@ -839,6 +839,7 @@ function AlumniSection() {
 type PublicResult = {
   id: number;
   studentId: number;
+  studentCustomId: string | null;
   studentName: string;
   batchId: number;
   batchName: string;
@@ -1002,7 +1003,9 @@ function ResultsSection() {
                         data-testid={`row-result-${r.id}`}
                         className={`border-t border-slate-100 ${rowHighlight(r.rank)}`}
                       >
-                        <td className="py-3 px-3 sm:px-4 font-mono text-xs text-slate-500">{r.studentId}</td>
+                        <td className="py-3 px-3 sm:px-4 font-mono text-xs text-slate-500" data-testid={`text-student-id-${r.id}`}>
+                          {r.studentCustomId || "—"}
+                        </td>
                         <td className="py-3 px-3 sm:px-4 font-semibold text-slate-800">
                           <div className="flex items-center gap-2">
                             {r.rank === 1 && <Trophy className="w-4 h-4 text-amber-500 shrink-0" />}
