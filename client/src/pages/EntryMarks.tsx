@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { type User } from "@/lib/schemas";
-import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -190,7 +190,24 @@ export default function EntryMarks() {
     allEntries.forEach(({ studentId, obtainedMarks }) => {
       createResultMutation.mutate(
         { studentId, batchId: Number(selectedBatchId), examName, subject, totalMarks: Number(totalMarks), obtainedMarks, isModelTest: false },
-        { onSuccess: () => { saved++; if (saved === allEntries.length) { toast({ title: "Marks saved successfully" }); setMarks({}); setSingleAbsents({}); setMarkErrors({}); } } }
+        {
+          onSuccess: () => {
+            saved++;
+            if (saved === allEntries.length) {
+              toast({
+                title: "Marks saved successfully!",
+                description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} saved for ${subject}.`,
+              });
+              // Reset form to default state, ready for the next entry.
+              setMarks({});
+              setSingleAbsents({});
+              setMarkErrors({});
+              setExamName("");
+              setSubject("");
+              setTotalMarks("");
+            }
+          },
+        }
       );
     });
   };
@@ -316,8 +333,11 @@ export default function EntryMarks() {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
       queryClient.invalidateQueries({ queryKey: ["/api/model-test-drafts"] });
       const subject = entries[0]?.subject ?? "";
-      toast({ title: "Marks saved!", description: `${entries.length} record${entries.length !== 1 ? "s" : ""} saved for ${subject}.` });
+      toast({ title: "Marks saved successfully!", description: `${entries.length} record${entries.length !== 1 ? "s" : ""} saved for ${subject}.` });
+      // Reset form to default state, ready for the next subject.
       setTeacherMarks({});
+      setAbsentStudents({});
+      setTeacherSubjectName("");
     },
     onError: () => {
       toast({ variant: "destructive", title: "Failed to save marks", description: "Please try again." });
@@ -487,8 +507,16 @@ export default function EntryMarks() {
                       <Button
                         onClick={handleSaveMarks}
                         disabled={createResultMutation.isPending || Object.values(markErrors).some((e) => e !== "")}
+                        data-testid="button-save-all-marks"
                       >
-                        Save All Marks
+                        {createResultMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save All Marks"
+                        )}
                       </Button>
                     </CardHeader>
                     <CardContent>

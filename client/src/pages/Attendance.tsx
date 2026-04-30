@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2 } from "lucide-react";
+import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2, Loader2 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 
 type AttendanceRow = {
@@ -168,7 +168,17 @@ export default function Attendance() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
       queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
-      toast({ title: "Attendance saved", description: `${presentCount} present, ${absentCount} absent.` });
+      toast({
+        title: "Attendance saved successfully!",
+        description: `${presentCount} present, ${absentCount} absent.`,
+      });
+      // Reset form to default state, ready for the next entry.
+      // Keep batch + date so the teacher can quickly mark another subject
+      // for the same class on the same day; clear the subject and presence.
+      setSubject("");
+      const reset: Record<number, boolean> = {};
+      studentsInBatch.forEach((s: any) => { reset[s.id] = true; });
+      setPresence(reset);
     },
     onError: (err: any) => toast({ variant: "destructive", title: "Save failed", description: err.message }),
   });
@@ -372,7 +382,12 @@ export default function Attendance() {
                         data-testid="button-save-attendance"
                         className="bg-blue-600 hover:bg-blue-700"
                       >
-                        {saveMutation.isPending ? "Saving..." : existing ? "Update Attendance" : "Save Attendance"}
+                        {saveMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : existing ? "Update Attendance" : "Save Attendance"}
                       </Button>
                       {!effSubject && (
                         <p className="text-[11px] text-rose-600">Enter a subject to enable saving.</p>
