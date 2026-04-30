@@ -195,16 +195,19 @@ export default function EntryMarks() {
             saved++;
             if (saved === allEntries.length) {
               toast({
-                title: "Marks saved successfully!",
-                description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} saved for ${subject}.`,
+                title: `Marks for ${subject} saved successfully!`,
+                description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} recorded.`,
               });
-              // Reset form to default state, ready for the next entry.
+              // Fully reset the form so the teacher can start fresh.
               setMarks({});
               setSingleAbsents({});
               setMarkErrors({});
               setExamName("");
               setSubject("");
-              setTotalMarks("");
+              setTotalMarks("100");
+              setSelectedBatchId("");
+              setSelectedShift("all");
+              setSelectedGroup("all");
             }
           },
         }
@@ -333,11 +336,15 @@ export default function EntryMarks() {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
       queryClient.invalidateQueries({ queryKey: ["/api/model-test-drafts"] });
       const subject = entries[0]?.subject ?? "";
-      toast({ title: "Marks saved successfully!", description: `${entries.length} record${entries.length !== 1 ? "s" : ""} saved for ${subject}.` });
-      // Reset form to default state, ready for the next subject.
+      toast({
+        title: `Marks for ${subject} saved successfully!`,
+        description: `${entries.length} record${entries.length !== 1 ? "s" : ""} recorded.`,
+      });
+      // Fully reset the form (incl. batch/draft selection) for a fresh entry.
       setTeacherMarks({});
       setAbsentStudents({});
       setTeacherSubjectName("");
+      setSelectedDraftGroupId("");
     },
     onError: () => {
       toast({ variant: "destructive", title: "Failed to save marks", description: "Please try again." });
@@ -1135,10 +1142,20 @@ export default function EntryMarks() {
                               <Button
                                 onClick={handleSaveTeacherMarks}
                                 disabled={saveModelTestMarksMutation.isPending}
+                                data-testid="button-save-teacher-marks"
                                 className="gap-2 shrink-0"
                               >
-                                <CheckCircle2 className="w-4 h-4" />
-                                {saveModelTestMarksMutation.isPending ? "Saving..." : "Save Marks"}
+                                {saveModelTestMarksMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    Save Marks
+                                  </>
+                                )}
                               </Button>
                             </CardHeader>
                             <CardContent className="overflow-x-auto">
