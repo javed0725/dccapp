@@ -188,15 +188,21 @@ export default function EntryMarks() {
       toast({ variant: "destructive", title: "Fix validation errors before saving" });
       return;
     }
-    const absentEntries = filteredStudents
-      .filter((s) => singleAbsents[s.id])
-      .map((s) => ({ studentId: s.id, obtainedMarks: -1 }));
-    const markEntries = Object.entries(marks)
-      .filter(([, v]) => v !== "")
-      .map(([id, v]) => ({ studentId: Number(id), obtainedMarks: Number(v) }));
-    const allEntries = [...absentEntries, ...markEntries.filter((e) => !singleAbsents[e.studentId])];
+    // Build one entry per student in the filtered list. A student is recorded
+    // as Absent (-1) when either:
+    //   (a) the absent checkbox is ticked, OR
+    //   (b) the mark input is left empty/blank.
+    // This guarantees the teacher never accidentally skips a student.
+    const allEntries = filteredStudents.map((s) => {
+      const raw = marks[s.id];
+      const isAbsent = singleAbsents[s.id] || raw === undefined || raw === "";
+      return {
+        studentId: s.id,
+        obtainedMarks: isAbsent ? -1 : Number(raw),
+      };
+    });
     if (allEntries.length === 0) {
-      toast({ variant: "destructive", title: "No marks entered" });
+      toast({ variant: "destructive", title: "No students in this batch" });
       return;
     }
     // Snapshot subject for the toast — state will be cleared right after.
@@ -251,18 +257,18 @@ export default function EntryMarks() {
     modelBatchStudents.forEach((student) => {
       validSubjects.forEach((subj, idx) => {
         const obtained = modelMarks[student.id]?.[idx];
-        if (obtained !== undefined && obtained !== "") {
-          payloads.push({
-            studentId: student.id,
-            batchId: Number(modelBatchId),
-            examName: modelExamName,
-            subject: subj.name,
-            totalMarks: Number(subj.totalMarks),
-            obtainedMarks: Number(obtained),
-            isModelTest: true,
-            modelTestGroupId: groupId,
-          });
-        }
+        // Empty/blank inputs auto-record as Absent (-1) so no student is skipped.
+        const isAbsent = obtained === undefined || obtained === "";
+        payloads.push({
+          studentId: student.id,
+          batchId: Number(modelBatchId),
+          examName: modelExamName,
+          subject: subj.name,
+          totalMarks: Number(subj.totalMarks),
+          obtainedMarks: isAbsent ? -1 : Number(obtained),
+          isModelTest: true,
+          modelTestGroupId: groupId,
+        });
       });
     });
     if (payloads.length === 0) {
@@ -414,18 +420,22 @@ export default function EntryMarks() {
     const subj = (draft.subjects as { name: string; totalMarks: number }[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
     const draftBatchStudents = (students?.filter((s) => s.batchId === draft.batchId) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
-    const entries = draftBatchStudents
-      .filter((s) => absentStudents[s.id] || (teacherMarks[s.id] !== undefined && teacherMarks[s.id] !== ""))
-      .map((student) => ({
+    // Include EVERY student. Empty inputs and absent-checked students both
+    // record as Absent (-1) so no one is silently skipped.
+    const entries = draftBatchStudents.map((student) => {
+      const raw = teacherMarks[student.id];
+      const isAbsent = absentStudents[student.id] || raw === undefined || raw === "";
+      return {
         studentId: student.id,
         batchId: draft.batchId,
         examName: draft.examName,
         subject: teacherSubjectName,
         totalMarks: subj.totalMarks,
-        obtainedMarks: absentStudents[student.id] ? -1 : Number(teacherMarks[student.id]),
-      }));
+        obtainedMarks: isAbsent ? -1 : Number(raw),
+      };
+    });
     if (entries.length === 0) {
-      toast({ variant: "destructive", title: "No marks or absences entered" });
+      toast({ variant: "destructive", title: "No students in this batch" });
       return;
     }
     saveModelTestMarksMutation.mutate({ groupId: draft.groupId, entries });
@@ -751,7 +761,7 @@ export default function EntryMarks() {
                                                   <TableCell className="text-sm py-2.5 text-slate-600">{res.subject}</TableCell>
                                                   <TableCell className="text-sm py-2.5 text-center font-bold">
                                                     {res.obtainedMarks === -1
-                                                      ? <span className="text-amber-600 font-bold">ABS</span>
+                                                      ? <span className="text-amber-600 font-bold">Absent</span>
                                                       : <>{res.obtainedMarks}<span className="text-slate-400 font-normal">/{res.totalMarks}</span></>
                                                     }
                                                   </TableCell>
@@ -834,7 +844,7 @@ export default function EntryMarks() {
                               <TableCell className="py-5 px-6 text-[#64748B] font-bold">{res.totalMarks}</TableCell>
                               <TableCell className="py-5 px-6">
                                 {res.obtainedMarks === -1
-                                  ? <span className="font-black text-lg text-amber-600">ABS</span>
+                                  ? <span className="font-black text-lg text-amber-600">Absent</span>
                                   : <span className="font-black text-lg text-emerald-600">{res.obtainedMarks}</span>
                                 }
                               </TableCell>
@@ -1044,7 +1054,7 @@ export default function EntryMarks() {
                                         <TableRow key={studentRes[0]?.studentId} className={`group ${hasAbsent ? "bg-red-50/50 hover:bg-red-50" : "hover:bg-slate-50/60"}`}>
                                           <TableCell className="py-2.5 font-medium text-sm">
                                             <span className={hasAbsent ? "text-red-600" : ""}>{st?.name || "—"}</span>
-                                            {hasAbsent && <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">ABS</span>}
+                                            {hasAbsent && <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">Absent</span>}
                                           </TableCell>
                                           <TableCell className="py-2.5 text-center text-sm font-bold">
                                             {hasAbsent
@@ -1297,10 +1307,15 @@ export default function EntryMarks() {
                 <CardContent className="p-4 space-y-3">
                   {Object.entries(modelTestGroups).map(([groupId, groupResults]) => {
                     const examN = groupResults[0]?.examName;
-                    const totalObtained = groupResults.reduce((s: number, r: any) => s + r.obtainedMarks, 0);
-                    const totalFull = groupResults.reduce((s: number, r: any) => s + r.totalMarks, 0);
-                    const gpa = groupResults.map((r: any) => getGrade(r.obtainedMarks, r.totalMarks).gp)
-                      .reduce((s: number, g: number) => s + g, 0) / groupResults.length;
+                    // Exclude absent records (-1) from sums and GPA so totals reflect
+                    // only attended subjects.
+                    const attendedRes = groupResults.filter((r: any) => r.obtainedMarks !== -1);
+                    const totalObtained = attendedRes.reduce((s: number, r: any) => s + r.obtainedMarks, 0);
+                    const totalFull = attendedRes.reduce((s: number, r: any) => s + r.totalMarks, 0);
+                    const gpa = attendedRes.length > 0
+                      ? attendedRes.map((r: any) => getGrade(r.obtainedMarks, r.totalMarks).gp)
+                          .reduce((s: number, g: number) => s + g, 0) / attendedRes.length
+                      : 0;
                     return (
                       <div key={groupId} className="border border-border rounded-xl p-4 flex items-center justify-between bg-slate-50">
                         <div>

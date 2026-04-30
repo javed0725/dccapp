@@ -1012,7 +1012,9 @@ function ResultsSection() {
                           </div>
                         </td>
                         <td className="py-3 px-3 sm:px-4 text-center text-slate-700">{r.totalMarks}</td>
-                        <td className="py-3 px-3 sm:px-4 text-center font-bold text-blue-700">{r.obtainedMarks}</td>
+                        <td className={`py-3 px-3 sm:px-4 text-center font-bold ${r.obtainedMarks === -1 ? "text-red-600" : "text-blue-700"}`}>
+                          {r.obtainedMarks === -1 ? "Absent" : r.obtainedMarks}
+                        </td>
                         <td className="py-3 px-3 sm:px-4 text-center">
                           <span className={`inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-full text-xs font-bold ${rankBadge(r.rank)}`}>
                             #{r.rank}

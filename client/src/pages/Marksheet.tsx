@@ -192,7 +192,7 @@ export default function Marksheet() {
                       <td className={`py-3.5 px-4 font-semibold ${r.isAbsent ? "text-red-600" : "text-[#2c3e50]"}`}>{r.subject}</td>
                       <td className="py-3.5 px-3 text-center text-slate-500 font-medium">{r.totalMarks}</td>
                       <td className={`py-3.5 px-3 text-center font-black text-base ${r.isAbsent ? "text-red-600" : "text-[#2c3e50]"}`}>
-                        {r.isAbsent ? "ABS" : r.obtainedMarks}
+                        {r.isAbsent ? "Absent" : r.obtainedMarks}
                       </td>
                       <td className="py-3.5 px-3 text-center text-slate-400 font-medium text-xs">
                         {r.isAbsent ? "—" : `${pct}%`}
