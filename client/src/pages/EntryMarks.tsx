@@ -165,7 +165,7 @@ export default function EntryMarks() {
     },
   });
 
-  const handleSaveMarks = () => {
+  const handleSaveMarks = async () => {
     if (!examName || !subject || !totalMarks || !selectedBatchId) {
       toast({ variant: "destructive", title: "Missing fields", description: "Please fill in all exam details" });
       return;
@@ -186,36 +186,46 @@ export default function EntryMarks() {
       toast({ variant: "destructive", title: "No marks entered" });
       return;
     }
-    let saved = 0;
-    allEntries.forEach(({ studentId, obtainedMarks }) => {
-      createResultMutation.mutate(
-        { studentId, batchId: Number(selectedBatchId), examName, subject, totalMarks: Number(totalMarks), obtainedMarks, isModelTest: false },
-        {
-          onSuccess: () => {
-            saved++;
-            if (saved === allEntries.length) {
-              toast({
-                title: `Marks for ${subject} saved successfully!`,
-                description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} recorded.`,
-              });
-              // Fully reset the form so the teacher can start fresh.
-              setMarks({});
-              setSingleAbsents({});
-              setMarkErrors({});
-              setExamName("");
-              setSubject("");
-              setTotalMarks("100");
-              setSelectedBatchId("");
-              setSelectedShift("all");
-              setSelectedGroup("all");
-            }
-          },
-        }
+    // Snapshot subject for the toast — state will be cleared right after.
+    const savedSubject = subject;
+    try {
+      await Promise.all(
+        allEntries.map(({ studentId, obtainedMarks }) =>
+          createResultMutation.mutateAsync({
+            studentId,
+            batchId: Number(selectedBatchId),
+            examName,
+            subject,
+            totalMarks: Number(totalMarks),
+            obtainedMarks,
+            isModelTest: false,
+          })
+        )
       );
-    });
+      toast({
+        title: `Marks for ${savedSubject} saved successfully!`,
+        description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} recorded.`,
+      });
+      // Fully reset the form so the teacher can start fresh.
+      setMarks({});
+      setSingleAbsents({});
+      setMarkErrors({});
+      setExamName("");
+      setSubject("");
+      setTotalMarks("100");
+      setSelectedBatchId("");
+      setSelectedShift("all");
+      setSelectedGroup("all");
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: err?.message || "Some marks could not be saved. Please try again.",
+      });
+    }
   };
 
-  const handleSaveModelTest = () => {
+  const handleSaveModelTest = async () => {
     if (!modelBatchId || !modelExamName) {
       toast({ variant: "destructive", title: "Missing fields", description: "Select batch and enter exam name" });
       return;
@@ -226,29 +236,47 @@ export default function EntryMarks() {
       return;
     }
     const groupId = crypto.randomUUID();
-    let total = 0;
-    let count = 0;
-    modelBatchStudents.forEach((student) => {
-      validSubjects.forEach((subj, idx) => {
-        const obtained = modelMarks[student.id]?.[idx];
-        if (obtained !== undefined && obtained !== "") total++;
-      });
-    });
-    if (total === 0) {
-      toast({ variant: "destructive", title: "No marks entered" });
-      return;
-    }
+    const payloads: any[] = [];
     modelBatchStudents.forEach((student) => {
       validSubjects.forEach((subj, idx) => {
         const obtained = modelMarks[student.id]?.[idx];
         if (obtained !== undefined && obtained !== "") {
-          createResultMutation.mutate(
-            { studentId: student.id, batchId: Number(modelBatchId), examName: modelExamName, subject: subj.name, totalMarks: Number(subj.totalMarks), obtainedMarks: Number(obtained), isModelTest: true, modelTestGroupId: groupId },
-            { onSuccess: () => { count++; if (count === total) { toast({ title: "Model Test saved!", description: `${total} results recorded.` }); setModelMarks({}); } } }
-          );
+          payloads.push({
+            studentId: student.id,
+            batchId: Number(modelBatchId),
+            examName: modelExamName,
+            subject: subj.name,
+            totalMarks: Number(subj.totalMarks),
+            obtainedMarks: Number(obtained),
+            isModelTest: true,
+            modelTestGroupId: groupId,
+          });
         }
       });
     });
+    if (payloads.length === 0) {
+      toast({ variant: "destructive", title: "No marks entered" });
+      return;
+    }
+    const savedExam = modelExamName;
+    try {
+      await Promise.all(payloads.map((p) => createResultMutation.mutateAsync(p)));
+      toast({
+        title: `Model Test "${savedExam}" saved successfully!`,
+        description: `${payloads.length} result${payloads.length !== 1 ? "s" : ""} recorded.`,
+      });
+      // Fully reset the form so the user can start fresh.
+      setModelMarks({});
+      setModelBatchId("");
+      setModelExamName("");
+      setSubjects([{ name: "", totalMarks: "100" }]);
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: err?.message || "Some results could not be saved. Please try again.",
+      });
+    }
   };
 
   const addSubject = () => setSubjects((p) => [...p, { name: "", totalMarks: "100" }]);
