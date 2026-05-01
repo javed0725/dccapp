@@ -1,8 +1,6 @@
 import { ReactNode } from "react";
 import { MobileNav } from "./Navigation";
 import { FloatingPortalButtons } from "./FloatingPortalButtons";
-import { useQuery } from "@tanstack/react-query";
-import { type User } from "@/lib/schemas";
 
 interface LayoutProps {
   children: ReactNode;
@@ -12,9 +10,6 @@ interface LayoutProps {
 }
 
 export function Layout({ children, title, subtitle, action }: LayoutProps) {
-  const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
-  const showFloatingButtons = user?.role === "teacher" || user?.role === "student";
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <main className="flex-1 flex flex-col min-w-0 bg-background relative w-full">
@@ -34,7 +29,7 @@ export function Layout({ children, title, subtitle, action }: LayoutProps) {
         </div>
       </main>
 
-      {showFloatingButtons && <FloatingPortalButtons />}
+      <FloatingPortalButtons />
       <MobileNav />
     </div>
   );

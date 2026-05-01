@@ -1,5 +1,5 @@
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarHeader } from "@/components/ui/sidebar";
-import { LayoutDashboard, Wallet, Receipt, Settings, LogOut, FileCheck, Home, Bell, ClipboardCheck, ShieldCheck, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Wallet, Receipt, Settings, LogOut, FileCheck, Home, Bell, ClipboardCheck } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -34,22 +34,6 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
     },
   });
 
-  // Switch-portal button: log out and route to the OTHER portal's login page
-  // so each portal loads its own clean UI (sidebar/bottom bar/tabs) on next login.
-  const switchPortalMutation = useMutation({
-    mutationFn: async (target: "teacher" | "admin") => {
-      await apiRequest("POST", "/api/logout");
-      return target;
-    },
-    onSuccess: (target) => {
-      const targetLoginPath = target === "admin" ? "/admin" : "/teacher";
-      localStorage.setItem("last_portal", targetLoginPath);
-      localStorage.removeItem("activePortal");
-      queryClient.clear();
-      setLocation(targetLoginPath);
-    },
-  });
-
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     enabled: effectiveRole === "admin",
@@ -70,17 +54,6 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
 
   const isAuthorityTeacher = user?.isAuthority && user?.role === "teacher";
   const inAdminMode = isAuthorityTeacher && activePortal === "admin";
-  // Admin/Authority portal viewers — pure admins or authority teachers in admin mode
-  const inAuthorityPortal = effectiveRole === "admin" || inAdminMode;
-  // Show the switch button for: authority teachers (either portal), or any admin in the Authority portal
-  const showSwitchPortalButton = isAuthorityTeacher || inAuthorityPortal;
-
-  function handleSwitchPortal() {
-    // Log out and redirect to the OPPOSITE portal's login page so the
-    // appropriate UI loads cleanly after the user logs back in.
-    const target: "teacher" | "admin" = inAuthorityPortal ? "teacher" : "admin";
-    switchPortalMutation.mutate(target);
-  }
 
   return (
     <Sidebar className="border-r border-border/40 shadow-2xl bg-white/95 backdrop-blur-xl z-[110] h-[calc(100svh-80px)] max-h-[calc(100svh-80px)] overflow-hidden">
@@ -151,25 +124,6 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
               </span>
             </div>
           </div>
-
-          {/* Portal switch button — authority teachers in either portal,
-              or any admin viewing the Authority portal */}
-          {showSwitchPortalButton && (
-            <Button
-              data-testid="button-switch-portal"
-              variant="outline"
-              size="sm"
-              onClick={handleSwitchPortal}
-              disabled={switchPortalMutation.isPending}
-              className="w-full rounded-xl h-9 font-black uppercase tracking-widest border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 flex items-center justify-center gap-2 text-xs"
-            >
-              {inAuthorityPortal ? (
-                <><GraduationCap className="w-4 h-4" /><span>Switch to Teacher</span></>
-              ) : (
-                <><ShieldCheck className="w-4 h-4" /><span>Switch to Authority</span></>
-              )}
-            </Button>
-          )}
 
           <Button
             variant="destructive"
