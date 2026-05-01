@@ -46,6 +46,7 @@ export default function ManageData() {
   });
 
   const updateStudent = useUpdateStudent();
+  const [showInactive, setShowInactive] = useState(false);
   const [editingStudent, setEditingStudent] = useState<{ 
     id: number; 
     name: string; 
@@ -234,19 +235,34 @@ export default function ManageData() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Students List</CardTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle>Students List</CardTitle>
+                    <Button
+                      variant={showInactive ? "default" : "outline"}
+                      size="sm"
+                      data-testid="button-toggle-show-inactive"
+                      onClick={() => setShowInactive(v => !v)}
+                      className="text-xs gap-1.5"
+                    >
+                      {showInactive ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
+                      {showInactive ? "Hide Inactive" : "Show Inactive"}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <Accordion type="multiple" className="w-full">
                     {batches?.map((batch) => {
-                      const batchStudents = (students?.filter(s => s.batchId === batch.id) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+                      const allBatchStudents = (students?.filter(s => s.batchId === batch.id) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+                      const batchStudents = showInactive ? allBatchStudents : allBatchStudents.filter(s => s.isActive !== false);
+                      const inactiveCount = allBatchStudents.filter(s => s.isActive === false).length;
                       return (
                         <AccordionItem value={`batch-${batch.id}`} key={batch.id} className="border-b-0 mb-4">
                           <AccordionTrigger className="hover:no-underline py-2 px-4 bg-muted/50 rounded-lg group">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-primary">{batch.name}</span>
                               <span className="text-xs text-muted-foreground font-normal">
-                                ({batchStudents.length} students)
+                                ({batchStudents.filter(s => s.isActive !== false).length} active
+                                {inactiveCount > 0 && `, ${inactiveCount} inactive`})
                               </span>
                             </div>
                           </AccordionTrigger>
@@ -258,14 +274,21 @@ export default function ManageData() {
                                     <TableCell className="text-center py-4 text-muted-foreground italic">No students in this batch</TableCell>
                                   </TableRow>
                                 ) : (
-                                  batchStudents.map((student) => (
-                                    <TableRow key={student.id} className="group hover:bg-muted/30">
+                                  batchStudents.map((student) => {
+                                    const isInactive = student.isActive === false;
+                                    return (
+                                    <TableRow key={student.id} className={`group hover:bg-muted/30 ${isInactive ? "opacity-50" : ""}`}>
                                       
                                       <TableCell className="font-medium">
                                         <div className="flex flex-col gap-1">
                                           <div className="flex items-center gap-2">
-                                            {student.name}
-                                            {!student.studentCustomId && (
+                                            <span className={isInactive ? "line-through text-muted-foreground" : ""}>{student.name}</span>
+                                            {isInactive && (
+                                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 uppercase tracking-tighter ring-1 ring-slate-200">
+                                                Inactive
+                                              </span>
+                                            )}
+                                            {!student.studentCustomId && !isInactive && (
                                               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-tighter ring-1 ring-amber-200">
                                                 ID Pending
                                               </span>
@@ -323,22 +346,37 @@ export default function ManageData() {
                                         </div>
                                       </TableCell>
                                         
-                                      <TableCell className="w-[100px] text-right space-x-2">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="text-destructive h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                          onClick={() => {
-                                            if (confirm("Delete this student?")) {
-                                              deleteStudent.mutate(student.id);
-                                            }
-                                          }}
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                      <TableCell className="w-[120px] text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            data-testid={`button-toggle-active-${student.id}`}
+                                            title={isInactive ? "Re-activate student" : "Freeze student"}
+                                            className={`h-7 px-2 gap-1 text-[10px] font-bold uppercase tracking-wide opacity-0 group-hover:opacity-100 transition-opacity ${isInactive ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"}`}
+                                            onClick={() => updateStudent.mutate({ id: student.id, data: { isActive: !isInactive } })}
+                                            disabled={updateStudent.isPending}
+                                          >
+                                            {isInactive ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
+                                            {isInactive ? "Activate" : "Freeze"}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-destructive h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => {
+                                              if (confirm("Delete this student?")) {
+                                                deleteStudent.mutate(student.id);
+                                              }
+                                            }}
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </div>
                                       </TableCell>
                                     </TableRow>
-                                  ))
+                                    );
+                                  })
                                 )}
                               </TableBody>
                             </Table>

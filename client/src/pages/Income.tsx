@@ -208,7 +208,7 @@ export default function Income() {
 
   const selectedBatchId = form.watch("batchId");
   const selectedStudentId = form.watch("studentId");
-  const filteredStudents = ((students as any[])?.filter(s => s.batchId === Number(selectedBatchId)) || []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+  const filteredStudents = ((students as any[])?.filter(s => s.batchId === Number(selectedBatchId) && s.isActive !== false) || []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
 
   /* Fetch the last payment amount for the selected student from the server */
   const { data: lastPayment } = useQuery<{ amount: number } | null>({

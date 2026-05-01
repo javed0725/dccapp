@@ -214,10 +214,10 @@ export default function Dashboard() {
     };
   }).filter(m => m.hasData);
 
-  const totalStudents = students?.length || 0;
+  const totalStudents = students?.filter(s => s.isActive !== false).length || 0;
   const batchStats = batches?.map(batch => ({
     ...batch,
-    studentCount: students?.filter(s => s.batchId === batch.id).length || 0,
+    studentCount: students?.filter(s => s.batchId === batch.id && s.isActive !== false).length || 0,
   })) || [];
 
   return (

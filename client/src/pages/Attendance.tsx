@@ -83,7 +83,7 @@ export default function Attendance() {
   }, [selectedBatchId]);
 
   const batchStudents = useMemo(
-    () => (students || []).filter((s: any) => String(s.batchId) === selectedBatchId),
+    () => (students || []).filter((s: any) => String(s.batchId) === selectedBatchId && s.isActive !== false),
     [students, selectedBatchId]
   );
 

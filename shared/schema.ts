@@ -31,6 +31,7 @@ export const students = pgTable("students", {
   userId: integer("user_id").references(() => users.id),
   addedByUserId: integer("added_by_user_id").references(() => users.id),
   admissionDate: timestamp("admission_date").defaultNow(),
+  isActive: boolean("is_active").notNull().default(true),
 });
 
 export const incomes = pgTable("incomes", {
