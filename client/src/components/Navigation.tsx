@@ -80,11 +80,18 @@ export function MobileNav() {
                 studentLinks;
 
   return (
-    /* Outer wrapper: creates safe-area space at bottom so content isn't hidden */
-    <div className="h-[84px] shrink-0" aria-hidden="true">
-      <nav className="fixed bottom-4 left-4 right-4 z-[300]">
+    /* Outer wrapper: reserves space + safe-area padding so content isn't hidden */
+    <div
+      className="shrink-0"
+      style={{ height: "calc(84px + env(safe-area-inset-bottom, 0px))" }}
+      aria-hidden="true"
+    >
+      <nav
+        className="fixed left-3 right-3 z-[300]"
+        style={{ bottom: "calc(12px + env(safe-area-inset-bottom, 0px))" }}
+      >
         <div
-          className="flex justify-around items-center px-3 h-[60px] rounded-[24px]"
+          className="flex items-center px-1 h-[60px] rounded-[24px] overflow-hidden"
           style={{
             background: "rgba(255,255,255,0.82)",
             backdropFilter: "blur(20px)",
@@ -101,7 +108,8 @@ export function MobileNav() {
                 key={link.href}
                 href={link.href}
                 className={`
-                  flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-2xl transition-all duration-200 flex-1
+                  flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-2xl transition-all duration-200
+                  flex-1 min-w-0 shrink
                   ${isActive
                     ? "text-primary"
                     : "text-slate-400 hover:text-slate-600"
@@ -112,9 +120,9 @@ export function MobileNav() {
                   {isActive && (
                     <span className="absolute inset-0 rounded-full bg-primary/10 scale-[2] -z-10" />
                   )}
-                  <Icon className="w-5 h-5" strokeWidth={isActive ? 2.5 : 1.8} />
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={isActive ? 2.5 : 1.8} />
                 </div>
-                <span className={`text-[9px] font-bold uppercase tracking-wide transition-all ${isActive ? "opacity-100" : "opacity-70"}`}>
+                <span className={`text-[8px] sm:text-[9px] font-bold uppercase tracking-tight transition-all truncate max-w-full ${isActive ? "opacity-100" : "opacity-70"}`}>
                   {link.label}
                 </span>
               </Link>
@@ -124,9 +132,9 @@ export function MobileNav() {
           {user.role !== "admin" && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-2xl text-slate-400 hover:text-slate-600 transition-all duration-200 flex-1 outline-none">
-                  <UserCircle className="w-5 h-5" strokeWidth={1.8} />
-                  <span className="text-[9px] font-bold uppercase tracking-wide opacity-70">Account</span>
+                <button className="flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-2xl text-slate-400 hover:text-slate-600 transition-all duration-200 flex-1 min-w-0 shrink outline-none">
+                  <UserCircle className="w-4 h-4 sm:w-5 sm:h-5" strokeWidth={1.8} />
+                  <span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-tight opacity-70 truncate max-w-full">Account</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
