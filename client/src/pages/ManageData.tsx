@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Users, Layers, ShieldCheck, Key, UserX, UserCheck, ChevronDown, ChevronRight, Pencil, Phone, UserPlus, Upload, ImageOff } from "lucide-react";
+import { Plus, Trash2, Users, Layers, ShieldCheck, Key, UserX, UserCheck, ChevronDown, ChevronRight, Pencil, Phone, UserPlus, Upload, ImageOff, Loader2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,6 +47,7 @@ export default function ManageData() {
 
   const updateStudent = useUpdateStudent();
   const [showInactive, setShowInactive] = useState(false);
+  const [togglingStudentId, setTogglingStudentId] = useState<number | null>(null);
   const [editingStudent, setEditingStudent] = useState<{ 
     id: number; 
     name: string; 
@@ -346,18 +347,41 @@ export default function ManageData() {
                                         </div>
                                       </TableCell>
                                         
-                                      <TableCell className="w-[120px] text-right">
+                                      <TableCell className="w-[140px] text-right">
                                         <div className="flex items-center justify-end gap-1">
                                           <Button
-                                            variant="ghost"
+                                            variant={isInactive ? "outline" : "ghost"}
                                             size="sm"
                                             data-testid={`button-toggle-active-${student.id}`}
                                             title={isInactive ? "Re-activate student" : "Freeze student"}
-                                            className={`h-7 px-2 gap-1 text-[10px] font-bold uppercase tracking-wide opacity-0 group-hover:opacity-100 transition-opacity ${isInactive ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"}`}
-                                            onClick={() => updateStudent.mutate({ id: student.id, data: { isActive: !isInactive } })}
-                                            disabled={updateStudent.isPending}
+                                            className={`h-7 px-2 gap-1 text-[10px] font-bold uppercase tracking-wide transition-all ${isInactive ? "text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700" : "text-amber-600 hover:text-amber-700 hover:bg-amber-50"}`}
+                                            disabled={togglingStudentId === student.id}
+                                            onClick={() => {
+                                              setTogglingStudentId(student.id);
+                                              updateStudent.mutate(
+                                                { id: student.id, data: { isActive: isInactive } },
+                                                {
+                                                  onSuccess: () => {
+                                                    setTogglingStudentId(null);
+                                                    if (isInactive) {
+                                                      toast({ title: "Student activated", description: `${student.name} is now active and will appear in all lists.` });
+                                                    } else {
+                                                      setShowInactive(true);
+                                                      toast({ title: "Student frozen", description: `${student.name} is now inactive. Showing inactive students so you can see them.` });
+                                                    }
+                                                  },
+                                                  onError: () => {
+                                                    setTogglingStudentId(null);
+                                                    toast({ variant: "destructive", title: "Update failed", description: "Could not change student status. Please try again." });
+                                                  },
+                                                }
+                                              );
+                                            }}
                                           >
-                                            {isInactive ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
+                                            {togglingStudentId === student.id
+                                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                                              : isInactive ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />
+                                            }
                                             {isInactive ? "Activate" : "Freeze"}
                                           </Button>
                                           <Button

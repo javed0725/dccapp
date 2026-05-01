@@ -274,7 +274,8 @@ export async function registerRoutes(
       
       const student = await storage.updateStudent(id, req.body);
       res.json(student);
-    } catch (err) {
+    } catch (err: any) {
+      console.error("[PATCH /api/students/:id] Error:", err?.message || err);
       res.status(500).json({ message: "Internal server error" });
     }
   });
