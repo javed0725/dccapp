@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Bell, UserPlus, Wallet, FileCheck, CheckCheck, Banknote, RefreshCw, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { MobileNav } from "@/components/Navigation";
 import type { Notification } from "@shared/schema";
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 const TYPE_CONFIG = {
   admission: {
@@ -45,8 +50,16 @@ type CollectionRow = {
   user: { id: number; name: string | null; username: string; teacherId: string | null };
 };
 
+type ClearTarget = {
+  userId: number;
+  amount: number;
+  name: string;
+};
+
 function CollectionSummaryPanel() {
   const { toast } = useToast();
+  const [clearTarget, setClearTarget] = useState<ClearTarget | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[new Date().getMonth()]);
 
   const {
     data: collections = [],
@@ -58,16 +71,38 @@ function CollectionSummaryPanel() {
   });
 
   const resetMutation = useMutation({
-    mutationFn: (userId: number) =>
-      apiRequest("POST", `/api/collections/${userId}/reset`),
-    onSuccess: () => {
+    mutationFn: ({ userId, month }: { userId: number; month: string }) =>
+      apiRequest("POST", `/api/collections/${userId}/reset`, { month }),
+    onSuccess: async (res) => {
+      const data = await res.json().catch(() => null);
       queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
-      toast({ title: "Collection cleared", description: "Balance reset to ৳0." });
+      queryClient.invalidateQueries({ queryKey: ["/api/deposits"] });
+      const depositAmount = data?.deposit?.amount;
+      const depositMonth = data?.deposit?.month;
+      toast({
+        title: "Collection cleared",
+        description: depositAmount
+          ? `৳${depositAmount.toLocaleString()} recorded as income for ${depositMonth}.`
+          : "Balance reset to ৳0.",
+      });
+      setClearTarget(null);
     },
     onError: (err: Error) => {
       toast({ title: "Reset failed", description: err.message, variant: "destructive" });
+      setClearTarget(null);
     },
   });
+
+  function handleClearClick(col: CollectionRow) {
+    const displayName = col.user?.name || col.user?.username || `Teacher #${col.userId}`;
+    setClearTarget({ userId: col.userId, amount: col.runningCollection, name: displayName });
+    setSelectedMonth(MONTHS[new Date().getMonth()]);
+  }
+
+  function handleConfirmClear() {
+    if (!clearTarget) return;
+    resetMutation.mutate({ userId: clearTarget.userId, month: selectedMonth });
+  }
 
   const total = collections.reduce((sum, c) => sum + c.runningCollection, 0);
 
@@ -139,7 +174,6 @@ function CollectionSummaryPanel() {
                 data-testid={`card-collection-${col.userId}`}
                 className="rounded-xl border border-blue-100 bg-white shadow-sm p-3 flex flex-col justify-between gap-2 h-full"
               >
-                {/* Avatar + name + amount */}
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                     <span className="text-blue-700 font-black text-sm">
@@ -156,15 +190,16 @@ function CollectionSummaryPanel() {
                   </div>
                 </div>
 
-                {/* Amount */}
-                <p
-                  className={`text-lg font-black leading-none ${col.runningCollection === 0 ? "text-muted-foreground" : "text-blue-600"}`}
-                  data-testid={`text-collection-amount-${col.userId}`}
-                >
-                  ৳{col.runningCollection.toLocaleString()}
-                </p>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-semibold mb-0.5">Pending Cash</p>
+                  <p
+                    className={`text-lg font-black leading-none ${col.runningCollection === 0 ? "text-muted-foreground" : "text-blue-600"}`}
+                    data-testid={`text-collection-amount-${col.userId}`}
+                  >
+                    ৳{col.runningCollection.toLocaleString()}
+                  </p>
+                </div>
 
-                {/* Last reset + Reset button */}
                 <div className="flex items-center justify-between gap-1 pt-1 border-t border-border">
                   <p className="text-[10px] text-muted-foreground leading-tight truncate">
                     {col.lastResetAt
@@ -175,10 +210,10 @@ function CollectionSummaryPanel() {
                     size="sm"
                     variant="outline"
                     disabled={col.runningCollection === 0 || resetMutation.isPending}
-                    onClick={() => resetMutation.mutate(col.userId)}
+                    onClick={() => handleClearClick(col)}
                     data-testid={`button-reset-collection-${col.userId}`}
                     className="h-6 w-6 p-0 rounded-md border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 shrink-0"
-                    title="Reset balance"
+                    title="Clear — record as income"
                   >
                     <RotateCcw className="w-3 h-3" />
                   </Button>
@@ -188,6 +223,46 @@ function CollectionSummaryPanel() {
           })}
         </div>
       )}
+
+      {/* Confirmation dialog */}
+      <AlertDialog open={clearTarget !== null} onOpenChange={(open) => { if (!open) setClearTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Collection & Record Income</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  This will record <span className="font-bold text-foreground">৳{clearTarget?.amount.toLocaleString()}</span> collected by <span className="font-bold text-foreground">{clearTarget?.name}</span> as official income, and reset their pending balance to ৳0.
+                </p>
+                <div className="space-y-1.5">
+                  <p className="font-semibold text-foreground">Select month for this income:</p>
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                    <SelectTrigger className="w-full" data-testid="select-clear-month">
+                      <SelectValue placeholder="Select month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmClear}
+              disabled={resetMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              data-testid="button-confirm-clear"
+            >
+              {resetMutation.isPending ? "Recording..." : "Confirm & Record Income"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -311,8 +386,6 @@ export default function Notifications() {
         )}
       </div>
 
-      {/* Bottom navigation bar — same floating bar used by every other admin tab.
-          MobileNav is position:fixed, so it overlays the viewport regardless of where it's mounted. */}
       <MobileNav />
     </div>
   );

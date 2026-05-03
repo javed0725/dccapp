@@ -181,7 +181,7 @@ export default function Dashboard() {
     );
   }
 
-  const totalStudentPayments = incomes?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
+  const totalStudentPayments = incomes?.filter(inc => inc.status === "Verified").reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
   const totalDepositsAmount = deposits?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
   const totalIncome = totalStudentPayments + totalDepositsAmount;
   const totalExpense = expenses?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
@@ -201,15 +201,16 @@ export default function Dashboard() {
 
   // Calculate monthly summaries (only for months with income or expenses)
   const monthlyData = MONTHS_FULL.map(month => {
-    const monthIncomes = incomes?.filter(inc => inc.month === month) || [];
+    const allMonthIncomes = incomes?.filter(inc => inc.month === month) || [];
+    const verifiedMonthIncomes = allMonthIncomes.filter(inc => inc.status === "Verified");
     const monthExpenses = expenses?.filter(exp => exp.month === month) || [];
     const monthDeposits = (deposits as any[])?.filter(dep => dep.month === month) || [];
 
-    const studentPaymentsTotal = monthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const studentPaymentsTotal = verifiedMonthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const depositsTotal = monthDeposits.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
     const totalIncome = studentPaymentsTotal + depositsTotal;
     const totalExpense = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const paidStudentsCount = new Set(monthIncomes.map(inc => inc.studentId)).size;
+    const paidStudentsCount = new Set(allMonthIncomes.map(inc => inc.studentId)).size;
     
     return {
       month,

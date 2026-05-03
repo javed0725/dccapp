@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { eq, sql, desc } from "drizzle-orm";
-import { students, incomes as incomesTable } from "@shared/schema";
+import { students, incomes as incomesTable, users } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
@@ -926,15 +926,35 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/collections/:userId/reset — admin resets a teacher's balance
+  // POST /api/collections/:userId/reset — admin resets a teacher's balance and auto-creates a deposit
   app.post("/api/collections/:userId/reset", async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ message: "Invalid user id" });
     try {
-      const row = await storage.resetCollection(userId);
-      res.json(row);
+      const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const month: string = req.body?.month && MONTHS.includes(req.body.month)
+        ? req.body.month
+        : MONTHS[new Date().getMonth()];
+
+      const currentCollection = await storage.getCollectionByUserId(userId);
+      const amount = currentCollection?.runningCollection ?? 0;
+
+      let deposit = null;
+      if (amount > 0) {
+        const [teacher] = await db.select().from(users).where(eq(users.id, userId));
+        const teacherName = teacher?.name || teacher?.username || `Teacher #${userId}`;
+        deposit = await storage.createDeposit({
+          description: `Collection - ${teacherName}`,
+          amount,
+          month,
+        });
+      }
+
+      const collection = await storage.resetCollection(userId);
+      res.json({ collection, deposit });
     } catch (err: any) {
+      console.error("Collection reset error:", err);
       res.status(500).json({ message: err.message });
     }
   });
