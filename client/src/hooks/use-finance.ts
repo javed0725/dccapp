@@ -14,8 +14,7 @@ export function useIncomes() {
       if (!res.ok) throw new Error("Failed to fetch incomes");
       return res.json();
     },
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60_000,
   });
 }
 
@@ -27,8 +26,7 @@ export function useBatches() {
       if (!res.ok) throw new Error("Failed to fetch batches");
       return res.json();
     },
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60_000,
   });
 }
 
@@ -40,8 +38,7 @@ export function useStudents() {
       if (!res.ok) throw new Error("Failed to fetch students");
       return api.students.list.responses[200].parse(await res.json());
     },
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60_000,
   });
 }
 
@@ -138,8 +135,7 @@ export function useExpenses() {
       if (!res.ok) throw new Error("Failed to fetch expenses");
       return res.json();
     },
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60_000,
   });
 }
 
@@ -197,8 +193,7 @@ export function useDeposits() {
       if (!res.ok) throw new Error("Failed to fetch deposits");
       return res.json();
     },
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60_000,
   });
 }
 

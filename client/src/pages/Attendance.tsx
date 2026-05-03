@@ -465,8 +465,7 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
       if (!res.ok) return [];
       return res.json();
     },
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 30_000,
   });
 
   const queryClient = useQueryClient();

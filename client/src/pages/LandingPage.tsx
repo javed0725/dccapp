@@ -868,7 +868,7 @@ const PAGE_SIZE = 10;
 function ResultsSection() {
   const { data: results = [], isLoading } = useQuery<PublicResult[]>({
     queryKey: ["/api/public/results"],
-    refetchInterval: 15000,
+    staleTime: 5 * 60_000,
   });
 
   const [batch, setBatch] = useState<string>("");
