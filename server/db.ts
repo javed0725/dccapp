@@ -4,9 +4,10 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-// Prefer EXTERNAL_DATABASE_URL (user-provided), then NEON_DATABASE_URL,
-// then fall back to the runtime-managed Replit DATABASE_URL.
+// Prefer CUSTOM_DATABASE_URL (user-provided), then EXTERNAL_DATABASE_URL,
+// then NEON_DATABASE_URL, then fall back to the runtime-managed Replit DATABASE_URL.
 const rawConnectionString =
+  process.env.CUSTOM_DATABASE_URL ||
   process.env.EXTERNAL_DATABASE_URL ||
   process.env.NEON_DATABASE_URL ||
   process.env.DATABASE_URL;

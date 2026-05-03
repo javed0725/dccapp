@@ -1,6 +1,6 @@
 import { defineConfig } from "drizzle-kit";
 
-const url = process.env.EXTERNAL_DATABASE_URL || process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+const url = process.env.CUSTOM_DATABASE_URL || process.env.EXTERNAL_DATABASE_URL || process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!url) {
   throw new Error("EXTERNAL_DATABASE_URL, NEON_DATABASE_URL, or DATABASE_URL must be set.");
