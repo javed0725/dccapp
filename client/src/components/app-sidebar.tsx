@@ -37,7 +37,6 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     enabled: effectiveRole === "admin",
-    refetchInterval: 30000,
   });
   const unreadCount = unreadData?.count ?? 0;
 

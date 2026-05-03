@@ -32,7 +32,7 @@ function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     enabled: isAdmin,
-    refetchInterval: 60000,
+    refetchInterval: 5 * 60_000,
   });
   const unreadCount = unreadData?.count ?? 0;
 
