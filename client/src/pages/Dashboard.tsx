@@ -1,5 +1,5 @@
 import { Layout } from "@/components/Layout";
-import { useIncomes, useExpenses, useBatches, useStudents } from "@/hooks/use-finance";
+import { useIncomes, useExpenses, useDeposits, useBatches, useStudents } from "@/hooks/use-finance";
 import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, BarChart3, GraduationCap, BookOpen, UserCircle2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +28,7 @@ export default function Dashboard() {
   
   const { data: incomes, isLoading: loadingIncomes, refetch: refetchIncomes } = useIncomes();
   const { data: expenses, isLoading: loadingExpenses, refetch: refetchExpenses } = useExpenses();
+  const { data: deposits, isLoading: loadingDeposits, refetch: refetchDeposits } = useDeposits();
   const { data: batches, isLoading: loadingBatches, refetch: refetchBatches } = useBatches();
   const { data: students, isLoading: loadingStudents, refetch: refetchStudents } = useStudents();
   
@@ -41,6 +42,7 @@ export default function Dashboard() {
       await Promise.all([
         refetchIncomes(),
         refetchExpenses(),
+        refetchDeposits(),
         refetchBatches(),
         refetchStudents(),
         user?.role === 'admin' ? refetchTeachers() : Promise.resolve()
@@ -55,9 +57,9 @@ export default function Dashboard() {
       window.removeEventListener('focus', refreshData);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [refetchIncomes, refetchExpenses, refetchBatches, refetchStudents, refetchTeachers, user?.role]);
+  }, [refetchIncomes, refetchExpenses, refetchDeposits, refetchBatches, refetchStudents, refetchTeachers, user?.role]);
 
-  if (loadingIncomes || loadingExpenses || loadingBatches || loadingStudents || loadingResults || (user?.role === "admin" && loadingTeachers)) {
+  if (loadingIncomes || loadingExpenses || loadingDeposits || loadingBatches || loadingStudents || loadingResults || (user?.role === "admin" && loadingTeachers)) {
     return <DashboardSkeleton />;
   }
 
@@ -179,7 +181,9 @@ export default function Dashboard() {
     );
   }
 
-  const totalIncome = incomes?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
+  const totalStudentPayments = incomes?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
+  const totalDepositsAmount = deposits?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
+  const totalIncome = totalStudentPayments + totalDepositsAmount;
   const totalExpense = expenses?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
   const balance = totalIncome - totalExpense;
 
@@ -195,18 +199,21 @@ export default function Dashboard() {
     return { ...batch, studentRows };
   });
 
-  // Calculate monthly summaries (only for months with income)
+  // Calculate monthly summaries (only for months with income or expenses)
   const monthlyData = MONTHS_FULL.map(month => {
     const monthIncomes = incomes?.filter(inc => inc.month === month) || [];
     const monthExpenses = expenses?.filter(exp => exp.month === month) || [];
-    
-    const totalIncome = monthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const monthDeposits = (deposits as any[])?.filter(dep => dep.month === month) || [];
+
+    const studentPaymentsTotal = monthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const depositsTotal = monthDeposits.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
+    const totalIncome = studentPaymentsTotal + depositsTotal;
     const totalExpense = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const paidStudentsCount = new Set(monthIncomes.map(inc => inc.studentId)).size;
     
     return {
       month,
-      hasData: totalIncome > 0,
+      hasData: totalIncome > 0 || totalExpense > 0,
       totalIncome,
       totalExpense,
       balance: totalIncome - totalExpense,

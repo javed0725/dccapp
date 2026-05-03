@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertIncomeSchema, insertExpenseSchema, incomes, expenses, batches, students, insertBatchSchema, insertStudentSchema, results, insertResultSchema } from './schema';
+import { insertIncomeSchema, insertExpenseSchema, insertDepositSchema, incomes, expenses, deposits, batches, students, insertBatchSchema, insertStudentSchema, results, insertResultSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -123,6 +123,31 @@ export const api = {
             204: z.void(), 
         }
     }
+  },
+  deposits: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/deposits',
+      responses: {
+        200: z.array(z.custom<typeof deposits.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/deposits',
+      input: insertDepositSchema,
+      responses: {
+        201: z.custom<typeof deposits.$inferSelect>(),
+        400: z.object({ message: z.string(), field: z.string().optional() }),
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/deposits/:id',
+      responses: {
+        204: z.void(),
+      },
+    },
   },
   results: {
     list: {

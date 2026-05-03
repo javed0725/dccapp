@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { api, buildUrl } from "@shared/routes";
-import { Income, Expense, Batch, Student, InsertIncome, InsertExpense } from "@/lib/schemas";
+import { Income, Expense, Deposit, Batch, Student, InsertIncome, InsertExpense, InsertDeposit } from "@/lib/schemas";
 import { usePortal } from "@/lib/portal-context";
 
 export function useIncomes() {
@@ -185,6 +185,42 @@ export function useDeleteExpense() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.expenses.list.path] });
+    },
+  });
+}
+
+export function useDeposits() {
+  return useQuery<Deposit[]>({
+    queryKey: [api.deposits.list.path],
+    queryFn: async () => {
+      const res = await fetch(api.deposits.list.path);
+      if (!res.ok) throw new Error("Failed to fetch deposits");
+      return res.json();
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useCreateDeposit() {
+  return useMutation({
+    mutationFn: async (data: InsertDeposit) => {
+      const res = await apiRequest("POST", "/api/deposits", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.deposits.list.path] });
+    },
+  });
+}
+
+export function useDeleteDeposit() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/deposits/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.deposits.list.path] });
     },
   });
 }

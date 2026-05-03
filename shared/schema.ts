@@ -54,6 +54,14 @@ export const expenses = pgTable("expenses", {
   date: timestamp("date").defaultNow().notNull(),
 });
 
+export const deposits = pgTable("deposits", {
+  id: serial("id").primaryKey(),
+  description: text("description").notNull(),
+  amount: integer("amount").notNull(),
+  month: text("month").notNull().default(""),
+  date: timestamp("date").defaultNow().notNull(),
+});
+
 export const results = pgTable("results", {
   id: serial("id").primaryKey(),
   studentId: integer("student_id").references(() => students.id).notNull(),
@@ -133,6 +141,11 @@ export const insertExpenseSchema = createInsertSchema(expenses).omit({
   date: true 
 });
 
+export const insertDepositSchema = createInsertSchema(deposits).omit({ 
+  id: true, 
+  date: true 
+});
+
 export const insertResultSchema = createInsertSchema(results).omit({ 
   id: true, 
   date: true 
@@ -143,6 +156,7 @@ export type Batch = typeof batches.$inferSelect;
 export type Student = typeof students.$inferSelect;
 export type Income = typeof incomes.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
+export type Deposit = typeof deposits.$inferSelect;
 export type Result = typeof results.$inferSelect;
 export type Attendance = typeof attendance.$inferSelect;
 export type InsertAttendance = typeof attendance.$inferInsert;
@@ -152,4 +166,5 @@ export type InsertBatch = z.infer<typeof insertBatchSchema>;
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
 export type InsertIncome = z.infer<typeof insertIncomeSchema>;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+export type InsertDeposit = z.infer<typeof insertDepositSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;

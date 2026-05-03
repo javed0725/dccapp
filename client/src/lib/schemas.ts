@@ -49,6 +49,14 @@ export interface Expense {
   date: string;
 }
 
+export interface Deposit {
+  id: number;
+  description: string;
+  amount: number;
+  month: string;
+  date: string;
+}
+
 export interface Result {
   id: number;
   studentId: number;
@@ -89,6 +97,12 @@ export const insertExpenseSchema = z.object({
   month: z.string().optional(),
 });
 
+export const insertDepositSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  amount: z.coerce.number(),
+  month: z.string().optional(),
+});
+
 export const insertResultSchema = z.object({
   studentId: z.coerce.number(),
   batchId: z.coerce.number(),
@@ -104,4 +118,5 @@ export type InsertBatch = z.infer<typeof insertBatchSchema>;
 export type InsertStudent = z.infer<typeof insertStudentSchema>;
 export type InsertIncome = z.infer<typeof insertIncomeSchema>;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
+export type InsertDeposit = z.infer<typeof insertDepositSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;

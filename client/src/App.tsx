@@ -7,6 +7,7 @@ import Dashboard from "@/pages/Dashboard";
 import Income from "@/pages/Income";
 import Admission from "@/pages/Admission";
 import Expenses from "@/pages/Expenses";
+import Deposits from "@/pages/Deposits";
 import ManageData from "@/pages/ManageData";
 import EntryMarks from "@/pages/EntryMarks";
 import Attendance from "@/pages/Attendance";
@@ -221,6 +222,7 @@ function Router() {
               {effectiveRole === "admin" && (
                 <>
                   <Route path="/expenses" component={Expenses} />
+                  <Route path="/deposits" component={Deposits} />
                   <Route path="/manage" component={ManageData} />
                   <Route path="/notifications" component={Notifications} />
                 </>

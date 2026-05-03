@@ -430,6 +430,40 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  // Deposit Routes
+  app.get(api.deposits.list.path, async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const depositList = await storage.getDeposits();
+    res.json(depositList);
+  });
+
+  app.post(api.deposits.create.path, async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const input = api.deposits.create.input.parse({
+        ...req.body,
+        amount: Number(req.body.amount),
+      });
+      const deposit = await storage.createDeposit(input);
+      res.status(201).json(deposit);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join("."),
+        });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  app.delete(api.deposits.delete.path, async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await storage.deleteDeposit(Number(req.params.id));
+    res.sendStatus(204);
+  });
+
   // Teacher Management Routes
   app.get("/api/admin/teachers", async (req, res) => {
     if (!requireAdmin(req, res)) return;

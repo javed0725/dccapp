@@ -1,9 +1,10 @@
 import { db } from "./db";
 import { 
-  incomes, expenses, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
+  incomes, expenses, deposits, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
   collectionTracking, attendance,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
+  type Deposit, type InsertDeposit,
   type Batch, type InsertBatch,
   type Student, type InsertStudent,
   type User, type InsertUser,
@@ -51,6 +52,10 @@ export interface IStorage {
   getExpenses(): Promise<Expense[]>;
   createExpense(expense: InsertExpense): Promise<Expense>;
   deleteExpense(id: number): Promise<void>;
+
+  getDeposits(): Promise<Deposit[]>;
+  createDeposit(deposit: InsertDeposit): Promise<Deposit>;
+  deleteDeposit(id: number): Promise<void>;
 
   // Results Management
   getResults(): Promise<any[]>;
@@ -273,6 +278,19 @@ export class DatabaseStorage implements IStorage {
 
   async deleteExpense(id: number): Promise<void> {
     await db.delete(expenses).where(eq(expenses.id, id));
+  }
+
+  async getDeposits(): Promise<Deposit[]> {
+    return await db.select().from(deposits).orderBy(desc(deposits.date));
+  }
+
+  async createDeposit(insertDeposit: InsertDeposit): Promise<Deposit> {
+    const [deposit] = await db.insert(deposits).values(insertDeposit).returning();
+    return deposit;
+  }
+
+  async deleteDeposit(id: number): Promise<void> {
+    await db.delete(deposits).where(eq(deposits.id, id));
   }
 
   async getResults(): Promise<any[]> {
