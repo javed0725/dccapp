@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { saveForOffline } from "@/hooks/use-offline-sync";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useCreateIncome, useDeleteIncome, useBatches, useStudents } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -250,7 +251,24 @@ export default function Income() {
     form.setValue("studentId", 0);
   }, [selectedBatchId, form]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!navigator.onLine) {
+      await saveForOffline({
+        type: "payment",
+        url: "/api/incomes",
+        method: "POST",
+        payload: values,
+        label: `Payment — Student ${values.studentId} (${values.month})`,
+      });
+      setOpen(false);
+      form.reset();
+      toast({
+        title: "Saved offline",
+        description: "Payment will sync automatically when you're back online.",
+      });
+      return;
+    }
+
     createMutation.mutate(values, {
       onSuccess: () => {
         setOpen(false);

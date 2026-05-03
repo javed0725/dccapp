@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { saveForOffline } from "@/hooks/use-offline-sync";
 import { Layout } from "@/components/Layout";
 import { useStudents, useBatches } from "@/hooks/use-finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -217,12 +218,26 @@ export default function EntryMarks() {
         obtainedMarks,
         isModelTest: false,
       }));
-      // Single batch call — one network round-trip, one notification.
-      await createResultsBatchMutation.mutateAsync(payload);
-      toast({
-        title: `Marks for ${savedSubject} saved successfully!`,
-        description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} recorded.`,
-      });
+
+      if (!navigator.onLine) {
+        await saveForOffline({
+          type: "results_batch",
+          url: "/api/results/batch",
+          method: "POST",
+          payload: { entries: payload },
+          label: `Results — ${examName} / ${savedSubject}`,
+        });
+        toast({
+          title: "Saved offline",
+          description: `Marks for ${savedSubject} will sync when you're back online.`,
+        });
+      } else {
+        await createResultsBatchMutation.mutateAsync(payload);
+        toast({
+          title: `Marks for ${savedSubject} saved successfully!`,
+          description: `${allEntries.length} record${allEntries.length !== 1 ? "s" : ""} recorded.`,
+        });
+      }
       // Fully reset the form so the teacher can start fresh.
       setMarks({});
       setSingleAbsents({});
@@ -277,12 +292,25 @@ export default function EntryMarks() {
     }
     const savedExam = modelExamName;
     try {
-      // Single batch call — one network round-trip, one notification.
-      await createResultsBatchMutation.mutateAsync(payloads);
-      toast({
-        title: `Model Test "${savedExam}" saved successfully!`,
-        description: `${payloads.length} result${payloads.length !== 1 ? "s" : ""} recorded.`,
-      });
+      if (!navigator.onLine) {
+        await saveForOffline({
+          type: "results_batch",
+          url: "/api/results/batch",
+          method: "POST",
+          payload: { entries: payloads },
+          label: `Model Test — ${savedExam}`,
+        });
+        toast({
+          title: "Saved offline",
+          description: `Model Test "${savedExam}" will sync when you're back online.`,
+        });
+      } else {
+        await createResultsBatchMutation.mutateAsync(payloads);
+        toast({
+          title: `Model Test "${savedExam}" saved successfully!`,
+          description: `${payloads.length} result${payloads.length !== 1 ? "s" : ""} recorded.`,
+        });
+      }
       // Fully reset the form so the user can start fresh.
       setModelMarks({});
       setModelBatchId("");

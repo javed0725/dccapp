@@ -4,6 +4,7 @@ import { useStudents, useBatches } from "@/hooks/use-finance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { saveForOffline, notifyPendingChanged } from "@/hooks/use-offline-sync";
 import { type User } from "@/lib/schemas";
 import { usePortal } from "@/lib/portal-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -151,10 +152,18 @@ export default function Attendance() {
   const presentCount = Object.values(presence).filter(Boolean).length;
   const absentCount = studentsInBatch.length - presentCount;
 
+  const resetAttendanceForm = () => {
+    setSelectedBatchId("");
+    setSelectedGroup("all");
+    setSelectedShift("all");
+    setSubject("");
+    setPresence({});
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const absentStudentIds = studentsInBatch.filter((s: any) => !presence[s.id]).map((s: any) => s.id);
-      const res = await apiRequest("POST", "/api/attendance", {
+      const payload = {
         date,
         batchId: Number(selectedBatchId),
         subject: effSubject,
@@ -162,24 +171,37 @@ export default function Attendance() {
         shift: effShift,
         absentStudentIds,
         totalStudents: studentsInBatch.length,
-      });
+      };
+
+      if (!navigator.onLine) {
+        await saveForOffline({
+          type: "attendance",
+          url: "/api/attendance",
+          method: "POST",
+          payload,
+          label: `Attendance ${date} — Batch ${selectedBatchId}`,
+        });
+        return { offline: true, presentCount, absentCount };
+      }
+
+      const res = await apiRequest("POST", "/api/attendance", payload);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
-      toast({
-        title: "Attendance saved successfully!",
-        description: `${presentCount} present, ${absentCount} absent.`,
-      });
-      // Fully reset the form so the teacher can start a fresh selection.
-      // Batch, group, shift, subject, and the student presence list are all
-      // cleared. Date stays as today (the page default).
-      setSelectedBatchId("");
-      setSelectedGroup("all");
-      setSelectedShift("all");
-      setSubject("");
-      setPresence({});
+    onSuccess: (data: any) => {
+      if (data?.offline) {
+        toast({
+          title: "Saved offline",
+          description: `Attendance will sync when you're back online. (${data.presentCount} present, ${data.absentCount} absent)`,
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
+        toast({
+          title: "Attendance saved successfully!",
+          description: `${presentCount} present, ${absentCount} absent.`,
+        });
+      }
+      resetAttendanceForm();
     },
     onError: (err: any) => toast({ variant: "destructive", title: "Save failed", description: err.message }),
   });

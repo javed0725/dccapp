@@ -22,6 +22,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
 import { Bell } from "lucide-react";
 import { PortalProvider, usePortal } from "@/lib/portal-context";
+import { NetworkStatus } from "@/components/NetworkStatus";
 
 function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
   const [, setLocation] = useLocation();
@@ -41,20 +42,23 @@ function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
           Dynamic Coaching Center
         </div>
       </div>
-      {isAdmin && (
-        <button
-          data-testid="button-notification-bell"
-          onClick={() => setLocation("/notifications")}
-          className="relative p-2 rounded-xl hover:bg-primary/5 transition-colors"
-        >
-          <Bell className="w-6 h-6 text-primary" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
-      )}
+      <div className="flex items-center gap-2">
+        <NetworkStatus />
+        {isAdmin && (
+          <button
+            data-testid="button-notification-bell"
+            onClick={() => setLocation("/notifications")}
+            className="relative p-2 rounded-xl hover:bg-primary/5 transition-colors"
+          >
+            <Bell className="w-6 h-6 text-primary" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
     </header>
   );
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dcc-portal-v2';
+const CACHE_NAME = 'dcc-portal-v3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
