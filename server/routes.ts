@@ -453,6 +453,7 @@ export async function registerRoutes(
           field: err.errors[0].path.join("."),
         });
       } else {
+        console.error("Deposit create error:", err);
         res.status(500).json({ message: "Internal server error" });
       }
     }
