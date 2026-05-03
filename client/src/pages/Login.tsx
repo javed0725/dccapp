@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { saveOfflineSession, verifyOfflineCredentials } from "@/lib/offline-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Lock, User as UserIcon, GraduationCap, ChevronLeft, ArrowRight, Sparkles, Eye, EyeOff } from "lucide-react";
+import { Shield, Lock, User as UserIcon, GraduationCap, ChevronLeft, ArrowRight, Sparkles, Eye, EyeOff, WifiOff } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import { type User } from "@/lib/schemas";
 
@@ -68,6 +69,56 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
     }
   }, [fixedRole]);
 
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [offlineLoading, setOfflineLoading] = useState(false);
+
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  const handleOfflineLogin = async () => {
+    setOfflineLoading(true);
+    try {
+      const savedUser = await verifyOfflineCredentials(username.trim(), password);
+      if (!savedUser) {
+        toast({
+          variant: "destructive",
+          title: "Offline login failed",
+          description: "Credentials not recognised. Please connect to the internet to log in for the first time.",
+        });
+        return;
+      }
+      if (fixedRole && savedUser.role !== fixedRole) {
+        const correctLabel = roleDetails[savedUser.role as LoginRole]?.label ?? savedUser.role;
+        toast({
+          variant: "destructive",
+          title: "Wrong login page",
+          description: `Please use the ${correctLabel} login page for this account.`,
+        });
+        return;
+      }
+      const redirectPath = getRedirectPath(savedUser.role);
+      localStorage.setItem("last_portal", redirectPath);
+      if (savedUser.isAuthority) {
+        localStorage.setItem("activePortal", "teacher");
+      } else {
+        localStorage.removeItem("activePortal");
+      }
+      queryClient.setQueryData(["/api/user"], savedUser);
+      setLocation(redirectPath);
+      toast({ title: "Logged in (offline mode)", description: "Using locally saved credentials." });
+    } finally {
+      setOfflineLoading(false);
+    }
+  };
+
   const loginMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/login", data);
@@ -98,6 +149,9 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
         return;
       }
 
+      // Save credentials to IndexedDB for future offline login
+      await saveOfflineSession(username.trim(), password, user);
+
       const redirectPath = getRedirectPath(user.role);
       localStorage.setItem("last_portal", redirectPath);
       // Authority teachers always start in Teacher portal; clear any previous admin mode
@@ -117,7 +171,11 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loginMutation.mutate({ username, password });
+    if (isOffline) {
+      handleOfflineLogin();
+    } else {
+      loginMutation.mutate({ username, password });
+    }
   };
 
   return (
@@ -239,13 +297,19 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
                         </button>
                       </div>
                     </div>
+                    {isOffline && (
+                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+                        <WifiOff className="w-3.5 h-3.5 shrink-0" />
+                        <span>Offline — using locally saved credentials</span>
+                      </div>
+                    )}
                     <Button
                       type="submit"
                       data-testid={`button-submit-login-${selectedRole}`}
                       className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300"
-                      disabled={loginMutation.isPending}
+                      disabled={loginMutation.isPending || offlineLoading}
                     >
-                      {loginMutation.isPending ? "AUTHENTICATING..." : "Login"}
+                      {(loginMutation.isPending || offlineLoading) ? "AUTHENTICATING..." : "Login"}
                     </Button>
                   </form>
                 </CardContent>

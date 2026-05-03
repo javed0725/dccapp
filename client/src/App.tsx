@@ -3,6 +3,8 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect, useState } from "react";
+import { getAutoLoginSession, hasRecentOfflineSession } from "@/lib/offline-auth";
 import Dashboard from "@/pages/Dashboard";
 import Income from "@/pages/Income";
 import Admission from "@/pages/Admission";
@@ -133,6 +135,21 @@ function Router() {
   });
   const [location] = useLocation();
   const { activePortal } = usePortal();
+  const [offlineRestored, setOfflineRestored] = useState(false);
+
+  // Auto-login: if offline and no user, restore from IndexedDB session
+  useEffect(() => {
+    if (isLoading || user || offlineRestored) return;
+    if (navigator.onLine) return;
+    if (!hasRecentOfflineSession()) return;
+
+    getAutoLoginSession().then((savedUser) => {
+      if (savedUser) {
+        queryClient.setQueryData(["/api/user"], savedUser);
+      }
+      setOfflineRestored(true);
+    });
+  }, [isLoading, user, offlineRestored]);
 
   // Authority teachers can act as admin when they've switched to the admin portal
   const effectiveRole: string =

@@ -1,4 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
+import type { OfflineSession } from "./offline-auth";
 
 export type OfflineActionType = "payment" | "attendance" | "results_batch";
 
@@ -18,21 +19,35 @@ interface OfflineDB extends DBSchema {
     value: OfflinePending;
     indexes: { byType: OfflineActionType; bySavedAt: number };
   };
+  session: {
+    key: string; // username
+    value: OfflineSession;
+  };
 }
 
 let _db: IDBPDatabase<OfflineDB> | null = null;
 
 async function getDB(): Promise<IDBPDatabase<OfflineDB>> {
   if (_db) return _db;
-  _db = await openDB<OfflineDB>("dcc-offline", 1, {
-    upgrade(db) {
-      const store = db.createObjectStore("pending", { keyPath: "id" });
-      store.createIndex("byType", "type");
-      store.createIndex("bySavedAt", "savedAt");
+  _db = await openDB<OfflineDB>("dcc-offline", 2, {
+    upgrade(db, oldVersion) {
+      // v1 → create pending store
+      if (oldVersion < 1) {
+        const store = db.createObjectStore("pending", { keyPath: "id" });
+        store.createIndex("byType", "type");
+        store.createIndex("bySavedAt", "savedAt");
+      }
+      // v2 → add session store
+      if (oldVersion < 2) {
+        db.createObjectStore("session", { keyPath: "username" });
+      }
     },
   });
   return _db;
 }
+
+// Shared DB getter for both pending actions and auth sessions
+export const getAuthDB = getDB;
 
 export async function saveOfflineAction(action: Omit<OfflinePending, "id" | "savedAt">): Promise<string> {
   const db = await getDB();
