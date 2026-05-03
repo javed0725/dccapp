@@ -8,6 +8,13 @@
       "when": 1774973883807,
       "tag": "0000_large_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777828480801,
+      "tag": "0001_outgoing_tarot",
+      "breakpoints": true
     }
   ]
 }
