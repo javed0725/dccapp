@@ -193,7 +193,7 @@ export function useDeposits() {
   return useQuery<Deposit[]>({
     queryKey: [api.deposits.list.path],
     queryFn: async () => {
-      const res = await fetch(api.deposits.list.path);
+      const res = await fetch(api.deposits.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch deposits");
       return res.json();
     },

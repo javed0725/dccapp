@@ -461,8 +461,13 @@ export async function registerRoutes(
 
   app.delete(api.deposits.delete.path, async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    await storage.deleteDeposit(Number(req.params.id));
-    res.sendStatus(204);
+    try {
+      await storage.deleteDeposit(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Deposit delete error:", err);
+      res.status(500).json({ message: "Failed to delete deposit" });
+    }
   });
 
   // Teacher Management Routes

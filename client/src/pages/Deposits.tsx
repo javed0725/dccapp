@@ -4,6 +4,7 @@ import { useDeposits, useCreateDeposit, useDeleteDeposit } from "@/hooks/use-fin
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -82,7 +83,7 @@ function MonthGroup({
       {!collapsed && (
         <div className="divide-y divide-border/50">
           {deposits.map((deposit) => (
-            <div key={deposit.id} className="group flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
+            <div key={deposit.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{deposit.description}</p>
                 <p className="text-xs text-muted-foreground">{format(new Date(deposit.date), "MMM d, yyyy")}</p>
@@ -92,8 +93,9 @@ function MonthGroup({
                 variant="ghost"
                 size="icon"
                 onClick={() => onDelete(deposit.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 shrink-0"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 shrink-0"
                 disabled={isPending}
+                data-testid={`button-delete-deposit-${deposit.id}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -107,6 +109,7 @@ function MonthGroup({
 
 export default function Deposits() {
   const [open, setOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const { data: deposits, isLoading } = useDeposits();
   const createMutation = useCreateDeposit();
   const deleteMutation = useDeleteDeposit();
@@ -142,14 +145,18 @@ export default function Deposits() {
     });
   }
 
-  function handleDelete(id: number) {
-    if (confirm("Are you sure you want to delete this deposit?")) {
-      deleteMutation.mutate(id, {
-        onSuccess: () => {
-          toast({ title: "Deposit deleted" });
-        },
-      });
-    }
+  function handleDeleteConfirm() {
+    if (deleteId === null) return;
+    deleteMutation.mutate(deleteId, {
+      onSuccess: () => {
+        toast({ title: "Deposit deleted" });
+        setDeleteId(null);
+      },
+      onError: () => {
+        toast({ variant: "destructive", title: "Failed to delete deposit" });
+        setDeleteId(null);
+      },
+    });
   }
 
   const filteredDeposits = (deposits as Deposit[] | undefined)?.filter((dep) =>
@@ -276,13 +283,34 @@ export default function Deposits() {
                 key={month}
                 month={month}
                 deposits={items}
-                onDelete={handleDelete}
+                onDelete={(id) => setDeleteId(id)}
                 isPending={deleteMutation.isPending}
               />
             ))
           )}
         </div>
       </div>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Deposit</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this deposit? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
