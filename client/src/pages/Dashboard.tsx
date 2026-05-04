@@ -50,14 +50,7 @@ export default function Dashboard() {
     };
 
     refreshData();
-    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') refreshData(); };
-    window.addEventListener('focus', refreshData);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('focus', refreshData);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [refetchIncomes, refetchExpenses, refetchDeposits, refetchBatches, refetchStudents, refetchTeachers, user?.role]);
+  }, []);
 
   if (loadingIncomes || loadingExpenses || loadingDeposits || loadingBatches || loadingStudents || loadingResults || (user?.role === "admin" && loadingTeachers)) {
     return <DashboardSkeleton />;
@@ -181,9 +174,12 @@ export default function Dashboard() {
     );
   }
 
-  const totalStudentPayments = incomes?.filter(inc => inc.status === "Verified").reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
+  // Balance is driven ONLY by teacher collection clearances (deposits).
+  // Verified incomes are informational only — they are already captured as a
+  // deposit when the admin clears a teacher's collection, so including them
+  // here would double-count every payment.
   const totalDepositsAmount = deposits?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
-  const totalIncome = totalStudentPayments + totalDepositsAmount;
+  const totalIncome = totalDepositsAmount;
   const totalExpense = expenses?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
   const balance = totalIncome - totalExpense;
 
@@ -206,15 +202,16 @@ export default function Dashboard() {
     const monthExpenses = expenses?.filter(exp => exp.month === month) || [];
     const monthDeposits = (deposits as any[])?.filter(dep => dep.month === month) || [];
 
+    // Balance only from cleared deposits — same principle as global balance above.
     const studentPaymentsTotal = verifiedMonthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const depositsTotal = monthDeposits.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
-    const totalIncome = studentPaymentsTotal + depositsTotal;
+    const totalIncome = depositsTotal;
     const totalExpense = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const paidStudentsCount = new Set(allMonthIncomes.map(inc => inc.studentId)).size;
     
     return {
       month,
-      hasData: totalIncome > 0 || totalExpense > 0,
+      hasData: depositsTotal > 0 || totalExpense > 0 || studentPaymentsTotal > 0,
       totalIncome,
       totalExpense,
       balance: totalIncome - totalExpense,
