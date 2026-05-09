@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { useEffect } from "react";
 
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -20,45 +19,32 @@ export default function Dashboard() {
     queryKey: ["/api/user"],
     retry: false
   });
-  
-  const { data: teachers, isLoading: loadingTeachers, refetch: refetchTeachers } = useQuery<User[]>({ 
+
+  const isAdmin = user?.role === "admin";
+  const isTeacher = user?.role === "teacher";
+  const isStudent = user?.role === "student";
+
+  // All data queries — enabled only once the user is confirmed, so nothing
+  // fires during the auth-loading state and there is no double-fetch on mount.
+  const { data: teachers, isLoading: loadingTeachers } = useQuery<User[]>({ 
     queryKey: ["/api/admin/teachers"],
-    enabled: user?.role === "admin"
+    enabled: isAdmin,
   });
   
-  const { data: incomes, isLoading: loadingIncomes, refetch: refetchIncomes } = useIncomes();
-  const { data: expenses, isLoading: loadingExpenses, refetch: refetchExpenses } = useExpenses();
-  const { data: deposits, isLoading: loadingDeposits, refetch: refetchDeposits } = useDeposits();
-  const { data: batches, isLoading: loadingBatches, refetch: refetchBatches } = useBatches();
-  const { data: students, isLoading: loadingStudents, refetch: refetchStudents } = useStudents();
+  const { data: incomes, isLoading: loadingIncomes } = useIncomes();
+  const { data: expenses, isLoading: loadingExpenses } = useExpenses();
+  const { data: deposits, isLoading: loadingDeposits } = useDeposits();
+  const { data: batches, isLoading: loadingBatches } = useBatches();
+  const { data: students, isLoading: loadingStudents } = useStudents();
   
   const { data: results, isLoading: loadingResults } = useQuery<any[]>({
     queryKey: ["/api/results"],
-    enabled: !!user && user.role === "student"
+    enabled: isStudent,
   });
 
-  useEffect(() => {
-    const refreshData = async () => {
-      await Promise.all([
-        refetchIncomes(),
-        refetchExpenses(),
-        refetchDeposits(),
-        refetchBatches(),
-        refetchStudents(),
-        user?.role === 'admin' ? refetchTeachers() : Promise.resolve()
-      ]);
-    };
-
-    refreshData();
-  }, []);
-
-  if (loadingIncomes || loadingExpenses || loadingDeposits || loadingBatches || loadingStudents || loadingResults || (user?.role === "admin" && loadingTeachers)) {
+  if (!user || loadingIncomes || loadingExpenses || loadingDeposits || loadingBatches || loadingStudents || loadingResults || (isAdmin && loadingTeachers)) {
     return <DashboardSkeleton />;
   }
-
-  const isStudent = user?.role === "student";
-  const isTeacher = user?.role === "teacher";
-  const isAdmin = user?.role === "admin";
 
   if (isStudent) {
     const historyIncomes = incomes || [];

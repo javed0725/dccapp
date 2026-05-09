@@ -10,11 +10,10 @@ export function useIncomes() {
     queryKey: [api.incomes.list.path, activePortal],
     queryFn: async () => {
       const url = `${api.incomes.list.path}?portal=${activePortal}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch incomes");
       return res.json();
     },
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -22,11 +21,10 @@ export function useBatches() {
   return useQuery<Batch[]>({
     queryKey: [api.batches.list.path],
     queryFn: async () => {
-      const res = await fetch(api.batches.list.path);
+      const res = await fetch(api.batches.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch batches");
       return res.json();
     },
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -34,11 +32,10 @@ export function useStudents() {
   return useQuery<any[]>({
     queryKey: [api.students.list.path],
     queryFn: async () => {
-      const res = await fetch(api.students.list.path);
+      const res = await fetch(api.students.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch students");
       return api.students.list.responses[200].parse(await res.json());
     },
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -50,6 +47,7 @@ export function useCreateBatch() {
         method: api.batches.create.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create batch");
       return res.json();
@@ -65,7 +63,7 @@ export function useDeleteBatch() {
   return useMutation({
     mutationFn: async (id: number) => {
       const url = buildUrl(api.batches.delete.path, { id });
-      const res = await fetch(url, { method: api.batches.delete.method });
+      const res = await fetch(url, { method: api.batches.delete.method, credentials: "include" });
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
         throw new Error(error.message || "Failed to delete batch");
@@ -85,6 +83,7 @@ export function useCreateStudent() {
         method: api.students.create.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create student");
       return res.json();
@@ -100,7 +99,7 @@ export function useDeleteStudent() {
   return useMutation({
     mutationFn: async (id: number) => {
       const url = buildUrl(api.students.delete.path, { id });
-      const res = await fetch(url, { method: api.students.delete.method });
+      const res = await fetch(url, { method: api.students.delete.method, credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete student");
     },
     onSuccess: () => {
@@ -117,6 +116,7 @@ export function useUpdateStudent() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update student");
       return res.json();
@@ -131,11 +131,10 @@ export function useExpenses() {
   return useQuery<Expense[]>({
     queryKey: [api.expenses.list.path],
     queryFn: async () => {
-      const res = await fetch(api.expenses.list.path);
+      const res = await fetch(api.expenses.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch expenses");
       return res.json();
     },
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -193,7 +192,6 @@ export function useDeposits() {
       if (!res.ok) throw new Error("Failed to fetch deposits");
       return res.json();
     },
-    staleTime: 5 * 60_000,
   });
 }
 
