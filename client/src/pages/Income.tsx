@@ -527,7 +527,7 @@ export default function Income() {
                                 monthGroups[m].push(inc);
                             });
                             const monthEntries = Object.entries(monthGroups).sort(
-                                ([a], [b]) => MONTHS.indexOf(a) - MONTHS.indexOf(b)
+                                ([a], [b]) => MONTHS.indexOf(b) - MONTHS.indexOf(a)
                             );
 
                             return (
@@ -551,7 +551,7 @@ export default function Income() {
 
                                     <AccordionContent className="p-0">
                                         {/* ── Month-level nested accordion ── */}
-                                        <Accordion type="multiple" className="divide-y divide-border">
+                                        <Accordion type="multiple" defaultValue={monthEntries.length > 0 ? [`${batchId}-${monthEntries[0][0]}`] : []} className="divide-y divide-border">
                                             {monthEntries.map(([month, monthRecords]) => {
                                                 const monthTotal = monthRecords.reduce((s: number, r: any) => s + Number(r.amount), 0);
                                                 return (
