@@ -37,13 +37,14 @@ function groupByMonth(expenses: Expense[]) {
     if (!groups[key]) groups[key] = [];
     groups[key].push(exp);
   }
+  // Descending: latest month first
   return Object.entries(groups).sort(([a], [b]) => {
     const ai = order.indexOf(a);
     const bi = order.indexOf(b);
-    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1 && bi === -1) return b.localeCompare(a);
     if (ai === -1) return 1;
     if (bi === -1) return -1;
-    return ai - bi;
+    return bi - ai;
   });
 }
 
@@ -52,13 +53,15 @@ function MonthGroup({
   expenses,
   onDelete,
   isPending,
+  defaultOpen = false,
 }: {
   month: string;
   expenses: Expense[];
   onDelete: (id: number) => void;
   isPending: boolean;
+  defaultOpen?: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(!defaultOpen);
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
 
   return (
@@ -269,13 +272,14 @@ export default function Expenses() {
           ) : grouped.length === 0 ? (
             <p className="text-center text-muted-foreground py-12">No expense records found.</p>
           ) : (
-            grouped.map(([month, items]) => (
+            grouped.map(([month, items], idx) => (
               <MonthGroup
                 key={month}
                 month={month}
                 expenses={items}
                 onDelete={handleDelete}
                 isPending={deleteMutation.isPending}
+                defaultOpen={idx === 0}
               />
             ))
           )}
