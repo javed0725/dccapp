@@ -203,7 +203,7 @@ export default function Dashboard() {
       balance: totalIncome - totalExpense,
       paidStudentsCount
     };
-  }).filter(m => m.hasData);
+  }).filter(m => m.hasData).reverse();
 
   const totalStudents = students?.filter(s => s.isActive !== false).length || 0;
   const batchStats = batches?.map(batch => ({
@@ -272,8 +272,8 @@ export default function Dashboard() {
 
         {monthlyData.length > 0 && (() => {
           const currentMonthName = MONTHS_FULL[new Date().getMonth()];
-          const previousMonthName = MONTHS_FULL[(new Date().getMonth() + 11) % 12];
-          const defaultOpen = monthlyData.filter(m => m.month === previousMonthName).map(m => m.month);
+          // Open the first (latest) month that has data
+          const defaultOpen = monthlyData.length > 0 ? [monthlyData[0].month] : [];
           return (
             <div>
               <div className="flex items-center gap-3 mb-6">
