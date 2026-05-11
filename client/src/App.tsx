@@ -10,6 +10,7 @@ import Income from "@/pages/Income";
 import Admission from "@/pages/Admission";
 import Expenses from "@/pages/Expenses";
 import Deposits from "@/pages/Deposits";
+import Finance from "@/pages/Finance";
 import ManageData from "@/pages/ManageData";
 import EntryMarks from "@/pages/EntryMarks";
 import Attendance from "@/pages/Attendance";
@@ -244,6 +245,7 @@ function Router() {
                 <>
                   <Route path="/expenses" component={Expenses} />
                   <Route path="/deposits" component={Deposits} />
+                  <Route path="/finance" component={Finance} />
                   <Route path="/manage" component={ManageData} />
                   <Route path="/notifications" component={Notifications} />
                 </>

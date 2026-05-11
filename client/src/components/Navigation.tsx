@@ -58,7 +58,7 @@ export function MobileNav() {
     { href: "/income", label: "Payment", icon: Wallet },
     { href: "/results", label: "Results", icon: FileText },
     { href: "/attendance", label: "Attendance", icon: ClipboardCheck },
-    { href: "/expenses", label: "Expenses", icon: Banknote },
+    { href: "/finance", label: "Finance", icon: Banknote },
     { href: "/manage", label: "Manage", icon: Settings },
   ];
 

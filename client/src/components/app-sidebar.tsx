@@ -46,8 +46,7 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
     { title: "Payment", url: "/income", icon: Wallet, roles: ["teacher", "admin"] },
     { title: "Results", url: "/results", icon: FileCheck, roles: ["teacher", "student"] },
     { title: "Attendance", url: "/attendance", icon: ClipboardCheck, roles: ["teacher", "admin"] },
-    { title: "Expenses", url: "/expenses", icon: Receipt, roles: ["admin"] },
-    { title: "Deposits", url: "/deposits", icon: PiggyBank, roles: ["admin"] },
+    { title: "Finance", url: "/finance", icon: Receipt, roles: ["admin"] },
     { title: "Manage", url: "/manage", icon: Settings, roles: ["admin"] },
     { title: "Notifications", url: "/notifications", icon: Bell, roles: ["admin"] },
   ].filter(item => item.roles.includes(effectiveRole));
