@@ -1,6 +1,6 @@
 import { Layout } from "@/components/Layout";
 import { useIncomes, useExpenses, useDeposits, useBatches, useStudents } from "@/hooks/use-finance";
-import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, BarChart3, GraduationCap, BookOpen, UserCircle2 } from "lucide-react";
+import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, BarChart3, GraduationCap, BookOpen, UserCircle2, Download } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -211,6 +214,58 @@ export default function Dashboard() {
     studentCount: students?.filter(s => s.batchId === batch.id && s.isActive !== false).length || 0,
   })) || [];
 
+  function downloadBatchPDF(batch: NonNullable<typeof batchData>[number]) {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+    // Title
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Dynamic Coaching Center — ${batch.name}`, 14, 16);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Payment Record · Generated ${format(new Date(), "dd MMM yyyy")} · ${batch.studentRows.length} students`, 14, 23);
+    doc.setTextColor(0);
+
+    const head = [["#", "Student Name", ...MONTHS_SHORT]];
+    const body = batch.studentRows.map((student, idx) => [
+      String(idx + 1),
+      student.name,
+      ...MONTHS_FULL.map(m =>
+        student.monthlyPayments[m] ? `${student.monthlyPayments[m].toLocaleString()}` : "—"
+      ),
+    ]);
+
+    autoTable(doc, {
+      startY: 28,
+      head,
+      body,
+      styles: { fontSize: 8, cellPadding: 2.5, lineColor: [220, 220, 220], lineWidth: 0.3 },
+      headStyles: { fillColor: [67, 56, 202], textColor: 255, fontStyle: "bold", halign: "center" },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 8 },
+        1: { cellWidth: 42, fontStyle: "bold" },
+        ...Object.fromEntries(
+          MONTHS_SHORT.map((_, i) => [i + 2, { halign: "center", cellWidth: 18 }])
+        ),
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      didParseCell(data) {
+        if (data.section === "body" && data.column.index >= 2) {
+          const val = data.cell.raw as string;
+          if (val === "—") {
+            data.cell.styles.textColor = [200, 200, 200];
+          } else {
+            data.cell.styles.textColor = [5, 150, 105];
+            data.cell.styles.fontStyle = "bold";
+          }
+        }
+      },
+    });
+
+    doc.save(`${batch.name.replace(/\s+/g, "_")}_payments.pdf`);
+  }
+
   return (
     <Layout 
       title={isAdmin ? "Authority Dashboard" : "Teacher Dashboard"} 
@@ -359,6 +414,16 @@ export default function Dashboard() {
                 <h3 className="font-bold text-xl text-slate-900 dark:text-slate-100">{batch.name}</h3>
                 <p className="text-sm text-slate-500">{batch.studentRows.length} students enrolled</p>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => downloadBatchPDF(batch)}
+                className="flex items-center gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 shrink-0"
+                data-testid={`button-download-pdf-${batch.id}`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                PDF
+              </Button>
             </div>
             <div className="overflow-x-auto">
               <Table>
