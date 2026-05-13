@@ -309,9 +309,17 @@ export default function Income() {
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
 
+  const [showDetails, setShowDetails] = useState(false);
+
   const { data: myCollection, refetch: refetchMyCollection } = useQuery<{ runningCollection: number; lastResetAt: string | null }>({
     queryKey: ["/api/collections/me"],
     enabled: isTeacher,
+  });
+
+  type CollectionDetail = { id: number; studentName: string; month: string; amount: number; date: string };
+  const { data: collectionDetails } = useQuery<CollectionDetail[]>({
+    queryKey: ["/api/collections/me/details"],
+    enabled: isTeacher && showDetails,
   });
 
   if (user?.role === "student") {
@@ -449,28 +457,67 @@ export default function Income() {
         <div className="space-y-4">
             {/* Teacher Collection Box */}
             {isTeacher && (
-              <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg p-5 flex flex-col sm:flex-row items-center justify-between gap-4"
+              <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg overflow-hidden"
                 data-testid="box-my-collection"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                    <Banknote className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-blue-100 text-sm font-medium">My Current Collection</p>
-                    <p className="text-white text-3xl font-black tracking-tight" data-testid="text-my-collection-amount">
-                      ৳{(myCollection?.runningCollection ?? 0).toLocaleString()}
-                    </p>
-                    {myCollection?.lastResetAt && (
-                      <p className="text-blue-200 text-xs mt-0.5">
-                        Last cleared: {format(new Date(myCollection.lastResetAt), "dd MMM yyyy, hh:mm a")}
+                {/* Main row */}
+                <div className="p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                      <Banknote className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-blue-100 text-sm font-medium">My Current Collection</p>
+                      <p className="text-white text-3xl font-black tracking-tight" data-testid="text-my-collection-amount">
+                        ৳{(myCollection?.runningCollection ?? 0).toLocaleString()}
                       </p>
-                    )}
+                      {myCollection?.lastResetAt && (
+                        <p className="text-blue-200 text-xs mt-0.5">
+                          Last cleared: {format(new Date(myCollection.lastResetAt), "dd MMM yyyy, hh:mm a")}
+                        </p>
+                      )}
+                      {/* View Details toggle */}
+                      <button
+                        onClick={() => setShowDetails((v) => !v)}
+                        className="mt-2 flex items-center gap-1 text-blue-100 hover:text-white text-xs font-semibold transition-colors"
+                        data-testid="button-toggle-collection-details"
+                      >
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showDetails ? "rotate-180" : ""}`} />
+                        {showDetails ? "Hide Details" : "View Details"}
+                      </button>
+                    </div>
                   </div>
+                  <p className="text-blue-100 text-xs text-center sm:text-right max-w-xs leading-relaxed">
+                    Cash collected since last hand-over. Authority will reset this when you submit.
+                  </p>
                 </div>
-                <p className="text-blue-100 text-xs text-center sm:text-right max-w-xs leading-relaxed">
-                  Cash collected since last hand-over. Authority will reset this when you submit.
-                </p>
+
+                {/* Expandable detail list */}
+                {showDetails && (
+                  <div className="border-t border-blue-400/40 bg-blue-700/30 px-5 py-3 max-h-64 overflow-y-auto">
+                    {!collectionDetails ? (
+                      <p className="text-blue-200 text-xs text-center py-3">Loading...</p>
+                    ) : collectionDetails.length === 0 ? (
+                      <p className="text-blue-200 text-xs text-center py-3">No payments in current collection.</p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {collectionDetails.map((item) => (
+                          <li key={item.id} className="flex items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-1.5 h-1.5 rounded-full bg-blue-300 shrink-0" />
+                              <span className="text-white font-medium truncate">{item.studentName}</span>
+                              <span className="text-blue-200 shrink-0">({item.month})</span>
+                            </div>
+                            <span className="text-emerald-300 font-bold shrink-0">+৳{item.amount.toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <p className="text-blue-300 text-[10px] text-right mt-2">
+                      {collectionDetails?.length ?? 0} payment{(collectionDetails?.length ?? 0) !== 1 ? "s" : ""} recorded
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

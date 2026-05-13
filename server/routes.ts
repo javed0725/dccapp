@@ -915,6 +915,43 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/collections/me/details — teacher sees individual payments in current (uncleared) collection
+  app.get("/api/collections/me/details", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const userId = (req.user as any).id;
+    try {
+      const row = await storage.getCollectionByUserId(userId);
+      const lastResetAt = row?.lastResetAt ?? null;
+
+      const allStudents = await db.select().from(students);
+      const studentMap: Record<number, string> = {};
+      allStudents.forEach((s) => { studentMap[s.id] = s.name; });
+
+      const { gte, and: dbAnd } = await import("drizzle-orm");
+      const conditions = lastResetAt
+        ? dbAnd(eq(incomesTable.recordedBy, userId), gte(incomesTable.date, lastResetAt))
+        : eq(incomesTable.recordedBy, userId);
+
+      const rows = await db
+        .select()
+        .from(incomesTable)
+        .where(conditions)
+        .orderBy(desc(incomesTable.date));
+
+      const details = rows.map((r) => ({
+        id: r.id,
+        studentName: studentMap[r.studentId] ?? `Student #${r.studentId}`,
+        month: r.month,
+        amount: r.amount,
+        date: r.date,
+      }));
+
+      res.json(details);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/collections — admin sees all teachers
   app.get("/api/collections", async (req, res) => {
     if (!requireAdmin(req, res)) return;
