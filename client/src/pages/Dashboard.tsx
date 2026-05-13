@@ -173,7 +173,7 @@ export default function Dashboard() {
   const balance = totalIncome - totalExpense;
 
   const batchData = batches?.map(batch => {
-    const batchStudents = (students?.filter(s => s.batchId === batch.id) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+    const batchStudents = (students?.filter(s => s.batchId === batch.id && s.isActive !== false) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
     const batchIncomes = incomes?.filter(inc => inc.batchId === batch.id) || [];
     const studentRows = batchStudents.map(student => {
       const studentPayments = batchIncomes.filter(inc => inc.studentId === student.id);
