@@ -952,6 +952,54 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/collections/:userId/details — admin sees individual uncleared payments for a teacher
+  app.get("/api/collections/:userId/details", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user id" });
+    try {
+      const row = await storage.getCollectionByUserId(userId);
+      const lastResetAt = row?.lastResetAt ?? null;
+
+      const allStudents = await db.select().from(students);
+      const studentMap: Record<number, { name: string; batchId: number | null }> = {};
+      allStudents.forEach((s) => { studentMap[s.id] = { name: s.name, batchId: s.batchId ?? null }; });
+
+      const { batches: batchesTable } = await import("@shared/schema");
+      const allBatches = await db.select().from(batchesTable);
+      const batchMap: Record<number, string> = {};
+      allBatches.forEach((b) => { batchMap[b.id] = b.name; });
+
+      const { gte, and: dbAnd } = await import("drizzle-orm");
+      const conditions = lastResetAt
+        ? dbAnd(eq(incomesTable.recordedBy, userId), gte(incomesTable.date, lastResetAt))
+        : eq(incomesTable.recordedBy, userId);
+
+      const rows = await db
+        .select()
+        .from(incomesTable)
+        .where(conditions)
+        .orderBy(desc(incomesTable.date));
+
+      const details = rows.map((r) => {
+        const student = studentMap[r.studentId];
+        const batchName = student?.batchId ? (batchMap[student.batchId] ?? "—") : "—";
+        return {
+          id: r.id,
+          studentName: student?.name ?? `Student #${r.studentId}`,
+          batchName,
+          month: r.month,
+          amount: r.amount,
+          date: r.date,
+        };
+      });
+
+      res.json(details);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/collections — admin sees all teachers
   app.get("/api/collections", async (req, res) => {
     if (!requireAdmin(req, res)) return;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Bell, UserPlus, Wallet, FileCheck, CheckCheck, Banknote, RefreshCw, RotateCcw } from "lucide-react";
+import { Bell, UserPlus, Wallet, FileCheck, CheckCheck, Banknote, RefreshCw, RotateCcw, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +9,56 @@ import { formatDistanceToNow, format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { MobileNav } from "@/components/Navigation";
 import type { Notification } from "@shared/schema";
+
+type PaymentDetail = {
+  id: number;
+  studentName: string;
+  batchName: string;
+  month: string;
+  amount: number;
+  date: string;
+};
+
+function TeacherPaymentDetails({ userId, enabled }: { userId: number; enabled: boolean }) {
+  const { data, isLoading } = useQuery<PaymentDetail[]>({
+    queryKey: ["/api/collections", userId, "details"],
+    enabled,
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/collections/${userId}/details`);
+      return res.json();
+    },
+  });
+
+  if (!enabled) return null;
+
+  return (
+    <div className="border-t border-blue-100 pt-2 mt-1">
+      {isLoading ? (
+        <p className="text-[10px] text-muted-foreground text-center py-2">Loading...</p>
+      ) : !data || data.length === 0 ? (
+        <p className="text-[10px] text-muted-foreground text-center py-2">No payments yet.</p>
+      ) : (
+        <div className="max-h-40 overflow-y-auto space-y-1 pr-0.5">
+          {data.map((item) => (
+            <div key={item.id} className="flex items-start justify-between gap-1.5 text-[10px] py-1 border-b border-slate-50 last:border-0">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground truncate leading-tight">{item.studentName}</p>
+                <p className="text-muted-foreground leading-tight">{item.batchName} · {item.month}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="font-bold text-emerald-600">+৳{item.amount.toLocaleString()}</p>
+                <p className="text-muted-foreground">{format(new Date(item.date), "dd MMM")}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {data && data.length > 0 && (
+        <p className="text-[9px] text-muted-foreground text-right mt-1">{data.length} payment{data.length !== 1 ? "s" : ""}</p>
+      )}
+    </div>
+  );
+}
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -60,6 +110,11 @@ function CollectionSummaryPanel() {
   const { toast } = useToast();
   const [clearTarget, setClearTarget] = useState<ClearTarget | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(MONTHS[new Date().getMonth()]);
+  const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
+
+  function toggleDetails(userId: number) {
+    setExpandedUserId((prev) => (prev === userId ? null : userId));
+  }
 
   const {
     data: collections = [],
@@ -73,10 +128,12 @@ function CollectionSummaryPanel() {
   const resetMutation = useMutation({
     mutationFn: ({ userId, month }: { userId: number; month: string }) =>
       apiRequest("POST", `/api/collections/${userId}/reset`, { month }),
-    onSuccess: async (res) => {
+    onSuccess: async (res, { userId }) => {
       const data = await res.json().catch(() => null);
       queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
       queryClient.invalidateQueries({ queryKey: ["/api/deposits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/collections", userId, "details"] });
+      setExpandedUserId(null);
       const depositAmount = data?.deposit?.amount;
       const depositMonth = data?.deposit?.month;
       toast({
@@ -198,7 +255,19 @@ function CollectionSummaryPanel() {
                   >
                     ৳{col.runningCollection.toLocaleString()}
                   </p>
+                  {/* View Collected Payments toggle */}
+                  <button
+                    onClick={() => toggleDetails(col.userId)}
+                    className="mt-1.5 flex items-center gap-0.5 text-[10px] font-semibold text-blue-500 hover:text-blue-700 transition-colors"
+                    data-testid={`button-toggle-details-${col.userId}`}
+                  >
+                    <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedUserId === col.userId ? "rotate-180" : ""}`} />
+                    {expandedUserId === col.userId ? "Hide" : "View Collected Payments"}
+                  </button>
                 </div>
+
+                {/* Expandable payment list */}
+                <TeacherPaymentDetails userId={col.userId} enabled={expandedUserId === col.userId} />
 
                 <div className="flex items-center justify-between gap-1 pt-1 border-t border-border">
                   <p className="text-[10px] text-muted-foreground leading-tight truncate">
