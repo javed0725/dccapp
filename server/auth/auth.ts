@@ -44,12 +44,23 @@ export function setupAuth(app: Express) {
 
   const sessionSecret = envSecret || fallbackSecret;
 
-  const sessionSettings: session.SessionOptions = {
-    store: new PgStore({
+  // Build the session store — try PostgreSQL first, fall back to in-memory so
+  // the server never crashes just because the DB is slow on cold start.
+  let store: session.Store | undefined;
+  try {
+    store = new PgStore({
       pool,
       tableName: "user_sessions",
       createTableIfMissing: true,
-    }),
+    });
+    console.log("[Auth] PostgreSQL session store initialised.");
+  } catch (storeErr) {
+    console.error("[Auth] PgStore init failed — falling back to MemoryStore:", storeErr);
+    store = undefined; // express-session uses MemoryStore when store is omitted
+  }
+
+  const sessionSettings: session.SessionOptions = {
+    ...(store ? { store } : {}),
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,

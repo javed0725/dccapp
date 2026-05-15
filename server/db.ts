@@ -42,9 +42,10 @@ function getPool(): pg.Pool {
     _pool = new Pool({
       connectionString: connectionString ?? "",
       ssl: { rejectUnauthorized: false },
-      max: 3,
-      connectionTimeoutMillis: 5000,
+      max: 5,
+      connectionTimeoutMillis: 15000,  // 15 s — handles cold-start DB wakeup
       idleTimeoutMillis: 30000,
+      statement_timeout: 20000,        // kill runaway queries after 20 s
     });
 
     _pool.on("error", (err) => {

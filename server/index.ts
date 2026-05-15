@@ -1,10 +1,41 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+// Allow any Replit preview/deployment domain, localhost variants, and any
+// explicitly configured FRONTEND_URL. Credentials (cookies) are included.
+const allowedOrigins = new Set<string>([
+  "http://localhost:5000",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+]);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Same-origin requests (e.g. Vite SSR, curl, mobile) have no Origin header — always allow.
+      if (!origin) return callback(null, true);
+      // Allow any *.replit.app / *.repl.co domain (covers dev previews + deployments).
+      if (/\.replit\.app$/.test(origin) || /\.repl\.co$/.test(origin)) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      console.warn(`[CORS] Blocked origin: ${origin}`);
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
