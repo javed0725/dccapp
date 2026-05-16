@@ -18,28 +18,20 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   const [, setLocation] = useLocation();
   const { activePortal } = usePortal();
 
-  function doLocalLogout() {
-    const loginPath =
-      user?.role === "teacher" || user?.isAuthority ? "/teacher" :
-      user?.role === "admin" ? "/admin" :
-      "/student";
-    localStorage.setItem("last_portal", loginPath);
-    localStorage.removeItem("activePortal");
-    queryClient.clear();
-    setLocation(loginPath);
-  }
-
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // Skip the network call when offline — just clear local state.
-      if (navigator.onLine) {
-        await apiRequest("POST", "/api/logout");
-      }
+      await apiRequest("POST", "/api/logout");
     },
-    onSuccess: doLocalLogout,
-    // Even if the server logout fails (e.g. network error), still clear local
-    // session so the user is not stuck inside a broken authenticated state.
-    onError: doLocalLogout,
+    onSuccess: () => {
+      const loginPath =
+        user?.role === "teacher" || user?.isAuthority ? "/teacher" :
+        user?.role === "admin" ? "/admin" :
+        "/student";
+      localStorage.setItem("last_portal", loginPath);
+      localStorage.removeItem("activePortal");
+      queryClient.clear();
+      setLocation(loginPath);
+    },
   });
 
   const { data: unreadData } = useQuery<{ count: number }>({

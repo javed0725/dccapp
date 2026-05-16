@@ -4,7 +4,6 @@ import { useStudents, useBatches } from "@/hooks/use-finance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { saveForOffline, notifyPendingChanged } from "@/hooks/use-offline-sync";
 import { type User } from "@/lib/schemas";
 import { usePortal } from "@/lib/portal-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -173,52 +172,20 @@ export default function Attendance() {
         totalStudents: studentsInBatch.length,
       };
 
-      if (!navigator.onLine) {
-        await saveForOffline({
-          type: "attendance",
-          url: "/api/attendance",
-          method: "POST",
-          payload,
-          label: `Attendance ${date} — Batch ${selectedBatchId}`,
-        });
-        return { offline: true, presentCount, absentCount };
-      }
-
       const res = await apiRequest("POST", "/api/attendance", payload);
       return res.json();
     },
-    onSuccess: (data: any) => {
-      if (data?.offline) {
-        toast({
-          title: "Saved offline",
-          description: `Attendance will sync when you're back online. (${data.presentCount} present, ${data.absentCount} absent)`,
-        });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
-        toast({
-          title: "Attendance saved successfully!",
-          description: `${presentCount} present, ${absentCount} absent.`,
-        });
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
+      toast({
+        title: "Attendance saved successfully!",
+        description: `${presentCount} present, ${absentCount} absent.`,
+      });
       resetAttendanceForm();
     },
-    onError: async (err: any) => {
-      // If the network dropped mid-request, queue offline instead of showing an error
-      if (!navigator.onLine || (err?.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.toLowerCase().includes("networkerror")))) {
-        const absentStudentIds = studentsInBatch.filter((s: any) => !presence[s.id]).map((s: any) => s.id);
-        await saveForOffline({
-          type: "attendance",
-          url: "/api/attendance",
-          method: "POST",
-          payload: { date, batchId: Number(selectedBatchId), subject: effSubject, academicGroup: effGroup, shift: effShift, absentStudentIds, totalStudents: studentsInBatch.length },
-          label: `Attendance ${date} — Batch ${selectedBatchId}`,
-        });
-        toast({ title: "Saved offline", description: "Attendance will sync when you're back online." });
-        resetAttendanceForm();
-      } else {
-        toast({ variant: "destructive", title: "Save failed", description: err.message });
-      }
+    onError: (err: any) => {
+      toast({ variant: "destructive", title: "Save failed", description: err.message });
     },
   });
 

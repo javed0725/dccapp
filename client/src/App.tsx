@@ -4,7 +4,6 @@ import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
-import { getAutoLoginSession, hasRecentOfflineSession } from "@/lib/offline-auth";
 import Dashboard from "@/pages/Dashboard";
 import Income from "@/pages/Income";
 import Admission from "@/pages/Admission";
@@ -136,21 +135,24 @@ function Router() {
   });
   const [location] = useLocation();
   const { activePortal } = usePortal();
-  const [offlineRestored, setOfflineRestored] = useState(false);
-
-  // Auto-login: if offline and no user, restore from IndexedDB session
+  // One-time cleanup: unregister any service workers and delete IndexedDB
+  // databases left over from a previous offline-capable build of this app.
   useEffect(() => {
-    if (isLoading || user || offlineRestored) return;
-    if (navigator.onLine) return;
-    if (!hasRecentOfflineSession()) return;
-
-    getAutoLoginSession().then((savedUser) => {
-      if (savedUser) {
-        queryClient.setQueryData(["/api/user"], savedUser);
-      }
-      setOfflineRestored(true);
-    });
-  }, [isLoading, user, offlineRestored]);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {});
+    }
+    // Delete the named IDB database used by the old offline feature.
+    try { indexedDB.deleteDatabase("dcc-offline"); } catch {}
+    // Also nuke any other IDB databases the browser may have registered
+    // (covers edge-cases like multiple app versions).
+    if (typeof indexedDB.databases === "function") {
+      indexedDB.databases()
+        .then((dbs) => dbs.forEach((db) => { if (db.name) indexedDB.deleteDatabase(db.name); }))
+        .catch(() => {});
+    }
+  }, []);
 
   // Authority teachers can act as admin when they've switched to the admin portal
   const effectiveRole: string =

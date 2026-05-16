@@ -4,69 +4,33 @@ import { api, buildUrl } from "@shared/routes";
 import { Income, Expense, Deposit, Batch, Student, InsertIncome, InsertExpense, InsertDeposit } from "@/lib/schemas";
 import { usePortal } from "@/lib/portal-context";
 
-// ── useIncomes ───────────────────────────────────────────────────────────────
-// Custom queryFn is required here because the URL needs ?portal= appended,
-// which can't be inferred from the multi-segment queryKey.
-// The 18-second timeout and stale-cache fallback are applied explicitly so
-// slow networks show cached data rather than a blank/error screen.
 export function useIncomes() {
   const { activePortal } = usePortal();
   return useQuery<any[]>({
     queryKey: [api.incomes.list.path, activePortal],
-    queryFn: async ({ queryKey }) => {
+    queryFn: async () => {
       const url = `${api.incomes.list.path}?portal=${activePortal}`;
-      try {
-        const res = await fetchWithTimeout(url, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to fetch incomes");
-        return res.json();
-      } catch (err) {
-        // On connectivity failure return stale cache data so the income list
-        // keeps rendering even when the server is unreachable.
-        const stale = queryClient.getQueryData<any[]>(queryKey);
-        if (
-          stale !== undefined &&
-          (err instanceof Error &&
-            (err.message.toLowerCase().includes("failed to fetch") ||
-              err.message.toLowerCase().includes("timed out") ||
-              !navigator.onLine))
-        ) {
-          return stale;
-        }
-        throw err;
-      }
+      const res = await fetchWithTimeout(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch incomes");
+      return res.json();
     },
   });
 }
 
-// ── The remaining hooks omit a custom queryFn intentionally.
-// The global default queryFn (getQueryFn) already applies:
-//   • fetchWithTimeout  (18 s cap)
-//   • stale-cache fallback on connectivity errors
-//   • 401 → session-expired toast + redirect
-// This keeps each hook minimal and DRY.
-
 export function useBatches() {
-  return useQuery<Batch[]>({
-    queryKey: [api.batches.list.path],
-  });
+  return useQuery<Batch[]>({ queryKey: [api.batches.list.path] });
 }
 
 export function useStudents() {
-  return useQuery<any[]>({
-    queryKey: [api.students.list.path],
-  });
+  return useQuery<any[]>({ queryKey: [api.students.list.path] });
 }
 
 export function useExpenses() {
-  return useQuery<Expense[]>({
-    queryKey: [api.expenses.list.path],
-  });
+  return useQuery<Expense[]>({ queryKey: [api.expenses.list.path] });
 }
 
 export function useDeposits() {
-  return useQuery<Deposit[]>({
-    queryKey: [api.deposits.list.path],
-  });
+  return useQuery<Deposit[]>({ queryKey: [api.deposits.list.path] });
 }
 
 export function useCreateBatch() {

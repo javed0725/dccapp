@@ -1,39 +1,13 @@
-import { QueryClient, QueryCache, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
-import { saveQueryCache, loadAllQueryCaches } from "./offline-db";
 
-const SESSION_EXPIRED_FALLBACK =
-  "Your session has expired. Please log in again.";
+const SESSION_EXPIRED_FALLBACK = "Your session has expired. Please log in again.";
 
-// ── Persistence filter ───────────────────────────────────────────────────────
-// These query key prefixes are never written to IndexedDB — they are either
-// real-time, auth-sensitive, or meaningless to restore across sessions.
-
-const SKIP_PERSIST_PREFIXES = [
-  "/api/user",
-  "/api/login",
-  "/api/logout",
-  "/api/notifications",
-  "/api/collections",
-];
-
-function shouldPersistKey(queryKey: readonly unknown[]): boolean {
-  const first = queryKey[0];
-  if (typeof first !== "string") return false;
-  for (const prefix of SKIP_PERSIST_PREFIXES) {
-    if (first === prefix || first.startsWith(prefix + "/")) return false;
-  }
-  return true;
-}
-
-// ── Network helpers ──────────────────────────────────────────────────────────
-
-/** 18-second timeout covers a typical 3G round trip (≈ 200 KB payload).
- *  Without this, a stalled TCP connection would hang the UI indefinitely. */
+// ── Network timeout ───────────────────────────────────────────────────────────
+// Wraps fetch with an 18-second AbortController timeout so slow connections
+// fail fast with a clear error instead of hanging the UI indefinitely.
 const FETCH_TIMEOUT_MS = 18_000;
 
-/** Wraps `fetch` with an AbortController timeout. The signal is merged with
- *  any caller-supplied signal so both can cancel the request. */
 export function fetchWithTimeout(
   url: string,
   init?: RequestInit,
@@ -44,40 +18,9 @@ export function fetchWithTimeout(
     () => controller.abort(new Error("Request timed out after " + timeoutMs + "ms")),
     timeoutMs,
   );
-
-  // If the caller already passed a signal, abort when either fires.
-  const signal =
-    init?.signal
-      ? anySignal([init.signal as AbortSignal, controller.signal])
-      : controller.signal;
-
-  return fetch(url, { ...init, signal }).finally(() => clearTimeout(timer));
-}
-
-function anySignal(signals: AbortSignal[]): AbortSignal {
-  const controller = new AbortController();
-  for (const s of signals) {
-    if (s.aborted) { controller.abort(s.reason); break; }
-    s.addEventListener("abort", () => controller.abort(s.reason), { once: true });
-  }
-  return controller.signal;
-}
-
-/** True when the error is clearly a connectivity failure (not a server error). */
-function isConnectivityError(err: unknown): boolean {
-  if (!navigator.onLine) return true;
-  if (err instanceof Error) {
-    const msg = err.message.toLowerCase();
-    return (
-      msg.includes("failed to fetch") ||
-      msg.includes("networkerror") ||
-      msg.includes("network request failed") ||
-      msg.includes("load failed") ||
-      msg.includes("the internet connection") ||
-      msg.includes("timed out")
-    );
-  }
-  return false;
+  return fetch(url, { ...init, signal: controller.signal }).finally(() =>
+    clearTimeout(timer),
+  );
 }
 
 // ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -138,7 +81,6 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Use the shared timeout wrapper so slow-network mutations don't hang forever.
   const res = await fetchWithTimeout(url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
@@ -166,120 +108,37 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const url = queryKey.join("/") as string;
 
-    try {
-      const res = await fetchWithTimeout(url, { credentials: "include" });
+    const res = await fetchWithTimeout(url, { credentials: "include" });
 
-      if (res.status === 401) {
-        if (unauthorizedBehavior === "returnNull") {
-          return null;
-        }
-        if (!isAuthCheckUrl(url)) {
-          const message = await parseErrorMessage(res.clone()).catch(
-            () => SESSION_EXPIRED_FALLBACK,
-          );
-          handleUnauthorized(message || SESSION_EXPIRED_FALLBACK);
-          throw new Error(message || SESSION_EXPIRED_FALLBACK);
-        }
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
       }
-
-      await throwIfResNotOk(res);
-      return await res.json();
-    } catch (err) {
-      // ── Graceful degradation on connectivity failure ──────────────────────
-      // If a background refetch fails because of the network (not a server
-      // error), silently return whatever stale data is already in the cache.
-      // This means the UI keeps showing real data instead of an error screen,
-      // and the next successful refetch will update it automatically.
-      if (isConnectivityError(err)) {
-        const stale = queryClient.getQueryData(queryKey);
-        if (stale !== undefined) {
-          console.log(`[SlowNet] Connectivity error for ${url} — serving stale cache`);
-          return stale as T;
-        }
+      if (!isAuthCheckUrl(url)) {
+        const message = await parseErrorMessage(res.clone()).catch(
+          () => SESSION_EXPIRED_FALLBACK,
+        );
+        handleUnauthorized(message || SESSION_EXPIRED_FALLBACK);
+        throw new Error(message || SESSION_EXPIRED_FALLBACK);
       }
-      throw err;
     }
+
+    await throwIfResNotOk(res);
+    return await res.json();
   };
 
-// ── QueryCache with auto-persist ─────────────────────────────────────────────
-// Every successful query result is automatically saved to IndexedDB so the
-// data survives page reloads and is available immediately when offline.
-
-const persistingQueryCache = new QueryCache({
-  onSuccess(data, query) {
-    if (shouldPersistKey(query.queryKey)) {
-      const key = JSON.stringify(query.queryKey);
-      saveQueryCache(key, data); // fire-and-forget — never blocks the UI
-    }
-  },
-});
-
 export const queryClient = new QueryClient({
-  queryCache: persistingQueryCache,
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      // 10 min stale window — data is served from cache without a network
-      // round-trip during this period, keeping the UI instant on slow connections.
-      staleTime: 10 * 60_000,
-      // Keep unused data in memory for 30 min so navigating back is instant.
-      gcTime: 30 * 60_000,
-      // Retry once (after 3 s) on network failures before giving up.
-      // Auth/server errors (401, 403, 500) are not retried — only connectivity.
-      retry: (failureCount, err) => {
-        if (failureCount >= 1) return false;
-        return isConnectivityError(err);
-      },
-      retryDelay: 3_000,
-      // Do NOT let background-refetch failures bubble to React error boundaries.
-      // With stale data in cache the query returns the cached value, so
-      // throwOnError is effectively unreachable for connectivity errors —
-      // but setting it to false adds an extra safety net for edge cases.
-      throwOnError: false,
-      // offlineFirst: React Query will attempt the queryFn once even without
-      // a network connection. If the fetch fails, any data already in the
-      // cache (pre-loaded from IndexedDB at startup) is returned — so
-      // student/class dropdowns and data grids remain populated offline.
-      networkMode: "offlineFirst",
+      staleTime: 5 * 60_000,
+      gcTime: 15 * 60_000,
+      retry: false,
     },
     mutations: {
       retry: false,
-      networkMode: "offlineFirst",
     },
   },
 });
-
-// ── Boot-time cache hydration from IndexedDB ─────────────────────────────────
-// This IIFE runs synchronously when the module is first imported — before any
-// React component renders. It reads every previously-persisted query snapshot
-// out of IndexedDB and injects it into the React Query in-memory cache via
-// setQueryData. Components that mount offline will immediately receive real
-// data instead of empty arrays, so dropdowns and student lists work without
-// any network connection.
-
-(async function hydrateFromIDB() {
-  try {
-    const entries = await loadAllQueryCaches();
-    let count = 0;
-    for (const { key, data } of entries) {
-      try {
-        const queryKey = JSON.parse(key) as unknown[];
-        // Only pre-fill slots that React Query hasn't already populated with
-        // fresh network data (avoids clobbering an online fetch that wins the race).
-        if (queryClient.getQueryData(queryKey) === undefined) {
-          queryClient.setQueryData(queryKey, data);
-          count++;
-        }
-      } catch {
-        // Malformed key — skip silently
-      }
-    }
-    if (count > 0) {
-      console.log(`[OfflineCache] Hydrated ${count} cached quer${count === 1 ? "y" : "ies"} from IndexedDB`);
-    }
-  } catch (err) {
-    console.warn("[OfflineCache] Hydration failed:", err);
-  }
-})();

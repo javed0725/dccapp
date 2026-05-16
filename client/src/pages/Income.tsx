@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { saveForOffline } from "@/hooks/use-offline-sync";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useCreateIncome, useDeleteIncome, useBatches, useStudents } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Search, Filter, Calendar as CalendarIcon, CheckCircle, History as HistoryIcon, MessageCircle, ChevronDown, Check, Banknote, WifiOff } from "lucide-react";
+import { Plus, Trash2, Search, Filter, Calendar as CalendarIcon, CheckCircle, History as HistoryIcon, MessageCircle, ChevronDown, Check, Banknote } from "lucide-react";
 import { buildPaymentWhatsAppUrl } from "@/lib/whatsapp";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -20,8 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { usePortal } from "@/lib/portal-context";
-import { isNetworkError } from "@/lib/offline-utils";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -189,7 +186,6 @@ type IncomeWithRelations = IncomeType & {
 
 export default function Income() {
   const { data: user } = useQuery<any>({ queryKey: ["/api/user"] });
-  const { activePortal } = usePortal();
   const [open, setOpen] = useState(false);
   const { data: incomes, isLoading } = useIncomes();
   const { data: batches } = useBatches();
@@ -199,50 +195,6 @@ export default function Income() {
   const deleteMutation = useDeleteIncome();
   const { toast } = useToast();
 
-  // ── Offline payment helper ───────────────────────────────────────────────
-  // Queues the payment for background sync AND injects an optimistic entry
-  // into the React Query cache so the record appears in the list immediately,
-  // even without a network connection. The server sync replaces it on reconnect.
-  async function savePaymentOffline(values: z.infer<typeof formSchema>) {
-    await saveForOffline({
-      type: "payment",
-      url: "/api/incomes",
-      method: "POST",
-      payload: values,
-      label: `Payment — Student ${values.studentId} (${values.month})`,
-    });
-
-    const selectedStudent = (students as any[])?.find(
-      (s) => s.id === Number(values.studentId),
-    );
-    const selectedBatch = (batches as any[])?.find(
-      (b) => b.id === Number(values.batchId),
-    );
-
-    const optimistic = {
-      id: -(Date.now()), // negative temp ID — will be replaced by real data on sync
-      studentId: Number(values.studentId),
-      batchId: Number(values.batchId),
-      month: values.month,
-      amount: Number(values.amount),
-      date: new Date().toISOString().slice(0, 10),
-      recordedBy: user?.id ?? null,
-      status: "Pending",
-      addedBy: user?.username ?? null,
-      _offlinePending: true,
-      student: selectedStudent ?? null,
-      batch: selectedBatch ?? null,
-    };
-
-    const cacheKey = ["/api/incomes", activePortal];
-    const current = queryClient.getQueryData<any[]>(cacheKey) ?? [];
-    queryClient.setQueryData(cacheKey, [optimistic, ...current]);
-
-    toast({
-      title: "Saved offline",
-      description: "Payment will sync automatically when you're back online.",
-    });
-  }
   const [search, setSearch] = useState("");
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -299,15 +251,7 @@ export default function Income() {
     form.setValue("studentId", 0);
   }, [selectedBatchId, form]);
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Known-offline: queue immediately without attempting the network
-    if (!navigator.onLine) {
-      await savePaymentOffline(values);
-      setOpen(false);
-      form.reset();
-      return;
-    }
-
+  function onSubmit(values: z.infer<typeof formSchema>) {
     createMutation.mutate(values, {
       onSuccess: () => {
         setOpen(false);
@@ -318,19 +262,12 @@ export default function Income() {
           description: "Payment recorded successfully",
         });
       },
-      onError: async (error: any) => {
-        // Went offline mid-request — fall back to offline queue + optimistic update
-        if (isNetworkError(error)) {
-          await savePaymentOffline(values);
-          setOpen(false);
-          form.reset();
-        } else {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: error.message,
-          });
-        }
+      onError: (error: any) => {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message,
+        });
       },
     });
   }
@@ -698,16 +635,10 @@ export default function Income() {
                                                                                             ID: {inc.student.studentCustomId}
                                                                                         </span>
                                                                                     )}
-                                                                                    {inc._offlinePending && (
-                                                                                        <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                                                                            <WifiOff className="w-2.5 h-2.5" />
-                                                                                            Offline
-                                                                                        </span>
-                                                                                    )}
-                                                                                    {!inc._offlinePending && inc.status === 'Pending' && (
+                                                                                    {inc.status === 'Pending' && (
                                                                                         <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Pending</span>
                                                                                     )}
-                                                                                    {!inc._offlinePending && inc.status === 'Verified' && (
+                                                                                    {inc.status === 'Verified' && (
                                                                                         <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                                                                                             <CheckCircle className="w-2.5 h-2.5" />
                                                                                             Verified
@@ -718,12 +649,12 @@ export default function Income() {
                                                                             </TableCell>
                                                                             {isAdmin && <TableCell className="text-muted-foreground text-sm">{inc.addedBy || "N/A"}</TableCell>}
                                                                             <TableCell className="text-muted-foreground text-sm">
-                                                                                {inc._offlinePending ? "—" : format(new Date(inc.date), "MMM d, y")}
+                                                                                {format(new Date(inc.date), "MMM d, y")}
                                                                             </TableCell>
                                                                             <TableCell className="text-right font-medium text-emerald-600">
                                                                                 <div className="flex items-center justify-end gap-3">
                                                                                     +৳{inc.amount.toLocaleString()}
-                                                                                    {!inc._offlinePending && isAdmin && inc.status === 'Pending' && (
+                                                                                    {isAdmin && inc.status === 'Pending' && (
                                                                                         <Button
                                                                                             size="sm"
                                                                                             variant="outline"
@@ -737,8 +668,6 @@ export default function Income() {
                                                                                 </div>
                                                                             </TableCell>
                                                                             <TableCell>
-                                                                                {/* Hide all actions for offline-pending entries — they have no real server ID */}
-                                                                                {!inc._offlinePending && (
                                                                                 <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100">
                                                                                     {isAdmin && inc.student?.mobileNumber && (() => {
                                                                                         const url = buildPaymentWhatsAppUrl(
@@ -764,7 +693,6 @@ export default function Income() {
                                                                                         <Trash2 className="w-4 h-4" />
                                                                                     </Button>
                                                                                 </div>
-                                                                                )}
                                                                             </TableCell>
                                                                         </TableRow>
                                                                     ))}
