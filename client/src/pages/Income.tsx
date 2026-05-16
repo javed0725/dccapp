@@ -690,8 +690,14 @@ export default function Income() {
                                                                             }`}
                                                                         >
                                                                             <TableCell className="font-medium pl-6">
+                                                                                <div className="flex flex-col gap-0.5">
                                                                                 <div className="flex items-center gap-2 flex-wrap">
                                                                                     {inc.student?.name}
+                                                                                    {inc.student?.studentCustomId && (
+                                                                                        <span className="text-[10px] text-muted-foreground font-normal bg-muted px-1.5 py-0.5 rounded">
+                                                                                            ID: {inc.student.studentCustomId}
+                                                                                        </span>
+                                                                                    )}
                                                                                     {inc._offlinePending && (
                                                                                         <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                                                                                             <WifiOff className="w-2.5 h-2.5" />
@@ -707,6 +713,7 @@ export default function Income() {
                                                                                             Verified
                                                                                         </span>
                                                                                     )}
+                                                                                </div>
                                                                                 </div>
                                                                             </TableCell>
                                                                             {isAdmin && <TableCell className="text-muted-foreground text-sm">{inc.addedBy || "N/A"}</TableCell>}
