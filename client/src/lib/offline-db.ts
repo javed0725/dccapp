@@ -13,6 +13,12 @@ export interface OfflinePending {
   label: string;
 }
 
+interface QueryCacheEntry {
+  key: string;
+  data: unknown;
+  savedAt: number;
+}
+
 interface OfflineDB extends DBSchema {
   pending: {
     key: string;
@@ -20,8 +26,12 @@ interface OfflineDB extends DBSchema {
     indexes: { byType: OfflineActionType; bySavedAt: number };
   };
   session: {
-    key: string; // username
+    key: string;
     value: OfflineSession;
+  };
+  queryCache: {
+    key: string;
+    value: QueryCacheEntry;
   };
 }
 
@@ -29,25 +39,27 @@ let _db: IDBPDatabase<OfflineDB> | null = null;
 
 async function getDB(): Promise<IDBPDatabase<OfflineDB>> {
   if (_db) return _db;
-  _db = await openDB<OfflineDB>("dcc-offline", 2, {
+  _db = await openDB<OfflineDB>("dcc-offline", 3, {
     upgrade(db, oldVersion) {
-      // v1 → create pending store
       if (oldVersion < 1) {
         const store = db.createObjectStore("pending", { keyPath: "id" });
         store.createIndex("byType", "type");
         store.createIndex("bySavedAt", "savedAt");
       }
-      // v2 → add session store
       if (oldVersion < 2) {
         db.createObjectStore("session", { keyPath: "username" });
+      }
+      if (oldVersion < 3) {
+        db.createObjectStore("queryCache", { keyPath: "key" });
       }
     },
   });
   return _db;
 }
 
-// Shared DB getter for both pending actions and auth sessions
 export const getAuthDB = getDB;
+
+// ── Offline action queue ─────────────────────────────────────────────────────
 
 export async function saveOfflineAction(action: Omit<OfflinePending, "id" | "savedAt">): Promise<string> {
   const db = await getDB();
@@ -75,4 +87,28 @@ export async function getPendingCount(): Promise<number> {
 export async function clearAllPending(): Promise<void> {
   const db = await getDB();
   await db.clear("pending");
+}
+
+// ── React Query cache persistence ────────────────────────────────────────────
+
+const QUERY_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+export async function saveQueryCache(key: string, data: unknown): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.put("queryCache", { key, data, savedAt: Date.now() });
+  } catch {
+    // Non-critical — never break the app over a cache write failure
+  }
+}
+
+export async function loadAllQueryCaches(): Promise<QueryCacheEntry[]> {
+  try {
+    const db = await getDB();
+    const all = await db.getAll("queryCache");
+    const cutoff = Date.now() - QUERY_CACHE_MAX_AGE_MS;
+    return all.filter((e) => e.savedAt > cutoff);
+  } catch {
+    return [];
+  }
 }

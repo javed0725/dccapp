@@ -1,8 +1,32 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryCache, QueryFunction } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
+import { saveQueryCache, loadAllQueryCaches } from "./offline-db";
 
 const SESSION_EXPIRED_FALLBACK =
   "Your session has expired. Please log in again.";
+
+// ── Persistence filter ───────────────────────────────────────────────────────
+// These query key prefixes are never written to IndexedDB — they are either
+// real-time, auth-sensitive, or meaningless to restore across sessions.
+
+const SKIP_PERSIST_PREFIXES = [
+  "/api/user",
+  "/api/login",
+  "/api/logout",
+  "/api/notifications",
+  "/api/collections",
+];
+
+function shouldPersistKey(queryKey: readonly unknown[]): boolean {
+  const first = queryKey[0];
+  if (typeof first !== "string") return false;
+  for (const prefix of SKIP_PERSIST_PREFIXES) {
+    if (first === prefix || first.startsWith(prefix + "/")) return false;
+  }
+  return true;
+}
+
+// ── Auth helpers ─────────────────────────────────────────────────────────────
 
 function isAuthCheckUrl(url: string): boolean {
   try {
@@ -107,7 +131,21 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+// ── QueryCache with auto-persist ─────────────────────────────────────────────
+// Every successful query result is automatically saved to IndexedDB so the
+// data survives page reloads and is available immediately when offline.
+
+const persistingQueryCache = new QueryCache({
+  onSuccess(data, query) {
+    if (shouldPersistKey(query.queryKey)) {
+      const key = JSON.stringify(query.queryKey);
+      saveQueryCache(key, data); // fire-and-forget — never blocks the UI
+    }
+  },
+});
+
 export const queryClient = new QueryClient({
+  queryCache: persistingQueryCache,
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
@@ -118,9 +156,47 @@ export const queryClient = new QueryClient({
       // Keep unused data in memory for 15 min so navigating back is instant
       gcTime: 15 * 60_000,
       retry: false,
+      // offlineFirst: React Query will attempt the queryFn once even without
+      // a network connection. If the fetch fails, any data already in the
+      // cache (pre-loaded from IndexedDB at startup) is returned — so
+      // student/class dropdowns and data grids remain populated offline.
+      networkMode: "offlineFirst",
     },
     mutations: {
       retry: false,
     },
   },
 });
+
+// ── Boot-time cache hydration from IndexedDB ─────────────────────────────────
+// This IIFE runs synchronously when the module is first imported — before any
+// React component renders. It reads every previously-persisted query snapshot
+// out of IndexedDB and injects it into the React Query in-memory cache via
+// setQueryData. Components that mount offline will immediately receive real
+// data instead of empty arrays, so dropdowns and student lists work without
+// any network connection.
+
+(async function hydrateFromIDB() {
+  try {
+    const entries = await loadAllQueryCaches();
+    let count = 0;
+    for (const { key, data } of entries) {
+      try {
+        const queryKey = JSON.parse(key) as unknown[];
+        // Only pre-fill slots that React Query hasn't already populated with
+        // fresh network data (avoids clobbering an online fetch that wins the race).
+        if (queryClient.getQueryData(queryKey) === undefined) {
+          queryClient.setQueryData(queryKey, data);
+          count++;
+        }
+      } catch {
+        // Malformed key — skip silently
+      }
+    }
+    if (count > 0) {
+      console.log(`[OfflineCache] Hydrated ${count} cached quer${count === 1 ? "y" : "ies"} from IndexedDB`);
+    }
+  } catch (err) {
+    console.warn("[OfflineCache] Hydration failed:", err);
+  }
+})();
