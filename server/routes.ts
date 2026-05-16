@@ -308,16 +308,19 @@ export async function registerRoutes(
     if (!requireAuth(req, res)) return;
     const user = req.user as any;
 
+    // ?limit=N caps the response size for slow connections (default 400, max 1000).
+    // Pass ?all=true to bypass the cap when the full history is explicitly needed.
+    const bypassLimit = req.query.all === "true";
+    const limit = bypassLimit ? Infinity : Math.min(Number(req.query.limit) || 400, 1000);
+
     if (user.role === 'student') {
       const student = await storage.getStudentByUserId(user.id);
       if (!student) return res.json([]);
       const incomes = await storage.getIncomesByStudentId(student.id);
-      console.log(`[BACKEND LOG] Fetched ${incomes.length} incomes for student ${student.name}`);
       return res.json(incomes);
     }
 
     const allIncomes = await storage.getIncomes();
-    console.log(`[BACKEND LOG] Fetched ${allIncomes.length} total incomes`);
 
     // Determine effective portal — authority teachers can switch between
     // "teacher" (own records only) and "admin" (all records) portals.
@@ -325,13 +328,18 @@ export async function registerRoutes(
     const inTeacherPortal =
       user.role === 'teacher' && (!user.isAuthority || requestedPortal === 'teacher');
 
-    if (inTeacherPortal) {
-      const filtered = allIncomes.filter(inc => inc.recordedBy === user.id);
-      console.log(`[BACKEND LOG] Teacher ${user.username} (portal=${requestedPortal || 'teacher'}) sees ${filtered.length} incomes`);
-      return res.json(filtered);
+    let result = inTeacherPortal
+      ? allIncomes.filter(inc => inc.recordedBy === user.id)
+      : allIncomes;
+
+    // Apply limit (getIncomes() is already sorted newest-first, so slice keeps
+    // the most recent records which are most relevant for daily use).
+    if (isFinite(limit) && result.length > limit) {
+      result = result.slice(0, limit);
     }
 
-    res.json(allIncomes);
+    console.log(`[BACKEND LOG] Returning ${result.length}/${allIncomes.length} incomes (limit=${limit})`);
+    res.json(result);
   });
 
   app.post(api.incomes.create.path, async (req, res) => {
@@ -398,8 +406,11 @@ export async function registerRoutes(
 
   app.get(api.expenses.list.path, async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    const expenses = await storage.getExpenses();
-    console.log(`[BACKEND LOG] Fetched ${expenses.length} total expenses`);
+    const bypassLimit = req.query.all === "true";
+    const limit = bypassLimit ? Infinity : Math.min(Number(req.query.limit) || 400, 1000);
+    let expenses = await storage.getExpenses();
+    if (isFinite(limit) && expenses.length > limit) expenses = expenses.slice(0, limit);
+    console.log(`[BACKEND LOG] Returning ${expenses.length} expenses (limit=${limit})`);
     res.json(expenses);
   });
 

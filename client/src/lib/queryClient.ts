@@ -26,6 +26,60 @@ function shouldPersistKey(queryKey: readonly unknown[]): boolean {
   return true;
 }
 
+// ── Network helpers ──────────────────────────────────────────────────────────
+
+/** 18-second timeout covers a typical 3G round trip (≈ 200 KB payload).
+ *  Without this, a stalled TCP connection would hang the UI indefinitely. */
+const FETCH_TIMEOUT_MS = 18_000;
+
+/** Wraps `fetch` with an AbortController timeout. The signal is merged with
+ *  any caller-supplied signal so both can cancel the request. */
+export function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error("Request timed out after " + timeoutMs + "ms")),
+    timeoutMs,
+  );
+
+  // If the caller already passed a signal, abort when either fires.
+  const signal =
+    init?.signal
+      ? anySignal([init.signal as AbortSignal, controller.signal])
+      : controller.signal;
+
+  return fetch(url, { ...init, signal }).finally(() => clearTimeout(timer));
+}
+
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  for (const s of signals) {
+    if (s.aborted) { controller.abort(s.reason); break; }
+    s.addEventListener("abort", () => controller.abort(s.reason), { once: true });
+  }
+  return controller.signal;
+}
+
+/** True when the error is clearly a connectivity failure (not a server error). */
+function isConnectivityError(err: unknown): boolean {
+  if (!navigator.onLine) return true;
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    return (
+      msg.includes("failed to fetch") ||
+      msg.includes("networkerror") ||
+      msg.includes("network request failed") ||
+      msg.includes("load failed") ||
+      msg.includes("the internet connection") ||
+      msg.includes("timed out")
+    );
+  }
+  return false;
+}
+
 // ── Auth helpers ─────────────────────────────────────────────────────────────
 
 function isAuthCheckUrl(url: string): boolean {
@@ -84,7 +138,8 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  // Use the shared timeout wrapper so slow-network mutations don't hang forever.
+  const res = await fetchWithTimeout(url, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -110,25 +165,40 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey.join("/") as string;
-    const res = await fetch(url, {
-      credentials: "include",
-    });
 
-    if (res.status === 401) {
-      if (unauthorizedBehavior === "returnNull") {
-        return null;
+    try {
+      const res = await fetchWithTimeout(url, { credentials: "include" });
+
+      if (res.status === 401) {
+        if (unauthorizedBehavior === "returnNull") {
+          return null;
+        }
+        if (!isAuthCheckUrl(url)) {
+          const message = await parseErrorMessage(res.clone()).catch(
+            () => SESSION_EXPIRED_FALLBACK,
+          );
+          handleUnauthorized(message || SESSION_EXPIRED_FALLBACK);
+          throw new Error(message || SESSION_EXPIRED_FALLBACK);
+        }
       }
-      if (!isAuthCheckUrl(url)) {
-        const message = await parseErrorMessage(res.clone()).catch(
-          () => SESSION_EXPIRED_FALLBACK,
-        );
-        handleUnauthorized(message || SESSION_EXPIRED_FALLBACK);
-        throw new Error(message || SESSION_EXPIRED_FALLBACK);
+
+      await throwIfResNotOk(res);
+      return await res.json();
+    } catch (err) {
+      // ── Graceful degradation on connectivity failure ──────────────────────
+      // If a background refetch fails because of the network (not a server
+      // error), silently return whatever stale data is already in the cache.
+      // This means the UI keeps showing real data instead of an error screen,
+      // and the next successful refetch will update it automatically.
+      if (isConnectivityError(err)) {
+        const stale = queryClient.getQueryData(queryKey);
+        if (stale !== undefined) {
+          console.log(`[SlowNet] Connectivity error for ${url} — serving stale cache`);
+          return stale as T;
+        }
       }
+      throw err;
     }
-
-    await throwIfResNotOk(res);
-    return await res.json();
   };
 
 // ── QueryCache with auto-persist ─────────────────────────────────────────────
@@ -151,11 +221,23 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      // 5 min stale — data serves from cache within this window, no re-fetch
-      staleTime: 5 * 60_000,
-      // Keep unused data in memory for 15 min so navigating back is instant
-      gcTime: 15 * 60_000,
-      retry: false,
+      // 10 min stale window — data is served from cache without a network
+      // round-trip during this period, keeping the UI instant on slow connections.
+      staleTime: 10 * 60_000,
+      // Keep unused data in memory for 30 min so navigating back is instant.
+      gcTime: 30 * 60_000,
+      // Retry once (after 3 s) on network failures before giving up.
+      // Auth/server errors (401, 403, 500) are not retried — only connectivity.
+      retry: (failureCount, err) => {
+        if (failureCount >= 1) return false;
+        return isConnectivityError(err);
+      },
+      retryDelay: 3_000,
+      // Do NOT let background-refetch failures bubble to React error boundaries.
+      // With stale data in cache the query returns the cached value, so
+      // throwOnError is effectively unreachable for connectivity errors —
+      // but setting it to false adds an extra safety net for edge cases.
+      throwOnError: false,
       // offlineFirst: React Query will attempt the queryFn once even without
       // a network connection. If the fetch fails, any data already in the
       // cache (pre-loaded from IndexedDB at startup) is returned — so
@@ -164,6 +246,7 @@ export const queryClient = new QueryClient({
     },
     mutations: {
       retry: false,
+      networkMode: "offlineFirst",
     },
   },
 });

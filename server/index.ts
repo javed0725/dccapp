@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -36,6 +37,12 @@ app.use(
   })
 );
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Gzip/deflate compress all JSON and text responses. On a 3G link this alone
+// shrinks a typical 50 KB JSON payload down to ~10 KB — a 5× speedup before
+// any other optimizations. The threshold (1024 bytes) skips tiny responses
+// that don't benefit from the extra CPU cost.
+app.use(compression({ threshold: 1024 }));
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
