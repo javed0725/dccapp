@@ -442,7 +442,7 @@ export default function EntryMarks() {
     });
   };
 
-  const handleSaveTeacherMarks = () => {
+  const handleSaveTeacherMarks = async () => {
     const draft = modelTestDrafts?.find((d) => d.groupId === selectedDraftGroupId);
     if (!draft || !teacherSubjectName) return;
     const subj = (draft.subjects as { name: string; totalMarks: number }[]).find((s) => s.name === teacherSubjectName);
@@ -466,6 +466,27 @@ export default function EntryMarks() {
       toast({ variant: "destructive", title: "No students in this batch" });
       return;
     }
+
+    // Offline: queue for background sync instead of attempting a live API call
+    if (!navigator.onLine) {
+      await saveForOffline({
+        type: "results_batch",
+        url: `/api/model-test-drafts/${draft.groupId}/marks`,
+        method: "POST",
+        payload: { entries },
+        label: `Model Test Marks — ${draft.examName} / ${teacherSubjectName}`,
+      });
+      toast({
+        title: "Saved offline",
+        description: `Marks for ${teacherSubjectName} will sync when you're back online.`,
+      });
+      setTeacherMarks({});
+      setAbsentStudents({});
+      setTeacherSubjectName("");
+      setSelectedDraftGroupId("");
+      return;
+    }
+
     saveModelTestMarksMutation.mutate({ groupId: draft.groupId, entries });
   };
 

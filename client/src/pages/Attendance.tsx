@@ -203,7 +203,23 @@ export default function Attendance() {
       }
       resetAttendanceForm();
     },
-    onError: (err: any) => toast({ variant: "destructive", title: "Save failed", description: err.message }),
+    onError: async (err: any) => {
+      // If the network dropped mid-request, queue offline instead of showing an error
+      if (!navigator.onLine || (err?.message && (err.message.toLowerCase().includes("failed to fetch") || err.message.toLowerCase().includes("networkerror")))) {
+        const absentStudentIds = studentsInBatch.filter((s: any) => !presence[s.id]).map((s: any) => s.id);
+        await saveForOffline({
+          type: "attendance",
+          url: "/api/attendance",
+          method: "POST",
+          payload: { date, batchId: Number(selectedBatchId), subject: effSubject, academicGroup: effGroup, shift: effShift, absentStudentIds, totalStudents: studentsInBatch.length },
+          label: `Attendance ${date} — Batch ${selectedBatchId}`,
+        });
+        toast({ title: "Saved offline", description: "Attendance will sync when you're back online." });
+        resetAttendanceForm();
+      } else {
+        toast({ variant: "destructive", title: "Save failed", description: err.message });
+      }
+    },
   });
 
   const markAllPresent = () => {
