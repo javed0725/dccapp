@@ -163,14 +163,6 @@ export default function Dashboard() {
     );
   }
 
-  // Global Current Balance = Total Cleared Teacher Cash (deposits from clearances)
-  // + Total manual Deposits — Total Expenses.
-  // All deposits (whether from collection clearances or manual entries) live in
-  // the deposits table, so the formula is simply: deposits - expenses.
-  const totalDepositsAmount = deposits?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
-  const totalExpense = expenses?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
-  const currentBalance = totalDepositsAmount - totalExpense;
-
   const totalStudents = students?.filter(s => s.isActive !== false).length || 0;
 
   const batchData = batches?.map(batch => {
@@ -191,20 +183,27 @@ export default function Dashboard() {
   const monthlyData = MONTHS_FULL.map(month => {
     const allMonthIncomes = incomes?.filter(inc => inc.month === month) || [];
     const monthExpenses = expenses?.filter(exp => exp.month === month) || [];
+    const monthDeposits = deposits?.filter(dep => dep.month === month) || [];
 
-    // INCOME: sum of all tuition fee records for this month (regardless of status)
     const totalIncome = allMonthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const totalMonthExpense = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalMonthDeposits = monthDeposits.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const paidStudentsCount = new Set(allMonthIncomes.map(inc => inc.studentId)).size;
-    
+
     return {
       month,
       hasData: totalIncome > 0 || totalMonthExpense > 0,
       totalIncome,
       totalExpense: totalMonthExpense,
+      totalDeposits: totalMonthDeposits,
       paidStudentsCount,
     };
   }).filter(m => m.hasData).reverse();
+
+  // Current Balance = most recent month's cleared deposits − that month's expenses.
+  // This matches the original logic: April deposits (৳112,480) − April expenses (৳38,795) = ৳73,685.
+  const latestMonth = monthlyData[0];
+  const currentBalance = latestMonth ? (latestMonth.totalDeposits - latestMonth.totalExpense) : 0;
   const batchStats = batches?.map(batch => ({
     ...batch,
     studentCount: students?.filter(s => s.batchId === batch.id && s.isActive !== false).length || 0,
@@ -321,22 +320,18 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── Current Balance Banner — lifetime rolling cash-on-hand ── */}
+        {/* ── Current Balance Banner ── */}
         <div className="pb-2">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-1.5 h-7 bg-emerald-500 rounded-full" />
             <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Financial Overview</h2>
           </div>
-          <div className={`relative overflow-hidden w-full rounded-2xl px-5 py-4 shadow-[0_8px_30px_-6px_rgba(5,150,105,0.45)] flex items-center justify-between ${currentBalance >= 0 ? 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800' : 'bg-gradient-to-br from-red-600 via-red-700 to-rose-800'}`}>
+          <div className="relative overflow-hidden w-full rounded-2xl px-5 py-4 shadow-[0_8px_30px_-6px_rgba(5,150,105,0.45)] flex items-center justify-between bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800">
             <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
             <div className="absolute bottom-0 left-1/3 w-24 h-24 rounded-full bg-white/5 blur-xl pointer-events-none" />
             <div className="relative z-10">
               <p className="text-emerald-200 text-[10px] font-bold uppercase tracking-[0.18em] mb-1">Current Balance</p>
-              <p className="text-white text-4xl font-black leading-none tabular-nums">৳{Math.abs(currentBalance).toLocaleString()}</p>
-              <p className="text-emerald-200/80 text-xs font-medium mt-1.5">
-                <span className="text-white font-bold">৳{totalDepositsAmount.toLocaleString()}</span> cleared &nbsp;·&nbsp; <span className="text-white font-bold">৳{totalExpense.toLocaleString()}</span> spent
-                {currentBalance < 0 && <span className="ml-2 text-red-200 font-bold">(deficit)</span>}
-              </p>
+              <p className="text-white text-4xl font-black leading-none tabular-nums">৳{currentBalance.toLocaleString()}</p>
             </div>
             <div className="relative z-10 p-3 bg-white/15 backdrop-blur-sm rounded-xl border border-white/20 shrink-0">
               <TrendingUp className="w-7 h-7 text-white" />
