@@ -1,0 +1,33 @@
+Please refactor the Authority Dashboard components, database logic, and calculations according to these structural and accounting rules:
+
+1. Dashboard Layout & Cards Restructuring
+Current Balance Card (Top Overview): Add a big standalone card at the top (styled exactly like the 'TOTAL ENROLLED' card) titled 'Current Balance'. This must represent the overall, lifetime rolling cash-on-hand of the coaching center, NOT a single month's balance.
+
+Monthly Overview Grid: Inside the monthly dropdown grid, remove the 'BALANCE' card completely. Replace it with an 'UNPAID' card.
+
+Four Monthly Grids: Each month must now show:
+
+INCOME (Total tuition fees collected for that specific month)
+
+EXPENSES (Total costs logged within that specific month)
+
+PAID (Count of active students who paid for that month)
+
+UNPAID (Count of active students who haven't paid for that month yet).
+
+2. Strict Core Financial Logic
+Global Current Balance Calculation: >   Current Balance = (Total Cleared Teacher Cash + Total Deposits) - Total Expenses
+
+Expense Trigger: When an expense is added, its amount must immediately deduct from the global Current Balance AND also get added to that specific month's EXPENSES card.
+
+Deposit Trigger: When a separate deposit is made, it goes directly into the global Current Balance (it does not alter tuition income metrics).
+
+Teacher Collection Clearance: When Authority clicks 'Clear' on a teacher's pending collection, that cleared amount must instantly add to the global Current Balance AND route into the respective monthly INCOME cards based on the months those student payments belonged to.
+
+3. Month Card Visibility & Collapse Rules
+Active/Current Month: The current month card (e.g., May 2026) must stay Open/Expanded by default.
+
+Past Months: As soon as a month ends, its card should automatically become Collapsed. Ensure May 2026 is visible and expanded right now.
+
+4. Historical Data Integrity (April Preservation)
+Keep April 2026 historical data intact. Ensure its INCOME card displays strictly the pure tuition revenue calculated from the 86 paid students, moving all non-tuition/deposit bulk amounts out into the new global Current Balance pool."

@@ -1,6 +1,6 @@
 import { Layout } from "@/components/Layout";
 import { useIncomes, useExpenses, useDeposits, useBatches, useStudents } from "@/hooks/use-finance";
-import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, BarChart3, GraduationCap, BookOpen, UserCircle2, Download } from "lucide-react";
+import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, GraduationCap, BookOpen, UserCircle2, Download } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
@@ -163,14 +163,15 @@ export default function Dashboard() {
     );
   }
 
-  // Balance is driven ONLY by teacher collection clearances (deposits).
-  // Verified incomes are informational only — they are already captured as a
-  // deposit when the admin clears a teacher's collection, so including them
-  // here would double-count every payment.
+  // Global Current Balance = Total Cleared Teacher Cash (deposits from clearances)
+  // + Total manual Deposits — Total Expenses.
+  // All deposits (whether from collection clearances or manual entries) live in
+  // the deposits table, so the formula is simply: deposits - expenses.
   const totalDepositsAmount = deposits?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
-  const totalIncome = totalDepositsAmount;
   const totalExpense = expenses?.reduce((sum, item) => sum + (Number(item.amount) || 0), 0) || 0;
-  const balance = totalIncome - totalExpense;
+  const currentBalance = totalDepositsAmount - totalExpense;
+
+  const totalStudents = students?.filter(s => s.isActive !== false).length || 0;
 
   const batchData = batches?.map(batch => {
     const batchStudents = (students?.filter(s => s.batchId === batch.id && s.isActive !== false) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
@@ -184,31 +185,26 @@ export default function Dashboard() {
     return { ...batch, studentRows };
   });
 
-  // Calculate monthly summaries (only for months with income or expenses)
+  // Calculate monthly summaries (only for months with income or expenses).
+  // Monthly INCOME = pure tuition revenue from the incomes table for that month.
+  // Monthly UNPAID = total active students minus those who paid that month.
   const monthlyData = MONTHS_FULL.map(month => {
     const allMonthIncomes = incomes?.filter(inc => inc.month === month) || [];
-    const verifiedMonthIncomes = allMonthIncomes.filter(inc => inc.status === "Verified");
     const monthExpenses = expenses?.filter(exp => exp.month === month) || [];
-    const monthDeposits = (deposits as any[])?.filter(dep => dep.month === month) || [];
 
-    // Balance only from cleared deposits — same principle as global balance above.
-    const studentPaymentsTotal = verifiedMonthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const depositsTotal = monthDeposits.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0);
-    const totalIncome = depositsTotal;
-    const totalExpense = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    // INCOME: sum of all tuition fee records for this month (regardless of status)
+    const totalIncome = allMonthIncomes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalMonthExpense = monthExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const paidStudentsCount = new Set(allMonthIncomes.map(inc => inc.studentId)).size;
     
     return {
       month,
-      hasData: depositsTotal > 0 || totalExpense > 0 || studentPaymentsTotal > 0,
+      hasData: totalIncome > 0 || totalMonthExpense > 0,
       totalIncome,
-      totalExpense,
-      balance: totalIncome - totalExpense,
-      paidStudentsCount
+      totalExpense: totalMonthExpense,
+      paidStudentsCount,
     };
   }).filter(m => m.hasData).reverse();
-
-  const totalStudents = students?.filter(s => s.isActive !== false).length || 0;
   const batchStats = batches?.map(batch => ({
     ...batch,
     studentCount: students?.filter(s => s.batchId === batch.id && s.isActive !== false).length || 0,
@@ -325,6 +321,29 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* ── Current Balance Banner — lifetime rolling cash-on-hand ── */}
+        <div className="pb-2">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-1.5 h-7 bg-emerald-500 rounded-full" />
+            <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Financial Overview</h2>
+          </div>
+          <div className={`relative overflow-hidden w-full rounded-2xl px-5 py-4 shadow-[0_8px_30px_-6px_rgba(5,150,105,0.45)] flex items-center justify-between ${currentBalance >= 0 ? 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800' : 'bg-gradient-to-br from-red-600 via-red-700 to-rose-800'}`}>
+            <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+            <div className="absolute bottom-0 left-1/3 w-24 h-24 rounded-full bg-white/5 blur-xl pointer-events-none" />
+            <div className="relative z-10">
+              <p className="text-emerald-200 text-[10px] font-bold uppercase tracking-[0.18em] mb-1">Current Balance</p>
+              <p className="text-white text-4xl font-black leading-none tabular-nums">৳{Math.abs(currentBalance).toLocaleString()}</p>
+              <p className="text-emerald-200/80 text-xs font-medium mt-1.5">
+                <span className="text-white font-bold">৳{totalDepositsAmount.toLocaleString()}</span> cleared &nbsp;·&nbsp; <span className="text-white font-bold">৳{totalExpense.toLocaleString()}</span> spent
+                {currentBalance < 0 && <span className="ml-2 text-red-200 font-bold">(deficit)</span>}
+              </p>
+            </div>
+            <div className="relative z-10 p-3 bg-white/15 backdrop-blur-sm rounded-xl border border-white/20 shrink-0">
+              <TrendingUp className="w-7 h-7 text-white" />
+            </div>
+          </div>
+        </div>
+
         {monthlyData.length > 0 && (() => {
           const currentMonthName = MONTHS_FULL[new Date().getMonth()];
           // Open the first (latest) month that has data
@@ -358,14 +377,15 @@ export default function Dashboard() {
                             <span className="text-slate-400 dark:text-slate-500 text-xs hidden sm:inline">
                               ৳{month.totalIncome.toLocaleString()} in · ৳{month.totalExpense.toLocaleString()} out
                             </span>
-                            <span className={`font-bold text-sm ${month.balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-500 dark:text-red-400'}`}>
-                              Balance: ৳{month.balance.toLocaleString()}
+                            <span className="font-bold text-sm text-orange-500 dark:text-orange-400">
+                              {month.paidStudentsCount} paid · {Math.max(0, totalStudents - month.paidStudentsCount)} unpaid
                             </span>
                           </div>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="p-3">
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                          {/* INCOME — pure tuition revenue for this month */}
                           <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-emerald-200 dark:border-emerald-800/30">
                             <div className="p-1.5 rounded-lg bg-emerald-500/20 mb-1.5">
                               <Wallet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -373,6 +393,7 @@ export default function Dashboard() {
                             <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider mb-1">Income</p>
                             <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 w-full text-center">৳{month.totalIncome.toLocaleString()}</p>
                           </div>
+                          {/* EXPENSES — costs logged for this month */}
                           <div className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-rose-200 dark:border-rose-800/30">
                             <div className="p-1.5 rounded-lg bg-rose-500/20 mb-1.5">
                               <CreditCard className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
@@ -380,19 +401,21 @@ export default function Dashboard() {
                             <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wider mb-1">Expenses</p>
                             <p className="text-sm font-extrabold text-rose-600 dark:text-rose-400 w-full text-center">৳{month.totalExpense.toLocaleString()}</p>
                           </div>
-                          <div className={`bg-gradient-to-br ${month.balance >= 0 ? 'from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border border-indigo-200 dark:border-indigo-800/30' : 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border border-red-200 dark:border-red-800/30'} rounded-xl p-3 flex flex-col items-center justify-center text-center`}>
-                            <div className={`p-1.5 rounded-lg ${month.balance >= 0 ? 'bg-indigo-500/20' : 'bg-red-500/20'} mb-1.5`}>
-                              <BarChart3 className={`w-3.5 h-3.5 ${month.balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-600 dark:text-red-400'}`} />
-                            </div>
-                            <p className={`text-[10px] font-bold ${month.balance >= 0 ? 'text-indigo-700 dark:text-indigo-300' : 'text-red-700 dark:text-red-300'} uppercase tracking-wider mb-1`}>Balance</p>
-                            <p className={`text-sm font-extrabold ${month.balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-red-600 dark:text-red-400'} w-full text-center`}>৳{Math.abs(month.balance).toLocaleString()}</p>
-                          </div>
+                          {/* PAID — active students who paid this month */}
                           <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-orange-200 dark:border-orange-800/30">
                             <div className="p-1.5 rounded-lg bg-orange-500/20 mb-1.5">
                               <GraduationCap className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                             </div>
                             <p className="text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider mb-1">Paid</p>
                             <p className="text-sm font-extrabold text-orange-600 dark:text-orange-400 w-full text-center">{month.paidStudentsCount}</p>
+                          </div>
+                          {/* UNPAID — active students who haven't paid this month */}
+                          <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-slate-200 dark:border-slate-700/30">
+                            <div className="p-1.5 rounded-lg bg-slate-400/20 mb-1.5">
+                              <Clock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                            </div>
+                            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Unpaid</p>
+                            <p className="text-sm font-extrabold text-slate-500 dark:text-slate-400 w-full text-center">{Math.max(0, totalStudents - month.paidStudentsCount)}</p>
                           </div>
                         </div>
                       </AccordionContent>
