@@ -23,8 +23,8 @@ app.use(
     origin(origin, callback) {
       // Same-origin requests (e.g. Vite SSR, curl, mobile) have no Origin header — always allow.
       if (!origin) return callback(null, true);
-      // Allow any *.replit.app / *.repl.co domain (covers dev previews + deployments).
-      if (/\.replit\.app$/.test(origin) || /\.repl\.co$/.test(origin)) {
+      // Allow any Replit domain (covers dev previews + deployments).
+      if (/\.replit\.app$/.test(origin) || /\.repl\.co$/.test(origin) || /\.replit\.dev$/.test(origin)) {
         return callback(null, true);
       }
       if (allowedOrigins.has(origin)) return callback(null, true);
