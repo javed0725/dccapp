@@ -344,8 +344,11 @@ export default function Dashboard() {
 
         {monthlyData.length > 0 && (() => {
           const currentMonthName = MONTHS_FULL[new Date().getMonth()];
-          // Open the first (latest) month that has data
-          const defaultOpen = monthlyData.length > 0 ? [monthlyData[0].month] : [];
+          const previousMonthName = MONTHS_FULL[(new Date().getMonth() - 1 + 12) % 12];
+          // Open only the previous (most recently concluded) month; current month stays closed
+          const defaultOpen = monthlyData.find(m => m.month === previousMonthName)
+            ? [previousMonthName]
+            : [];
           return (
             <div>
               <div className="flex items-center gap-3 mb-6">
