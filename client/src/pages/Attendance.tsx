@@ -754,10 +754,20 @@ function SummaryView({ subjectOptions, students, batches }: { subjectOptions: st
                   <div className="flex-1 flex items-center justify-between gap-4 mr-2">
                     <div className="text-left">
                       <p className="font-bold text-slate-800 text-sm">{batch.name}</p>
-                      <p className="text-[11px] text-slate-500 font-normal">
-                        {totalSessions} session{totalSessions !== 1 ? 's' : ''}
-                        {lastDate && ` · last on ${formatDayName(lastDate)}, ${lastDate}`}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <p className="text-[11px] text-slate-500 font-normal">
+                          {totalSessions} session{totalSessions !== 1 ? 's' : ''}
+                          {lastDate && ` · last on ${formatDayName(lastDate)}, ${lastDate}`}
+                        </p>
+                        {(() => {
+                          const atRisk = studentRows.filter(r => r.totalSessions > 0 && r.pct < 75).length;
+                          return atRisk > 0 ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">
+                              ⚠ {atRisk} at risk
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="w-24 h-1.5 rounded-full bg-slate-100 overflow-hidden hidden sm:block">
@@ -777,14 +787,23 @@ function SummaryView({ subjectOptions, students, batches }: { subjectOptions: st
                     <p className="text-sm text-slate-400 text-center py-4">No students enrolled.</p>
                   ) : (
                     <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
-                      {studentRows.map(({ student, pct, presentCount }) => (
+                      {studentRows.map(({ student, pct, presentCount }) => {
+                        const atRisk = totalSessions > 0 && pct < 75;
+                        return (
                         <div
                           key={student.id}
-                          className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                          className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors ${atRisk ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50 hover:bg-slate-100'}`}
                           data-testid={`summary-student-${student.id}`}
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
+                              {atRisk && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold shrink-0">
+                                  At Risk
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[11px] text-slate-400">
                               {student.studentCustomId || `#${student.id}`}
                               {totalSessions > 0 && ` · ${presentCount}/${totalSessions} present`}
@@ -802,7 +821,8 @@ function SummaryView({ subjectOptions, students, batches }: { subjectOptions: st
                             </span>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </AccordionContent>
