@@ -414,7 +414,7 @@ export default function Attendance() {
         {/* SUMMARY TAB (admin) */}
         {isAdmin && (
           <TabsContent value="summary" className="space-y-4">
-            <SummaryView subjectOptions={subjectOptions} />
+            <SummaryView subjectOptions={subjectOptions} students={students} batches={batches} />
           </TabsContent>
         )}
       </Tabs>
@@ -653,27 +653,57 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
   );
 }
 
-function SummaryView({ subjectOptions }: { subjectOptions: string[] }) {
+function SummaryView({ subjectOptions, students, batches }: { subjectOptions: string[]; students: any[]; batches: any[] }) {
   const [filterSubject, setFilterSubject] = useState<string>("");
   const [filterGroup, setFilterGroup] = useState<string>("");
 
-  const { data: summary = [], isLoading } = useQuery<SummaryRow[]>({
-    queryKey: ["/api/attendance/summary", filterSubject, filterGroup],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (filterSubject) params.set("subject", filterSubject);
-      if (filterGroup) params.set("academicGroup", filterGroup);
-      const res = await fetch(`/api/attendance/summary${params.toString() ? `?${params.toString()}` : ''}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
+  const { data: allAttendance = [], isLoading } = useQuery<AttendanceRow[]>({
+    queryKey: ["/api/attendance"],
   });
 
-  // Pull groups out of all attendance records (for the filter dropdown)
-  const { data: allAttendance = [] } = useQuery<AttendanceRow[]>({ queryKey: ["/api/attendance"] });
   const allGroups = Array.from(new Set((allAttendance || []).map(a => a.academicGroup).filter(Boolean))) as string[];
 
   const barColor = (pct: number) => pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
+  const pctColor = (pct: number) => pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
+
+  // Build per-batch summary with student-wise percentages from raw attendance records
+  const batchSummaries = useMemo(() => {
+    return batches.map(batch => {
+      // Filter sessions for this batch, respecting subject/group filters
+      const sessions = allAttendance.filter(a => {
+        if (a.batchId !== batch.id) return false;
+        if (filterSubject && a.subject !== filterSubject) return false;
+        if (filterGroup && a.academicGroup !== filterGroup) return false;
+        return true;
+      });
+
+      const totalSessions = sessions.length;
+      const lastDate = sessions.length > 0
+        ? sessions.map(s => s.date).sort().at(-1) ?? null
+        : null;
+
+      // Average attendance across all sessions
+      const avgAttendance = totalSessions === 0 ? 0
+        : sessions.reduce((sum, s) => {
+            const present = s.totalStudents - s.absentStudentIds.length;
+            return sum + (s.totalStudents > 0 ? (present / s.totalStudents) * 100 : 0);
+          }, 0) / totalSessions;
+
+      // Student-wise percentages sorted by studentCustomId
+      const batchStudents = (students || [])
+        .filter(s => s.batchId === batch.id && s.isActive !== false)
+        .sort((a, b) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0"));
+
+      const studentRows = batchStudents.map(student => {
+        const absentCount = sessions.filter(s => s.absentStudentIds.includes(student.id)).length;
+        const presentCount = totalSessions - absentCount;
+        const pct = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
+        return { student, pct, presentCount, totalSessions };
+      });
+
+      return { batch, totalSessions, lastDate, avgAttendance, studentRows };
+    }).filter(b => b.totalSessions > 0 || b.studentRows.length > 0);
+  }, [batches, allAttendance, students, filterSubject, filterGroup]);
 
   return (
     <Card>
@@ -709,31 +739,76 @@ function SummaryView({ subjectOptions }: { subjectOptions: string[] }) {
       <CardContent>
         {isLoading ? (
           <p className="text-sm text-slate-500 text-center py-6">Loading...</p>
-        ) : summary.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">No batches found.</p>
+        ) : batchSummaries.length === 0 ? (
+          <p className="text-sm text-slate-500 text-center py-8">No attendance data found.</p>
         ) : (
-          <div className="space-y-3">
-            {summary.map(s => (
-              <div key={s.batchId} className="border border-slate-200 rounded-xl p-4" data-testid={`summary-row-${s.batchId}`}>
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                  <div>
-                    <p className="font-bold text-slate-800">{s.batchName}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {s.totalSessions} session{s.totalSessions !== 1 ? 's' : ''}
-                      {s.lastDate && ` · last on ${formatDayName(s.lastDate)}, ${s.lastDate}`}
-                    </p>
+          <Accordion type="multiple" className="space-y-2">
+            {batchSummaries.map(({ batch, totalSessions, lastDate, avgAttendance, studentRows }) => (
+              <AccordionItem
+                key={batch.id}
+                value={String(batch.id)}
+                className="border border-slate-200 rounded-xl overflow-hidden"
+                data-testid={`summary-batch-${batch.id}`}
+              >
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 [&>svg]:shrink-0">
+                  <div className="flex-1 flex items-center justify-between gap-4 mr-2">
+                    <div className="text-left">
+                      <p className="font-bold text-slate-800 text-sm">{batch.name}</p>
+                      <p className="text-[11px] text-slate-500 font-normal">
+                        {totalSessions} session{totalSessions !== 1 ? 's' : ''}
+                        {lastDate && ` · last on ${formatDayName(lastDate)}, ${lastDate}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="w-24 h-1.5 rounded-full bg-slate-100 overflow-hidden hidden sm:block">
+                        <div
+                          className={`h-full ${barColor(avgAttendance)} transition-all`}
+                          style={{ width: `${Math.min(100, Math.max(0, avgAttendance))}%` }}
+                        />
+                      </div>
+                      <span className={`text-lg font-extrabold ${pctColor(avgAttendance)}`}>
+                        {totalSessions > 0 ? `${avgAttendance.toFixed(1)}%` : '—'}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-2xl font-extrabold text-slate-800">{s.averageAttendance.toFixed(1)}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-full ${barColor(s.averageAttendance)} transition-all`}
-                    style={{ width: `${Math.min(100, Math.max(0, s.averageAttendance))}%` }}
-                  />
-                </div>
-              </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-3 pt-1">
+                  {studentRows.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4">No students enrolled.</p>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
+                      {studentRows.map(({ student, pct, presentCount }) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                          data-testid={`summary-student-${student.id}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
+                            <p className="text-[11px] text-slate-400">
+                              {student.studentCustomId || `#${student.id}`}
+                              {totalSessions > 0 && ` · ${presentCount}/${totalSessions} present`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-14 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                              <div
+                                className={`h-full ${barColor(pct)} transition-all`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className={`text-sm font-bold tabular-nums ${pctColor(pct)}`}>
+                              {totalSessions > 0 ? `${pct}%` : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
             ))}
-          </div>
+          </Accordion>
         )}
       </CardContent>
     </Card>
