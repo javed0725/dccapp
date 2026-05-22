@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/lib/theme-context";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -27,6 +28,7 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const { toast } = useToast();
+  const { theme } = useTheme();
 
   const passwordMutation = useMutation({
     mutationFn: async (newPassword: string) => {
@@ -93,11 +95,13 @@ export function MobileNav() {
         <div
           className="flex items-center px-1 h-[60px] rounded-[24px] overflow-hidden"
           style={{
-            background: "rgba(255,255,255,0.82)",
+            background: theme === "dark" ? "rgba(15,23,42,0.88)" : "rgba(255,255,255,0.82)",
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.13), 0 1.5px 6px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.7)",
-            border: "1px solid rgba(255,255,255,0.5)",
+            boxShadow: theme === "dark"
+              ? "0 8px 32px rgba(0,0,0,0.4), 0 1.5px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)"
+              : "0 8px 32px rgba(0,0,0,0.13), 0 1.5px 6px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.7)",
+            border: theme === "dark" ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.5)",
           }}
         >
           {links.map((link) => {

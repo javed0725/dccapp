@@ -22,9 +22,24 @@ import TeacherDirectory from "@/pages/TeacherDirectory";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
-import { Bell } from "lucide-react";
+import { Bell, Sun, Moon } from "lucide-react";
 import { PortalProvider, usePortal } from "@/lib/portal-context";
 import { NetworkStatus } from "@/components/NetworkStatus";
+import { ThemeProvider, useTheme } from "@/lib/theme-context";
+
+function ThemeToggleButton() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button
+      onClick={toggleTheme}
+      data-testid="button-theme-toggle"
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      className="p-2 rounded-xl hover:bg-primary/5 transition-colors text-primary"
+    >
+      {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+    </button>
+  );
+}
 
 function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
   const [, setLocation] = useLocation();
@@ -37,7 +52,7 @@ function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
   const unreadCount = unreadData?.count ?? 0;
 
   return (
-    <header className="flex items-center justify-between px-4 h-16 shrink-0 bg-white backdrop-blur-md border-b z-20">
+    <header className="flex items-center justify-between px-4 h-16 shrink-0 bg-background border-b border-border z-20">
       <div className="flex items-center gap-4">
         <SidebarTrigger data-testid="button-sidebar-toggle" className="md:flex" />
         <div className="font-display font-black text-primary truncate tracking-tight hidden sm:block text-xl uppercase">
@@ -46,6 +61,7 @@ function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
       </div>
       <div className="flex items-center gap-2">
         <NetworkStatus />
+        <ThemeToggleButton />
         {isAdmin && (
           <button
             data-testid="button-notification-bell"
@@ -181,7 +197,7 @@ function Router() {
         <Route path="/admin"><LoginPage fixedRole="admin" /></Route>
         <Route path="/login" component={LoginPage} />
         <Route>
-          <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-8 h-8 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
           </div>
         </Route>
@@ -264,13 +280,15 @@ function Router() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <PortalProvider>
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
-      </PortalProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <PortalProvider>
+          <TooltipProvider>
+            <Router />
+            <Toaster />
+          </TooltipProvider>
+        </PortalProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

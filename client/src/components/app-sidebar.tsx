@@ -55,9 +55,9 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   const inAdminMode = isAuthorityTeacher && activePortal === "admin";
 
   return (
-    <Sidebar className="border-r border-border/40 shadow-2xl bg-white/95 backdrop-blur-xl z-[110] h-[calc(100svh-80px)] max-h-[calc(100svh-80px)] overflow-hidden">
+    <Sidebar className="border-r border-border/40 shadow-2xl bg-background/95 dark:bg-slate-950/95 backdrop-blur-xl z-[110] h-[calc(100svh-80px)] max-h-[calc(100svh-80px)] overflow-hidden">
       <SidebarHeader className="px-5 py-6 flex flex-col items-center justify-center text-center border-b border-border/30">
-        <div className="bg-white p-1.5 rounded-xl shadow-md w-14 h-14 overflow-hidden shrink-0 border border-primary/10 mb-3">
+        <div className="bg-white dark:bg-slate-800 p-1.5 rounded-xl shadow-md w-14 h-14 overflow-hidden shrink-0 border border-primary/10 mb-3">
           <img src={coachingLogo} alt="Logo" className="w-full h-full object-contain" />
         </div>
         <div className="flex flex-col leading-tight items-center">
@@ -108,7 +108,7 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter className="p-4 mt-auto border-t border-border/40 shrink-0">
-        <div className="bg-slate-50/80 p-3 rounded-2xl flex flex-col gap-3 border border-border/50 shadow-inner">
+        <div className="bg-muted/50 p-3 rounded-2xl flex flex-col gap-3 border border-border/50 shadow-inner">
           <div className="flex items-center gap-3 px-1">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
               {user?.username?.charAt(0).toUpperCase()}
