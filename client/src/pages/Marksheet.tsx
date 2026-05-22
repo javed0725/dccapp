@@ -63,10 +63,10 @@ export default function Marksheet() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-500 font-medium text-sm">Loading marksheet…</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Loading marksheet…</p>
         </div>
       </div>
     );
@@ -74,9 +74,9 @@ export default function Marksheet() {
 
   if (!results?.length) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
         <div className="text-center">
-          <p className="text-slate-500 text-base font-medium mb-4">No results found for this exam.</p>
+          <p className="text-slate-500 dark:text-slate-400 text-base font-medium mb-4">No results found for this exam.</p>
           <Button variant="outline" onClick={() => window.history.back()} className="gap-2">
             <ArrowLeft className="w-4 h-4" /> Go Back
           </Button>
@@ -106,7 +106,7 @@ export default function Marksheet() {
   const overallPct    = totalFull > 0 ? Math.round((totalObtained / totalFull) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-slate-100 py-6 px-3 sm:px-4 print:bg-white print:p-0 print:m-0">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-6 px-3 sm:px-4 print:bg-white print:p-0 print:m-0">
 
       <div className="print:hidden mb-5 flex justify-center gap-3 flex-wrap">
         <Button onClick={() => window.print()} className="gap-2 bg-[#2c3e50] hover:bg-[#34495e] text-white">

@@ -12,7 +12,7 @@ function TeacherCard({ teacher }: { teacher: User }) {
   return (
     <div
       data-testid={`card-teacher-${teacher.id}`}
-      className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"
+      className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden"
     >
       <div className="flex items-center gap-4 p-5">
         {/* Avatar */}
@@ -37,7 +37,7 @@ function TeacherCard({ teacher }: { teacher: User }) {
       </div>
 
       {/* Divider */}
-      <div className="mx-5 border-t border-slate-100" />
+      <div className="mx-5 border-t border-slate-100 dark:border-slate-800" />
 
       {/* Call button */}
       <div className="px-5 py-4">
@@ -49,24 +49,24 @@ function TeacherCard({ teacher }: { teacher: User }) {
           >
             <div className="flex items-center gap-2.5">
               <span
-                className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center group-hover:bg-green-100 transition-colors"
+                className="w-8 h-8 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center group-hover:bg-green-100 dark:group-hover:bg-green-900/50 transition-colors"
               >
                 <Phone className="w-4 h-4 text-green-600" strokeWidth={2} />
               </span>
               <span
                 data-testid={`text-teacher-mobile-${teacher.id}`}
-                className="text-sm font-semibold text-slate-700 group-hover:text-green-700 transition-colors tracking-wide"
+                className="text-sm font-semibold text-slate-700 dark:text-slate-300 group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors tracking-wide"
               >
                 {teacher.mobileNumber}
               </span>
             </div>
-            <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-xl group-hover:bg-green-100 transition-colors">
+            <span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-3 py-1.5 rounded-xl group-hover:bg-green-100 dark:group-hover:bg-green-900/50 transition-colors">
               Call Now
             </span>
           </a>
         ) : (
           <div className="flex items-center gap-2.5 opacity-40">
-            <span className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+            <span className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
               <Phone className="w-4 h-4 text-slate-400" strokeWidth={2} />
             </span>
             <span className="text-sm text-slate-400 font-medium">Number not available</span>
@@ -79,7 +79,7 @@ function TeacherCard({ teacher }: { teacher: User }) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="flex items-center gap-4 p-5">
         <Skeleton className="w-14 h-14 rounded-2xl shrink-0" />
         <div className="flex-1 space-y-2">
@@ -87,7 +87,7 @@ function SkeletonCard() {
           <Skeleton className="h-3 w-24 rounded-lg" />
         </div>
       </div>
-      <div className="mx-5 border-t border-slate-100" />
+      <div className="mx-5 border-t border-slate-100 dark:border-slate-800" />
       <div className="px-5 py-4">
         <Skeleton className="h-8 w-full rounded-xl" />
       </div>

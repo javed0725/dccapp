@@ -88,38 +88,38 @@ export default function Admission() {
 
         {/* ── TEACHER PROFILE CARD ── */}
         {isTeacher && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] overflow-hidden">
             {/* Coloured accent bar */}
             <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 to-blue-400" />
             <div className="p-5 flex items-center gap-5">
               {/* Avatar */}
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                <span className="text-2xl font-black text-indigo-600">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center shrink-0">
+                <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
                   {user?.username?.charAt(0).toUpperCase()}
                 </span>
               </div>
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-extrabold text-slate-800 leading-none mb-1 capitalize">
+                <h2 className="text-lg font-extrabold text-slate-800 dark:text-slate-200 leading-none mb-1 capitalize">
                   {user?.username}
                 </h2>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-                  <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <BadgeCheck className="w-3.5 h-3.5 text-indigo-400" />
                     {teacherDisplayId}
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <Phone className="w-3.5 h-3.5 text-indigo-400" />
                     {user?.mobileNumber ?? "Not set"}
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
                     <Users className="w-3.5 h-3.5 text-indigo-400" />
                     {myStudents.length} student{myStudents.length !== 1 ? "s" : ""} admitted
                   </span>
                 </div>
               </div>
               {/* Role badge */}
-              <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 border border-indigo-100 px-3 py-1.5 rounded-full">
+              <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 px-3 py-1.5 rounded-full">
                 Teacher
               </span>
             </div>
@@ -213,20 +213,20 @@ export default function Admission() {
 
         {/* ── TEACHER: My Admissions ── */}
         {isTeacher && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800">
                   <GraduationCap className="w-5 h-5 text-indigo-500" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">My Admissions</h3>
+                  <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">My Admissions</h3>
                   <p className="text-xs text-muted-foreground">Students you have enrolled</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-xs">{myStudents.length} student{myStudents.length !== 1 ? "s" : ""}</Badge>
-                <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 h-8" onClick={() => refetchStudents()}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 dark:text-slate-400 h-8" onClick={() => refetchStudents()}>
                   <RefreshCw className="w-3.5 h-3.5" /> Refresh
                 </Button>
               </div>
@@ -243,19 +243,19 @@ export default function Admission() {
                     <AccordionItem
                       key={batchName}
                       value={batchName}
-                      className="border border-slate-100 rounded-xl overflow-hidden"
+                      className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden"
                     >
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 [&[data-state=open]]:bg-slate-50">
+                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/50 [&[data-state=open]]:bg-slate-50 dark:[&[data-state=open]]:bg-slate-800/50">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-700">{batchName}</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">{batchName}</span>
                           <Badge variant="secondary" className="text-xs">{batchStudents.length} student{batchStudents.length !== 1 ? "s" : ""}</Badge>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-0 pb-0">
-                        <div className="border-t border-slate-100">
+                        <div className="border-t border-slate-100 dark:border-slate-800">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                              <tr className="bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                                 <th className="px-4 py-2 text-left font-medium">Name</th>
                                 <th className="px-4 py-2 text-left font-medium">ID</th>
                                 <th className="px-4 py-2 text-left font-medium">Class</th>
@@ -264,11 +264,11 @@ export default function Admission() {
                             </thead>
                             <tbody>
                               {batchStudents.map((s: any) => (
-                                <tr key={s.id} className="border-t border-slate-50 hover:bg-slate-50/60 transition-colors">
-                                  <td className="px-4 py-2.5 font-medium text-slate-800">{s.name}</td>
-                                  <td className="px-4 py-2.5 text-slate-500">{s.studentCustomId ?? "—"}</td>
-                                  <td className="px-4 py-2.5 text-slate-600">{s.batch?.name ?? "—"}</td>
-                                  <td className="px-4 py-2.5 text-slate-500">{formatDate(s.admissionDate)}</td>
+                                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                  <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200">{s.name}</td>
+                                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{s.studentCustomId ?? "—"}</td>
+                                  <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{s.batch?.name ?? "—"}</td>
+                                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{formatDate(s.admissionDate)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -285,20 +285,20 @@ export default function Admission() {
 
         {/* ── ADMIN: All Admitted Students ── */}
         {isAdmin && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800">
                   <GraduationCap className="w-5 h-5 text-indigo-500" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">All Admitted Students</h3>
+                  <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">All Admitted Students</h3>
                   <p className="text-xs text-muted-foreground">Complete admission records across all teachers</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary" className="text-xs">{allStudents.length} total</Badge>
-                <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 h-8" onClick={() => refetchStudents()}>
+                <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 dark:text-slate-400 h-8" onClick={() => refetchStudents()}>
                   <RefreshCw className="w-3.5 h-3.5" /> Refresh
                 </Button>
               </div>
@@ -312,7 +312,7 @@ export default function Admission() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800">
                       <th className="px-4 py-3 text-left font-medium">Name</th>
                       <th className="px-4 py-3 text-left font-medium">ID</th>
                       <th className="px-4 py-3 text-left font-medium">Class</th>
@@ -323,10 +323,10 @@ export default function Admission() {
                   </thead>
                   <tbody>
                     {allStudents.map((s: any) => (
-                      <tr key={s.id} className="border-t border-slate-50 hover:bg-slate-50/60 transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-slate-800">{s.name}</td>
-                        <td className="px-4 py-2.5 text-slate-500">{s.studentCustomId ?? "—"}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{s.batch?.name ?? "—"}</td>
+                      <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200">{s.name}</td>
+                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{s.studentCustomId ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{s.batch?.name ?? "—"}</td>
                         <td className="px-4 py-2.5">
                           {s.mobileNumber ? (
                             <a
@@ -344,8 +344,8 @@ export default function Admission() {
                         </td>
                         <td className="px-4 py-2.5">
                           {s.addedByUser ? (
-                            <span className="inline-flex items-center gap-1.5 text-indigo-700 font-medium">
-                              <span className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
+                            <span className="inline-flex items-center gap-1.5 text-indigo-700 dark:text-indigo-400 font-medium">
+                              <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
                                 {s.addedByUser.username?.charAt(0)?.toUpperCase()}
                               </span>
                               {s.addedByUser.username}
@@ -354,7 +354,7 @@ export default function Admission() {
                             <span className="text-slate-400 italic text-xs">Not recorded</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-500">{formatDate(s.admissionDate)}</td>
+                        <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{formatDate(s.admissionDate)}</td>
                       </tr>
                     ))}
                   </tbody>

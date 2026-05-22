@@ -13,13 +13,14 @@ import { type User } from "@/lib/schemas";
 
 type LoginRole = "admin" | "teacher" | "student";
 
-const roleDetails: Record<LoginRole, { label: string; title: string; description: string; icon: typeof Shield; color: string; path: string }> = {
+const roleDetails: Record<LoginRole, { label: string; title: string; description: string; icon: typeof Shield; color: string; darkColor: string; path: string }> = {
   teacher: {
     label: "Teacher",
     title: "Teacher Login",
     description: "Access class management, admissions, payments, and result entry.",
     icon: UserIcon,
     color: "bg-blue-50 text-blue-600",
+    darkColor: "dark:bg-blue-900/30 dark:text-blue-400",
     path: "/teacher",
   },
   admin: {
@@ -28,6 +29,7 @@ const roleDetails: Record<LoginRole, { label: string; title: string; description
     description: "Access the core dashboard, reports, teacher management, and notifications.",
     icon: Shield,
     color: "bg-indigo-50 text-indigo-600",
+    darkColor: "dark:bg-indigo-900/30 dark:text-indigo-400",
     path: "/admin",
   },
   student: {
@@ -36,6 +38,7 @@ const roleDetails: Record<LoginRole, { label: string; title: string; description
     description: "Access your payment history, account status, and published results.",
     icon: GraduationCap,
     color: "bg-purple-50 text-purple-600",
+    darkColor: "dark:bg-purple-900/30 dark:text-purple-400",
     path: "/student",
   },
 };
@@ -44,7 +47,7 @@ function getRedirectPath(role: string): string {
   if (role === "admin") return "/admin";
   if (role === "teacher") return "/teacher";
   if (role === "student") return "/student";
-  return "/"; // fallback
+  return "/";
 }
 
 export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
@@ -58,9 +61,6 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
   const selectedRole = fixedRole ?? role;
   const selectedRoleDetails = selectedRole ? roleDetails[selectedRole] : null;
 
-  // Lock the browser/PWA into this portal as soon as the user lands on a
-  // portal-specific login page. Once set, the root route (/) and any
-  // unmatched fallback redirects will route here instead of the landing page.
   useEffect(() => {
     if (fixedRole) {
       const portalPath = roleDetails[fixedRole].path;
@@ -100,7 +100,6 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
 
       const redirectPath = getRedirectPath(user.role);
       localStorage.setItem("last_portal", redirectPath);
-      // Authority teachers always start in Teacher portal; clear any previous admin mode
       if (user.isAuthority) {
         localStorage.setItem("activePortal", "teacher");
       } else {
@@ -121,8 +120,8 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center justify-center bg-[#F8FAFC] selection:bg-indigo-500/30">
-      {/* Premium Background Effects */}
+    <div className="min-h-screen relative flex flex-col items-center justify-center bg-background selection:bg-indigo-500/30">
+      {/* Background Effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/5 blur-[120px] rounded-full animate-pulse" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/5 blur-[120px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
@@ -133,7 +132,7 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
         <div className="text-center space-y-6 animate-in fade-in slide-in-from-top-4 duration-1000">
           <div className="inline-flex relative group">
             <div className="absolute -inset-1 bg-primary/20 rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-            <div className="relative flex items-center justify-center w-24 h-24 rounded-3xl bg-white border border-primary/10 shadow-xl overflow-hidden p-2">
+            <div className="relative flex items-center justify-center w-24 h-24 rounded-3xl bg-white dark:bg-slate-900 border border-primary/10 shadow-xl overflow-hidden p-2">
               <img src={coachingLogo} alt="Coaching Logo" className="w-full h-full object-contain" />
             </div>
           </div>
@@ -141,7 +140,7 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
             <h1 className="text-4xl md:text-5xl font-black tracking-tight text-primary font-display">
               Dynamic Coaching Center
             </h1>
-            <p className="text-slate-500 text-sm font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-2">
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-[0.3em] flex items-center justify-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" /> Come to Learn, Leave to Shine
             </p>
           </div>
@@ -155,13 +154,13 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
                 key={id}
                 data-testid={`button-login-${id}`}
                 onClick={() => setLocation(item.path)}
-                className="group relative flex flex-col items-center text-center p-5 rounded-[1.5rem] bg-white border border-primary/5 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-500"
+                className="group relative flex flex-col items-center text-center p-5 rounded-[1.5rem] bg-white dark:bg-slate-900 border border-primary/5 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-primary/20 dark:hover:border-primary/30 transition-all duration-500"
               >
-                <div className={`p-3 rounded-xl ${item.color} mb-4 group-hover:scale-110 transition-all duration-500`}>
+                <div className={`p-3 rounded-xl ${item.color} ${item.darkColor} mb-4 group-hover:scale-110 transition-all duration-500`}>
                   <item.icon className="w-6 h-6" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900 mb-1 tracking-tight">{item.label}</h3>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">{item.description}</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1 tracking-tight">{item.label}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{item.description}</p>
                 <div className="absolute bottom-4 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-500 text-primary">
                   <ArrowRight className="w-4 h-4" />
                 </div>
@@ -169,11 +168,11 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
             ))}
           </div>
         ) : (
-          /* Premium Login Card */
+          /* Login Card */
           <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="relative group">
               <div className="absolute -inset-0.5 bg-primary/10 rounded-[2.5rem] blur opacity-20 group-hover:opacity-40 transition duration-1000" />
-              <Card className="relative bg-white border-primary/10 rounded-[2.5rem] shadow-xl overflow-hidden">
+              <Card className="relative bg-white dark:bg-slate-900 border-primary/10 dark:border-slate-800 rounded-[2.5rem] shadow-xl overflow-hidden">
                 <CardContent className="p-10">
                   {!fixedRole && (
                     <Button
@@ -181,20 +180,20 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
                       variant="ghost"
                       size="sm"
                       onClick={() => setRole(null)}
-                      className="mb-8 -ml-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 font-bold text-xs tracking-widest"
+                      className="mb-8 -ml-2 text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs tracking-widest"
                     >
                       <ChevronLeft className="w-4 h-4 mr-2" /> BACK
                     </Button>
                   )}
 
                   <div className="mb-10 space-y-2">
-                    <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3 uppercase">
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3 uppercase">
                       <span className="p-2 rounded-xl bg-primary/5 border border-primary/10 text-primary">
                         {selectedRoleDetails && <selectedRoleDetails.icon className="w-5 h-5" />}
                       </span>
                       {selectedRoleDetails?.title}
                     </h2>
-                    <p className="text-slate-500 text-sm font-medium">{selectedRoleDetails?.description}</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{selectedRoleDetails?.description}</p>
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-6">
@@ -207,7 +206,7 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
                           data-testid={`input-username-${selectedRole}`}
                           autoComplete="username"
                           placeholder="Username"
-                          className="pl-12 h-14 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-primary/50 focus:ring-primary/10 rounded-2xl transition-all"
+                          className="pl-12 h-14 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary/50 focus:ring-primary/10 rounded-2xl transition-all"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
                           required
@@ -224,7 +223,7 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
                           autoComplete="current-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-12 pr-12 h-14 bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-primary/50 focus:ring-primary/10 rounded-2xl transition-all"
+                          className="pl-12 pr-12 h-14 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary/50 focus:ring-primary/10 rounded-2xl transition-all"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required

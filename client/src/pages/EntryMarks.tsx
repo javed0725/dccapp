@@ -647,11 +647,11 @@ export default function EntryMarks() {
 
             {/* Subject-wise Results — Batch → Exam Name → Students hierarchy */}
             {!isStudent && Object.keys(singleByBatch).length > 0 && (
-              <Card className="border-none bg-white shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] rounded-2xl overflow-hidden">
-                <CardHeader className="border-b border-slate-100 py-5 px-6">
+              <Card className="border-none bg-white dark:bg-slate-900 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-slate-100 dark:border-slate-800 py-5 px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-blue-50 border border-blue-100">
+                      <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800">
                         <BookOpen className="w-5 h-5 text-blue-500" />
                       </div>
                       <div>
@@ -663,7 +663,7 @@ export default function EntryMarks() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1.5 text-slate-600"
+                        className="gap-1.5 text-slate-600 dark:text-slate-400"
                         onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/results"] })}
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
@@ -684,11 +684,11 @@ export default function EntryMarks() {
                         <AccordionItem
                           key={batchId}
                           value={batchId}
-                          className="border border-slate-200 rounded-xl overflow-hidden"
+                          className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden"
                         >
-                          <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 [&[data-state=open]]:bg-slate-50">
+                          <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/50 [&[data-state=open]]:bg-slate-50 dark:[&[data-state=open]]:bg-slate-800/50">
                             <div className="flex items-center gap-3">
-                              <span className="font-bold text-slate-800 text-base">{getBatchName(Number(batchId))}</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200 text-base">{getBatchName(Number(batchId))}</span>
                               <Badge variant="secondary" className="text-xs">{Object.keys(examGroups).length} exam{Object.keys(examGroups).length !== 1 ? "s" : ""}</Badge>
                             </div>
                           </AccordionTrigger>
@@ -700,13 +700,13 @@ export default function EntryMarks() {
                                   <AccordionItem
                                     key={examName}
                                     value={examName}
-                                    className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50/50"
+                                    className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden bg-slate-50/50 dark:bg-slate-800/20"
                                   >
-                                    <AccordionTrigger className="px-4 py-2.5 hover:no-underline hover:bg-slate-100/70 [&[data-state=open]]:bg-slate-100/70">
+                                    <AccordionTrigger className="px-4 py-2.5 hover:no-underline hover:bg-slate-100/70 dark:hover:bg-slate-800/50 [&[data-state=open]]:bg-slate-100/70 dark:[&[data-state=open]]:bg-slate-800/50">
                                       <div className="flex items-center gap-2.5 flex-1">
                                         <ClipboardList className="w-4 h-4 text-blue-400 shrink-0" />
-                                        <span className="font-semibold text-slate-700 text-sm">{examName}</span>
-                                        <Badge className="text-xs bg-blue-100 text-blue-700 border-0 hover:bg-blue-100">
+                                        <span className="font-semibold text-slate-700 dark:text-slate-300 text-sm">{examName}</span>
+                                        <Badge className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-0 hover:bg-blue-100">
                                           {studentCount} student{studentCount !== 1 ? "s" : ""}
                                         </Badge>
                                         {isAdmin && (
@@ -735,10 +735,10 @@ export default function EntryMarks() {
                                       </div>
                                     </AccordionTrigger>
                                     <AccordionContent className="p-0">
-                                      <div className="overflow-x-auto bg-white border-t border-slate-100">
+                                      <div className="overflow-x-auto bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
                                         <Table>
                                           <TableHeader>
-                                            <TableRow className="hover:bg-transparent bg-slate-50/80">
+                                            <TableRow className="hover:bg-transparent bg-slate-50/80 dark:bg-slate-800/50">
                                               <TableHead className="text-xs font-semibold">Student</TableHead>
                                               <TableHead className="text-xs font-semibold">Subject</TableHead>
                                               <TableHead className="text-xs font-semibold text-center">Marks</TableHead>
@@ -756,7 +756,7 @@ export default function EntryMarks() {
                                                 res.totalMarks
                                               );
                                               return (
-                                                <TableRow key={res.id} className="hover:bg-slate-50/50 group">
+                                                <TableRow key={res.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 group">
                                                   <TableCell className="font-medium text-sm py-2.5">{res.student?.name || "—"}</TableCell>
                                                   <TableCell className="text-sm py-2.5 text-slate-600">{res.subject}</TableCell>
                                                   <TableCell className="text-sm py-2.5 text-center font-bold">
@@ -812,13 +812,13 @@ export default function EntryMarks() {
 
             {/* Student's own subject-wise results */}
             {isStudent && singleResults.length > 0 && (
-              <Card className="border-none bg-white shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] rounded-2xl overflow-hidden">
-                <CardHeader className="border-b border-[#F1F5F9] py-6 px-6">
+              <Card className="border-none bg-white dark:bg-slate-900 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-slate-100 dark:border-slate-800 py-6 px-6">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-blue-50 border border-blue-100"><BookOpen className="w-5 h-5 text-blue-500" /></div>
+                    <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800"><BookOpen className="w-5 h-5 text-blue-500" /></div>
                     <div>
-                      <CardTitle className="text-xl text-[#1E293B] font-extrabold">Subject-wise Results</CardTitle>
-                      <p className="text-sm text-[#64748B]">Your individual subject performance</p>
+                      <CardTitle className="text-xl text-slate-900 dark:text-slate-100 font-extrabold">Subject-wise Results</CardTitle>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Your individual subject performance</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -826,22 +826,22 @@ export default function EntryMarks() {
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-[#F8FAFC] border-[#F1F5F9]">
-                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#64748B]">Exam</TableHead>
-                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#64748B]">Subject</TableHead>
-                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#64748B]">Total</TableHead>
-                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#64748B]">Obtained</TableHead>
-                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#64748B]">Grade</TableHead>
+                        <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800">
+                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Exam</TableHead>
+                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Subject</TableHead>
+                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total</TableHead>
+                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Obtained</TableHead>
+                          <TableHead className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Grade</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {singleResults.map((res: any) => {
                           const { grade, gp } = getGrade(res.obtainedMarks, res.totalMarks);
                           return (
-                            <TableRow key={res.id} className="hover:bg-[#F8FAFC]/50 border-[#F1F5F9] transition-colors">
-                              <TableCell className="py-5 px-6 font-bold text-[#1E293B]">{res.examName}</TableCell>
-                              <TableCell className="py-5 px-6 font-medium text-[#1E293B]">{res.subject}</TableCell>
-                              <TableCell className="py-5 px-6 text-[#64748B] font-bold">{res.totalMarks}</TableCell>
+                            <TableRow key={res.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 border-slate-100 dark:border-slate-800 transition-colors">
+                              <TableCell className="py-5 px-6 font-bold text-slate-900 dark:text-slate-100">{res.examName}</TableCell>
+                              <TableCell className="py-5 px-6 font-medium text-slate-900 dark:text-slate-100">{res.subject}</TableCell>
+                              <TableCell className="py-5 px-6 text-slate-500 dark:text-slate-400 font-bold">{res.totalMarks}</TableCell>
                               <TableCell className="py-5 px-6">
                                 {res.obtainedMarks === -1
                                   ? <span className="font-black text-lg text-amber-600">Absent</span>
@@ -1001,7 +1001,7 @@ export default function EntryMarks() {
                                 return (
                                   <div
                                     key={s.name}
-                                    className={`rounded-lg px-3 py-2.5 text-sm flex items-center gap-2 border ${filled ? "bg-green-50 border-green-200" : "bg-slate-50 border-slate-200"}`}
+                                    className={`rounded-lg px-3 py-2.5 text-sm flex items-center gap-2 border ${filled ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"}`}
                                   >
                                     {filled
                                       ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
@@ -1021,10 +1021,10 @@ export default function EntryMarks() {
 
                             {/* Student results summary (if any marks entered) */}
                             {Object.keys(byStudent).length > 0 && (
-                              <div className="rounded-xl border border-slate-100 overflow-hidden">
-                                <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center gap-2">
-                                  <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Student Results</span>
-                                  <span className="text-xs text-slate-400">{Object.keys(byStudent).length} student{Object.keys(byStudent).length !== 1 ? "s" : ""}</span>
+                              <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                                  <span className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Student Results</span>
+                                  <span className="text-xs text-slate-400 dark:text-slate-500">{Object.keys(byStudent).length} student{Object.keys(byStudent).length !== 1 ? "s" : ""}</span>
                                 </div>
                                 <Table>
                                   <TableHeader>
@@ -1051,7 +1051,7 @@ export default function EntryMarks() {
                                         st?.mobileNumber, st?.name || "Student", draft.examName, totalObtained, totalFull, gpa
                                       );
                                       return (
-                                        <TableRow key={studentRes[0]?.studentId} className={`group ${hasAbsent ? "bg-red-50/50 hover:bg-red-50" : "hover:bg-slate-50/60"}`}>
+                                        <TableRow key={studentRes[0]?.studentId} className={`group ${hasAbsent ? "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20" : "hover:bg-slate-50/60 dark:hover:bg-slate-800/30"}`}>
                                           <TableCell className="py-2.5 font-medium text-sm">
                                             <span className={hasAbsent ? "text-red-600" : ""}>{st?.name || "—"}</span>
                                             {hasAbsent && <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">Absent</span>}
@@ -1161,7 +1161,7 @@ export default function EntryMarks() {
                                       ? "bg-primary border-primary text-white"
                                       : isFilled
                                       ? "bg-green-50 border-green-300 text-green-800"
-                                      : "bg-white border-slate-200 hover:border-primary/40 text-slate-700"
+                                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-primary/40 text-slate-700 dark:text-slate-300"
                                   }`}
                                 >
                                   <div className="font-bold">{s.name}</div>
@@ -1294,13 +1294,13 @@ export default function EntryMarks() {
 
             {/* ═══ STUDENT VIEW ═══ */}
             {isStudent && Object.keys(modelTestGroups).length > 0 && (
-              <Card className="border-none bg-white shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] rounded-2xl overflow-hidden">
-                <CardHeader className="border-b border-[#F1F5F9] py-6 px-6">
+              <Card className="border-none bg-white dark:bg-slate-900 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] rounded-2xl overflow-hidden">
+                <CardHeader className="border-b border-slate-100 dark:border-slate-800 py-6 px-6">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100"><ClipboardList className="w-5 h-5 text-indigo-500" /></div>
+                    <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800"><ClipboardList className="w-5 h-5 text-indigo-500" /></div>
                     <div>
-                      <CardTitle className="text-xl text-[#1E293B] font-extrabold">Model Test Results</CardTitle>
-                      <p className="text-sm text-[#64748B]">Official results published by your Authority</p>
+                      <CardTitle className="text-xl text-slate-900 dark:text-slate-100 font-extrabold">Model Test Results</CardTitle>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Official results published by your Authority</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -1317,10 +1317,10 @@ export default function EntryMarks() {
                           .reduce((s: number, g: number) => s + g, 0) / attendedRes.length
                       : 0;
                     return (
-                      <div key={groupId} className="border border-border rounded-xl p-4 flex items-center justify-between bg-slate-50">
+                      <div key={groupId} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 flex items-center justify-between bg-slate-50 dark:bg-slate-800/40">
                         <div>
-                          <p className="font-bold text-[#1E293B]">{examN}</p>
-                          <p className="text-sm text-[#64748B]">{groupResults.length} subjects · GPA: <span className="font-black text-indigo-600">{gpa.toFixed(2)}</span></p>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{examN}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">{groupResults.length} subjects · GPA: <span className="font-black text-indigo-600 dark:text-indigo-400">{gpa.toFixed(2)}</span></p>
                         </div>
                         <Link href={`/marksheet?groupId=${groupId}`}>
                           <Button size="sm" variant="outline" className="gap-2"><Eye className="w-4 h-4" /> View Marksheet</Button>

@@ -229,7 +229,7 @@ function CollectionSummaryPanel() {
               <div
                 key={col.userId}
                 data-testid={`card-collection-${col.userId}`}
-                className="rounded-xl border border-blue-100 bg-white shadow-sm p-3 flex flex-col justify-between gap-2 h-full"
+                className="rounded-xl border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-slate-900 shadow-sm p-3 flex flex-col justify-between gap-2 h-full"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">

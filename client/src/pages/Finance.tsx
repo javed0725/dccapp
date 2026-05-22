@@ -318,7 +318,7 @@ export default function Finance() {
           onClick={() => setActiveTab("expenses")}
           className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
             activeTab === "expenses"
-              ? "bg-white shadow-sm text-red-600 border border-border/60"
+              ? "bg-white dark:bg-slate-800 shadow-sm text-red-600 border border-border/60"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -329,7 +329,7 @@ export default function Finance() {
           onClick={() => setActiveTab("deposits")}
           className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
             activeTab === "deposits"
-              ? "bg-white shadow-sm text-emerald-600 border border-border/60"
+              ? "bg-white dark:bg-slate-800 shadow-sm text-emerald-600 border border-border/60"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >

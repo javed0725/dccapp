@@ -308,7 +308,7 @@ export default function Income() {
   if (user?.role === "student") {
     return (
       <Layout title="Payments" subtitle="View your payment history">
-        <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
           <div className="p-4 bg-indigo-100 text-indigo-600 rounded-full mb-4">
             <HistoryIcon className="w-10 h-10" />
           </div>

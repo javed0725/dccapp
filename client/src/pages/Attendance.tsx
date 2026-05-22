@@ -545,8 +545,8 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
         ) : (
           <Accordion type="multiple" className="space-y-2">
             {Object.entries(byBatch).map(([bId, sessions]) => (
-              <AccordionItem key={bId} value={bId} className="border border-slate-200 rounded-xl overflow-hidden">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50">
+              <AccordionItem key={bId} value={bId} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-slate-800">{batchName(Number(bId))}</span>
                     <Badge variant="secondary" className="text-xs">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</Badge>
@@ -747,10 +747,10 @@ function SummaryView({ subjectOptions, students, batches }: { subjectOptions: st
               <AccordionItem
                 key={batch.id}
                 value={String(batch.id)}
-                className="border border-slate-200 rounded-xl overflow-hidden"
+                className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden"
                 data-testid={`summary-batch-${batch.id}`}
               >
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 [&>svg]:shrink-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/50 [&>svg]:shrink-0">
                   <div className="flex-1 flex items-center justify-between gap-4 mr-2">
                     <div className="text-left">
                       <p className="font-bold text-slate-800 text-sm">{batch.name}</p>
@@ -792,7 +792,7 @@ function SummaryView({ subjectOptions, students, batches }: { subjectOptions: st
                         return (
                         <div
                           key={student.id}
-                          className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors ${atRisk ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50 hover:bg-slate-100'}`}
+                          className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors ${atRisk ? 'bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/70'}`}
                           data-testid={`summary-student-${student.id}`}
                         >
                           <div className="min-w-0 flex-1">

@@ -63,7 +63,7 @@ export default function Dashboard() {
         <div className="space-y-6">
 
           {/* ── Student Profile Card ── */}
-          <Card className="border-none bg-white shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
+          <Card className="border-none bg-white dark:bg-slate-900 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
             <CardContent className="p-0">
               <div className="flex items-center gap-5 px-6 py-5">
                 {/* Avatar circle */}
@@ -73,48 +73,48 @@ export default function Dashboard() {
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-extrabold text-[#1E293B] leading-tight truncate">
+                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 leading-tight truncate">
                     {studentProfile?.name ?? user?.username ?? "Student"}
                   </h2>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                     {studentProfile?.studentCustomId && (
-                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full">
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2.5 py-0.5 rounded-full">
                         ID: {studentProfile.studentCustomId}
                       </span>
                     )}
                     {batchLabel && (
-                      <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
                         {batchLabel}
                       </span>
                     )}
                     {studentProfile?.shift && (
-                      <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full">
                         {studentProfile.shift} Shift
                       </span>
                     )}
                     {studentProfile?.academicGroup && (
-                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-0.5 rounded-full">
                         {studentProfile.academicGroup}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500 mt-2">
-                    📞 Mobile: <span className="font-semibold text-slate-700">{studentProfile?.mobileNumber ?? "Not Provided"}</span>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                    📞 Mobile: <span className="font-semibold text-slate-700 dark:text-slate-300">{studentProfile?.mobileNumber ?? "Not Provided"}</span>
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-none bg-white shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
-            <CardHeader className="bg-white border-b border-[#F1F5F9] py-8 px-8">
+          <Card className="border-none bg-white dark:bg-slate-900 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] rounded-2xl overflow-hidden">
+            <CardHeader className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 py-8 px-8">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[#F8FAFC] text-[#94A3B8] border border-[#F1F5F9]">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-100 dark:border-slate-700">
                   <History className="w-6 h-6" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl text-[#1E293B] font-extrabold tracking-tight">My Payment History</CardTitle>
-                  <p className="text-sm font-medium text-[#64748B] mt-1">Overview of all tuition payments recorded</p>
+                  <CardTitle className="text-2xl text-slate-900 dark:text-slate-100 font-extrabold tracking-tight">My Payment History</CardTitle>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Overview of all tuition payments recorded</p>
                 </div>
               </div>
             </CardHeader>
@@ -122,32 +122,32 @@ export default function Dashboard() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-[#F8FAFC] border-none">
-                      <TableHead className="py-5 px-8 font-bold text-[#64748B] uppercase text-[11px] tracking-[0.2em]">Month</TableHead>
-                      <TableHead className="py-5 px-8 font-bold text-[#64748B] uppercase text-[11px] tracking-[0.2em]">Amount</TableHead>
-                      <TableHead className="py-5 px-8 font-bold text-[#64748B] uppercase text-[11px] tracking-[0.2em]">Payment Date</TableHead>
-                      <TableHead className="py-5 px-8 font-bold text-[#64748B] uppercase text-[11px] tracking-[0.2em]">Status</TableHead>
+                    <TableRow className="bg-slate-50 dark:bg-slate-800/50 border-none">
+                      <TableHead className="py-5 px-8 font-bold text-slate-500 dark:text-slate-400 uppercase text-[11px] tracking-[0.2em]">Month</TableHead>
+                      <TableHead className="py-5 px-8 font-bold text-slate-500 dark:text-slate-400 uppercase text-[11px] tracking-[0.2em]">Amount</TableHead>
+                      <TableHead className="py-5 px-8 font-bold text-slate-500 dark:text-slate-400 uppercase text-[11px] tracking-[0.2em]">Payment Date</TableHead>
+                      <TableHead className="py-5 px-8 font-bold text-slate-500 dark:text-slate-400 uppercase text-[11px] tracking-[0.2em]">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {MONTHS_FULL.map((month) => {
                       const payment = historyIncomes.find(inc => inc.month === month);
                       return (
-                        <TableRow key={month} className="hover:bg-[#F8FAFC]/50 border-[#F1F5F9] transition-colors group">
-                          <TableCell className="py-6 px-8 font-bold text-[#1E293B] group-hover:text-[#4F46E5] transition-colors">{month}</TableCell>
-                          <TableCell className="py-6 px-8 text-[#1E293B]">
-                            {payment ? <span className="font-black text-lg">৳{payment.amount.toLocaleString()}</span> : <span className="text-[#CBD5E1] font-bold">-</span>}
+                        <TableRow key={month} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 border-slate-100 dark:border-slate-800 transition-colors group">
+                          <TableCell className="py-6 px-8 font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{month}</TableCell>
+                          <TableCell className="py-6 px-8 text-slate-900 dark:text-slate-100">
+                            {payment ? <span className="font-black text-lg">৳{payment.amount.toLocaleString()}</span> : <span className="text-slate-300 dark:text-slate-600 font-bold">-</span>}
                           </TableCell>
-                          <TableCell className="py-6 px-8 text-[#64748B] font-bold">
+                          <TableCell className="py-6 px-8 text-slate-500 dark:text-slate-400 font-bold">
                             {payment ? format(new Date(payment.date), "dd/MM/yyyy") : "N/A"}
                           </TableCell>
                           <TableCell className="py-6 px-8">
                             {payment ? (
-                              <Badge variant="secondary" className={payment.status === "Verified" ? "bg-[#F0FDF4] text-[#16A34A] border-none px-5 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest" : "bg-[#EFF6FF] text-[#2563EB] border-none px-5 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest"}>
+                              <Badge variant="secondary" className={payment.status === "Verified" ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-none px-5 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest" : "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-none px-5 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest"}>
                                 {payment.status === "Verified" ? "Approved" : "Received"}
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[#94A3B8] border-[#E2E8F0] bg-[#F8FAFC] font-bold px-5 py-2 rounded-full text-[10px] uppercase tracking-widest">Pending</Badge>
+                              <Badge variant="outline" className="text-slate-400 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold px-5 py-2 rounded-full text-[10px] uppercase tracking-widest">Pending</Badge>
                             )}
                           </TableCell>
                         </TableRow>
