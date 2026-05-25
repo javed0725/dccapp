@@ -26,26 +26,31 @@ export default function Dashboard() {
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
+  const hasUser = !!user;
 
-  // All data queries — enabled only once the user is confirmed, so nothing
-  // fires during the auth-loading state and there is no double-fetch on mount.
-  const { data: teachers, isLoading: loadingTeachers } = useQuery<User[]>({ 
+  // Queries are gated on both user presence and role so we never fire
+  // requests before the session is confirmed or for data a role doesn't need.
+  const { data: teachers, isLoading: loadingTeachers } = useQuery<User[]>({
     queryKey: ["/api/admin/teachers"],
     enabled: isAdmin,
   });
-  
-  const { data: incomes, isLoading: loadingIncomes } = useIncomes();
-  const { data: expenses, isLoading: loadingExpenses } = useExpenses();
-  const { data: deposits, isLoading: loadingDeposits } = useDeposits();
-  const { data: batches, isLoading: loadingBatches } = useBatches();
-  const { data: students, isLoading: loadingStudents } = useStudents();
-  
+
+  const { data: incomes, isLoading: loadingIncomes } = useIncomes(hasUser);
+  const { data: expenses, isLoading: loadingExpenses } = useExpenses(isAdmin);
+  const { data: deposits, isLoading: loadingDeposits } = useDeposits(isAdmin);
+  const { data: batches, isLoading: loadingBatches } = useBatches(hasUser);
+  const { data: students, isLoading: loadingStudents } = useStudents(isAdmin || isTeacher || isStudent);
+
   const { data: results, isLoading: loadingResults } = useQuery<any[]>({
     queryKey: ["/api/results"],
     enabled: isStudent,
   });
 
-  if (!user || loadingIncomes || loadingExpenses || loadingDeposits || loadingBatches || loadingStudents || loadingResults || (isAdmin && loadingTeachers)) {
+  const isLoadingAdminData = isAdmin && (loadingTeachers || loadingExpenses || loadingDeposits);
+  const isLoadingCommon = loadingIncomes || loadingBatches || loadingStudents;
+  const isLoadingStudentData = isStudent && loadingResults;
+
+  if (!user || isLoadingCommon || isLoadingAdminData || isLoadingStudentData) {
     return <DashboardSkeleton />;
   }
 

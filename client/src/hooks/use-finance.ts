@@ -4,10 +4,11 @@ import { api, buildUrl } from "@shared/routes";
 import { Income, Expense, Deposit, Batch, Student, InsertIncome, InsertExpense, InsertDeposit } from "@/lib/schemas";
 import { usePortal } from "@/lib/portal-context";
 
-export function useIncomes() {
+export function useIncomes(enabled = true) {
   const { activePortal } = usePortal();
   return useQuery<any[]>({
     queryKey: [api.incomes.list.path, activePortal],
+    enabled,
     queryFn: async () => {
       const url = `${api.incomes.list.path}?portal=${activePortal}`;
       const res = await fetchWithTimeout(url, { credentials: "include" });
@@ -17,20 +18,20 @@ export function useIncomes() {
   });
 }
 
-export function useBatches() {
-  return useQuery<Batch[]>({ queryKey: [api.batches.list.path] });
+export function useBatches(enabled = true) {
+  return useQuery<Batch[]>({ queryKey: [api.batches.list.path], enabled });
 }
 
-export function useStudents() {
-  return useQuery<any[]>({ queryKey: [api.students.list.path] });
+export function useStudents(enabled = true) {
+  return useQuery<any[]>({ queryKey: [api.students.list.path], enabled });
 }
 
-export function useExpenses() {
-  return useQuery<Expense[]>({ queryKey: [api.expenses.list.path] });
+export function useExpenses(enabled = true) {
+  return useQuery<Expense[]>({ queryKey: [api.expenses.list.path], enabled });
 }
 
-export function useDeposits() {
-  return useQuery<Deposit[]>({ queryKey: [api.deposits.list.path] });
+export function useDeposits(enabled = true) {
+  return useQuery<Deposit[]>({ queryKey: [api.deposits.list.path], enabled });
 }
 
 export function useCreateBatch() {

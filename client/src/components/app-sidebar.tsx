@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { type User } from "@/lib/schemas";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import { usePortal } from "@/lib/portal-context";
+import { memo, useMemo } from "react";
 
 interface AppSidebarProps {
   effectiveRole: string;
+  user: User;
 }
 
-export function AppSidebar({ effectiveRole }: AppSidebarProps) {
-  const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
+export const AppSidebar = memo(function AppSidebar({ effectiveRole, user }: AppSidebarProps) {
   const [location] = useLocation();
   const [, setLocation] = useLocation();
   const { activePortal } = usePortal();
@@ -40,7 +41,7 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
   });
   const unreadCount = unreadData?.count ?? 0;
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     { title: "Home", url: "/", icon: LayoutDashboard, roles: ["admin"] },
     { title: "Home", url: "/admission", icon: Home, roles: ["teacher"] },
     { title: "Payment", url: "/income", icon: Wallet, roles: ["teacher", "admin"] },
@@ -49,10 +50,11 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
     { title: "Finance", url: "/finance", icon: Receipt, roles: ["admin"] },
     { title: "Manage", url: "/manage", icon: Settings, roles: ["admin"] },
     { title: "Notifications", url: "/notifications", icon: Bell, roles: ["admin"] },
-  ].filter(item => item.roles.includes(effectiveRole));
+  ].filter(item => item.roles.includes(effectiveRole)), [effectiveRole]);
 
   const isAuthorityTeacher = user?.isAuthority && user?.role === "teacher";
   const inAdminMode = isAuthorityTeacher && activePortal === "admin";
+  const userInitial = useMemo(() => user?.username?.charAt(0).toUpperCase() ?? "?", [user?.username]);
 
   return (
     <Sidebar className="border-r border-border/40 shadow-2xl bg-background/95 dark:bg-slate-950/95 backdrop-blur-xl z-[110] h-[calc(100svh-80px)] max-h-[calc(100svh-80px)] overflow-hidden">
@@ -76,7 +78,7 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive} size="lg" className={`
-                      transition-all duration-300 rounded-xl px-4 h-11
+                      transition-all duration-200 rounded-xl px-4 h-11
                       ${isActive
                         ? "bg-primary text-white shadow-lg shadow-primary/30 hover:bg-primary"
                         : "hover:bg-primary/5 text-primary/80 hover:text-primary font-bold"
@@ -111,7 +113,7 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
         <div className="bg-muted/50 p-3 rounded-2xl flex flex-col gap-3 border border-border/50 shadow-inner">
           <div className="flex items-center gap-3 px-1">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-              {user?.username?.charAt(0).toUpperCase()}
+              {userInitial}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold text-primary truncate">{user?.username}</span>
@@ -133,10 +135,10 @@ export function AppSidebar({ effectiveRole }: AppSidebarProps) {
             className="w-full rounded-xl h-9 font-black uppercase tracking-widest shadow-lg shadow-destructive/20 flex items-center justify-center gap-2 text-xs"
           >
             <LogOut className="w-4 h-4" />
-            <span>Logout</span>
+            <span>{logoutMutation.isPending ? "Logging out..." : "Logout"}</span>
           </Button>
         </div>
       </SidebarFooter>
     </Sidebar>
   );
-}
+});

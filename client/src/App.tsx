@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, memo } from "react";
 import Dashboard from "@/pages/Dashboard";
 import Income from "@/pages/Income";
 import Admission from "@/pages/Admission";
@@ -27,7 +27,25 @@ import { PortalProvider, usePortal } from "@/lib/portal-context";
 import { NetworkStatus } from "@/components/NetworkStatus";
 import { ThemeProvider, useTheme } from "@/lib/theme-context";
 
-function ThemeToggleButton() {
+// One-time cleanup: run outside Router so it only fires once per app boot,
+// not on every Router re-render.
+function useServiceWorkerCleanup() {
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {});
+    }
+    try { indexedDB.deleteDatabase("dcc-offline"); } catch {}
+    if (typeof indexedDB.databases === "function") {
+      indexedDB.databases()
+        .then((dbs) => dbs.forEach((db) => { if (db.name) indexedDB.deleteDatabase(db.name); }))
+        .catch(() => {});
+    }
+  }, []);
+}
+
+const ThemeToggleButton = memo(function ThemeToggleButton() {
   const { theme, toggleTheme } = useTheme();
   return (
     <button
@@ -39,9 +57,9 @@ function ThemeToggleButton() {
       {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
     </button>
   );
-}
+});
 
-function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
+const NotificationHeader = memo(function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
   const [, setLocation] = useLocation();
   const isAdmin = effectiveRole === "admin";
   const { data: unreadData } = useQuery<{ count: number }>({
@@ -79,7 +97,7 @@ function NotificationHeader({ effectiveRole }: { effectiveRole: string }) {
       </div>
     </header>
   );
-}
+});
 
 /**
  * Determines which portal login to redirect to when a user is unauthenticated.
@@ -101,9 +119,7 @@ function PortalAwareRedirect() {
 
 /**
  * Returns the portal this browser/PWA is locked into, or null for first-time
- * visitors who can still see the public landing page. Lock-in is established
- * when the user installs the PWA with a preferred route or visits any portal
- * login page (Login.tsx writes `last_portal` on mount).
+ * visitors who can still see the public landing page.
  */
 function getLockedPortal(): string | null {
   const isStandalone =
@@ -123,16 +139,6 @@ function getLockedPortal(): string | null {
   return null;
 }
 
-/**
- * Root ("/") route. The landing page is reachable ONLY when the user
- * intentionally navigated there (the floating logo button sets a session
- * flag before navigating to "/"). On any other entry to "/" — fresh PWA
- * launch, direct URL, browser refresh in a new tab — we send the user to
- * the portal login page their app context is bound to.
- *
- * First-time visitors with no portal binding still see the public landing
- * page (there's nowhere else for them to go).
- */
 function RootRoute() {
   if (typeof window !== "undefined") {
     const intent = sessionStorage.getItem("intent_landing");
@@ -151,41 +157,25 @@ function Router() {
   });
   const [location] = useLocation();
   const { activePortal } = usePortal();
-  // One-time cleanup: unregister any service workers and delete IndexedDB
-  // databases left over from a previous offline-capable build of this app.
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations()
-        .then((regs) => regs.forEach((r) => r.unregister()))
-        .catch(() => {});
-    }
-    // Delete the named IDB database used by the old offline feature.
-    try { indexedDB.deleteDatabase("dcc-offline"); } catch {}
-    // Also nuke any other IDB databases the browser may have registered
-    // (covers edge-cases like multiple app versions).
-    if (typeof indexedDB.databases === "function") {
-      indexedDB.databases()
-        .then((dbs) => dbs.forEach((db) => { if (db.name) indexedDB.deleteDatabase(db.name); }))
-        .catch(() => {});
-    }
-  }, []);
 
-  // Authority teachers can act as admin when they've switched to the admin portal
-  const effectiveRole: string =
-    user?.isAuthority && activePortal === "admin" ? "admin" : (user?.role ?? "");
+  // Memoize role computation — only recomputes when user or activePortal changes
+  const effectiveRole = useMemo<string>(
+    () => user?.isAuthority && activePortal === "admin" ? "admin" : (user?.role ?? ""),
+    [user?.isAuthority, user?.role, activePortal]
+  );
 
-  // Root ("/") is a NEUTRAL public zone — always show the landing page,
-  // regardless of auth state. This must run before any auth/role redirects
-  // so logged-in users can manually navigate back to "/" and stay there.
+  const roleHomePath = useMemo<string>(
+    () =>
+      effectiveRole === "admin" ? "/admin" :
+      effectiveRole === "teacher" ? "/teacher" :
+      effectiveRole === "student" ? "/student" : "/",
+    [effectiveRole]
+  );
+
+  // Root ("/") is always a neutral public zone — show before any auth checks
   if (location === "/") {
     return <RootRoute />;
   }
-
-  // Home path based on effective role
-  const roleHomePath =
-    effectiveRole === "admin" ? "/admin" :
-    effectiveRole === "teacher" ? "/teacher" :
-    effectiveRole === "student" ? "/student" : "/";
 
   // During auth check, show public pages immediately — no blank screen
   if (isLoading) {
@@ -221,7 +211,7 @@ function Router() {
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex h-svh w-full overflow-hidden bg-background">
-        <AppSidebar effectiveRole={effectiveRole} />
+        <AppSidebar effectiveRole={effectiveRole} user={user} />
         <div className="flex flex-col flex-1 overflow-hidden relative">
           <NotificationHeader effectiveRole={effectiveRole} />
 
@@ -279,6 +269,8 @@ function Router() {
 }
 
 export default function App() {
+  useServiceWorkerCleanup();
+
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>

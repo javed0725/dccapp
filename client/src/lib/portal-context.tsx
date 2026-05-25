@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 
 export type Portal = "teacher" | "admin";
 
@@ -17,14 +17,19 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     () => (localStorage.getItem("activePortal") as Portal) || "teacher"
   );
 
-  const handleSetPortal = (portal: Portal) => {
+  const handleSetPortal = useCallback((portal: Portal) => {
     setActivePortal(portal);
     localStorage.setItem("activePortal", portal);
     localStorage.setItem("last_portal", portal === "admin" ? "/admin" : "/teacher");
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({ activePortal, setActivePortal: handleSetPortal }),
+    [activePortal, handleSetPortal]
+  );
 
   return (
-    <PortalContext.Provider value={{ activePortal, setActivePortal: handleSetPortal }}>
+    <PortalContext.Provider value={value}>
       {children}
     </PortalContext.Provider>
   );

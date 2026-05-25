@@ -22,7 +22,7 @@ export function Layout({ children, title, subtitle, action }: LayoutProps) {
         </header>
 
         {/* pb-28 ensures content never hides behind the floating bottom bar */}
-        <div className="flex-1 px-1 py-3 md:p-4 pb-28 w-full animate-in fade-in duration-500 slide-in-from-bottom-4">
+        <div className="flex-1 px-1 py-3 md:p-4 pb-28 w-full animate-in fade-in duration-150">
           <div className="w-full">
             {children}
           </div>

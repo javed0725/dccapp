@@ -4,9 +4,9 @@ import { toast } from "@/hooks/use-toast";
 const SESSION_EXPIRED_FALLBACK = "Your session has expired. Please log in again.";
 
 // ── Network timeout ───────────────────────────────────────────────────────────
-// Wraps fetch with an 18-second AbortController timeout so slow connections
-// fail fast with a clear error instead of hanging the UI indefinitely.
-const FETCH_TIMEOUT_MS = 18_000;
+// 10 seconds — long enough for slow 3G, short enough that a stalled request
+// fails visibly instead of freezing the UI on budget devices.
+const FETCH_TIMEOUT_MS = 10_000;
 
 export function fetchWithTimeout(
   url: string,
