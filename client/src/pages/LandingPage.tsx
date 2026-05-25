@@ -59,9 +59,9 @@ const portals = [
     desc: "Access your payment history, academic results, model test scores, and account status from one personalised dashboard.",
     path: "/student",
     accentColor: "bg-blue-600",
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
-    borderHover: "hover:border-blue-200",
+    iconBg: "bg-blue-50 dark:bg-blue-900/40",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    borderHover: "hover:border-blue-200 dark:hover:border-blue-700",
   },
   {
     icon: LayoutGrid,
@@ -70,9 +70,9 @@ const portals = [
     desc: "Handle student admissions, record exam marks, manage batches, and track monthly fee payments efficiently.",
     path: "/teacher",
     accentColor: "bg-indigo-600",
-    iconBg: "bg-indigo-50",
-    iconColor: "text-indigo-600",
-    borderHover: "hover:border-indigo-200",
+    iconBg: "bg-indigo-50 dark:bg-indigo-900/40",
+    iconColor: "text-indigo-600 dark:text-indigo-400",
+    borderHover: "hover:border-indigo-200 dark:hover:border-indigo-700",
   },
   {
     icon: ShieldCheck,
@@ -80,10 +80,10 @@ const portals = [
     subtitle: "Full Admin Control",
     desc: "Complete oversight of finances, teacher management, batch analytics, and centre-wide system administration.",
     path: "/admin",
-    accentColor: "bg-slate-700",
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-700",
-    borderHover: "hover:border-slate-200",
+    accentColor: "bg-slate-700 dark:bg-slate-600",
+    iconBg: "bg-slate-100 dark:bg-slate-700",
+    iconColor: "text-slate-700 dark:text-slate-300",
+    borderHover: "hover:border-slate-300 dark:hover:border-slate-600",
   },
 ];
 
@@ -327,15 +327,15 @@ function PortalsSection({
   canInstall: boolean;
 }) {
   return (
-    <section id="portals" className="py-20 bg-white">
+    <section id="portals" className="py-20 bg-white dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section heading */}
         <div className="text-center mb-12">
-          <p className="text-blue-600 text-sm font-semibold uppercase tracking-widest mb-3">Access Portals</p>
-          <h2 className="font-black text-slate-900 text-4xl sm:text-5xl mb-4">
-            Choose Your <span className="text-blue-600">Portal</span>
+          <p className="text-blue-600 dark:text-blue-400 text-sm font-semibold uppercase tracking-widest mb-3">Access Portals</p>
+          <h2 className="font-black text-slate-900 dark:text-white text-4xl sm:text-5xl mb-4">
+            Choose Your <span className="text-blue-600 dark:text-blue-400">Portal</span>
           </h2>
-          <p className="text-slate-500 text-lg max-w-xl mx-auto">
+          <p className="text-slate-500 dark:text-slate-400 text-lg max-w-xl mx-auto">
             Dedicated dashboards for every role in the Dynamic Coaching Centre ecosystem.
           </p>
         </div>
@@ -348,7 +348,7 @@ function PortalsSection({
               <div
                 key={portal.path}
                 data-testid={`card-portal-${testId}`}
-                className={`flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-xl ${portal.borderHover} hover:-translate-y-1 transition-all duration-300 overflow-hidden`}
+                className={`flex flex-col bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl ${portal.borderHover} hover:-translate-y-1 transition-all duration-300 overflow-hidden`}
               >
                 {/* Coloured top accent bar */}
                 <div className={`h-1 w-full ${portal.accentColor}`} />
@@ -359,9 +359,9 @@ function PortalsSection({
                     <Icon className={`w-7 h-7 ${portal.iconColor}`} />
                   </div>
 
-                  <h3 className="font-black text-slate-900 text-xl mb-1">{portal.title}</h3>
+                  <h3 className="font-black text-slate-900 dark:text-white text-xl mb-1">{portal.title}</h3>
                   <p className={`text-xs font-bold mb-3 ${portal.iconColor}`}>{portal.subtitle}</p>
-                  <p className="text-slate-500 text-sm leading-relaxed flex-1 mb-6">{portal.desc}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed flex-1 mb-6">{portal.desc}</p>
 
                   {/* Buttons */}
                   <div className="flex flex-col gap-3">
@@ -377,7 +377,7 @@ function PortalsSection({
                       <button
                         data-testid={`button-install-${testId}`}
                         onClick={() => onInstall(portal.path)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200 transition-colors"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                       >
                         <Download className="w-4 h-4" /> Install App
                       </button>
