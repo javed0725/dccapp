@@ -32,7 +32,7 @@ function TeacherPaymentDetails({ userId, enabled }: { userId: number; enabled: b
   if (!enabled) return null;
 
   return (
-    <div className="border-t border-blue-100 pt-2 mt-1">
+    <div className="border-t border-blue-100 dark:border-blue-900/50 pt-2 mt-1">
       {isLoading ? (
         <p className="text-[10px] text-muted-foreground text-center py-2">Loading...</p>
       ) : !data || data.length === 0 ? (
@@ -40,7 +40,7 @@ function TeacherPaymentDetails({ userId, enabled }: { userId: number; enabled: b
       ) : (
         <div className="max-h-40 overflow-y-auto space-y-1 pr-0.5">
           {data.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-1.5 text-[10px] py-1 border-b border-slate-50 last:border-0">
+            <div key={item.id} className="flex items-start justify-between gap-1.5 text-[10px] py-1 border-b border-slate-100 dark:border-slate-700 last:border-0">
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-foreground truncate leading-tight">{item.studentName}</p>
                 <p className="text-muted-foreground leading-tight">{item.batchName} · {item.month}</p>
@@ -66,28 +66,28 @@ const TYPE_CONFIG = {
   admission: {
     label: "Admission",
     icon: UserPlus,
-    bg: "bg-green-50 border-green-200",
-    iconBg: "bg-green-100",
-    iconColor: "text-green-600",
-    badge: "bg-green-100 text-green-700",
+    bg: "bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800",
+    iconBg: "bg-green-100 dark:bg-green-800/50",
+    iconColor: "text-green-600 dark:text-green-400",
+    badge: "bg-green-100 dark:bg-green-800/60 text-green-700 dark:text-green-300",
     dot: "bg-green-500",
   },
   payment: {
     label: "Payment",
     icon: Wallet,
-    bg: "bg-blue-50 border-blue-200",
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-600",
-    badge: "bg-blue-100 text-blue-700",
+    bg: "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800",
+    iconBg: "bg-blue-100 dark:bg-blue-800/50",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    badge: "bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-300",
     dot: "bg-blue-500",
   },
   result: {
     label: "Result",
     icon: FileCheck,
-    bg: "bg-orange-50 border-orange-200",
-    iconBg: "bg-orange-100",
-    iconColor: "text-orange-600",
-    badge: "bg-orange-100 text-orange-700",
+    bg: "bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800",
+    iconBg: "bg-orange-100 dark:bg-orange-800/50",
+    iconColor: "text-orange-600 dark:text-orange-400",
+    badge: "bg-orange-100 dark:bg-orange-800/60 text-orange-700 dark:text-orange-300",
     dot: "bg-orange-500",
   },
 };
@@ -168,8 +168,8 @@ function CollectionSummaryPanel() {
       {/* Header row */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Banknote className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+            <Banknote className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
             <h2 className="text-xl font-black text-blue-700 uppercase tracking-tight">
@@ -186,7 +186,7 @@ function CollectionSummaryPanel() {
           onClick={() => refetch()}
           disabled={isFetching}
           data-testid="button-refresh-collections"
-          className="flex items-center gap-2 rounded-xl text-xs font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
+          className="flex items-center gap-2 rounded-xl text-xs font-bold border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
         >
           <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
           Refresh
@@ -216,7 +216,7 @@ function CollectionSummaryPanel() {
           ))}
         </div>
       ) : collections.length === 0 ? (
-        <div className="rounded-xl border border-blue-100 bg-blue-50 p-6 text-center text-blue-400">
+        <div className="rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 p-6 text-center text-blue-400 dark:text-blue-500">
           <Banknote className="w-7 h-7 mx-auto mb-2 opacity-40" />
           <p className="text-sm font-medium">No collection data yet</p>
           <p className="text-xs mt-1">Balances appear here as teachers record payments.</p>
@@ -232,8 +232,8 @@ function CollectionSummaryPanel() {
                 className="rounded-xl border border-blue-100 dark:border-blue-900/50 bg-white dark:bg-slate-900 shadow-sm p-3 flex flex-col justify-between gap-2 h-full"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                    <span className="text-blue-700 font-black text-sm">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center shrink-0">
+                    <span className="text-blue-700 dark:text-blue-400 font-black text-sm">
                       {displayName.charAt(0).toUpperCase()}
                     </span>
                   </div>
