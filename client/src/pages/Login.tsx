@@ -125,8 +125,8 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
         {/* Branding Section */}
         <div className="text-center space-y-6 animate-in fade-in duration-300">
           <div className="inline-flex relative">
-            <div className="flex items-center justify-center w-24 h-24 rounded-3xl bg-white dark:bg-slate-900 border border-primary/10 shadow-xl overflow-hidden p-2">
-              <img src={coachingLogo} alt="Coaching Logo" className="w-full h-full object-contain" />
+            <div className="flex items-center justify-center w-24 h-24">
+              <img src={coachingLogo} alt="Coaching Logo" className="w-full h-full rounded-full border-2 border-slate-200 dark:border-slate-700 object-cover p-1 bg-white" />
             </div>
           </div>
           <div className="space-y-2">
