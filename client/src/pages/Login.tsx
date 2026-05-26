@@ -126,7 +126,7 @@ export default function LoginPage({ fixedRole }: { fixedRole?: LoginRole }) {
         <div className="text-center space-y-6 animate-in fade-in duration-300">
           <div className="inline-flex relative">
             <div className="flex items-center justify-center w-24 h-24">
-              <img src={coachingLogo} alt="Coaching Logo" className="w-full h-full rounded-full border-2 border-slate-200 dark:border-slate-700 object-cover p-1 bg-white" />
+              <img src={coachingLogo} alt="Coaching Logo" className="w-24 h-24 rounded-full border border-slate-200 dark:border-slate-700/80 p-1.5 bg-white object-contain shadow-sm transition-all duration-500 ease-in-out hover:scale-105 dark:shadow-[0_0_20px_rgba(59,130,246,0.25)]" />
             </div>
           </div>
           <div className="space-y-2">
