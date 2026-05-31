@@ -122,6 +122,14 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
+  // ── HTTP Keep-Alive tuning ────────────────────────────────────────────────
+  // Node's default keepAliveTimeout is 5 s — shorter than many ISP NAT tables
+  // (Robi/Teletalk idle-cut at ~30–60 s).  Setting it to 65 s means persistent
+  // connections survive across slow pages without mid-session TCP RSTs.
+  // headersTimeout must always be > keepAliveTimeout to avoid a race condition.
+  httpServer.keepAliveTimeout = 65_000;
+  httpServer.headersTimeout   = 70_000;
+
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
     {

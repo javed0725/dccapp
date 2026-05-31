@@ -43,9 +43,13 @@ function getPool(): pg.Pool {
       connectionString: connectionString ?? "",
       ssl: { rejectUnauthorized: false },
       max: 5,
-      connectionTimeoutMillis: 15000,  // 15 s — handles cold-start DB wakeup
-      idleTimeoutMillis: 30000,
-      statement_timeout: 20000,        // kill runaway queries after 20 s
+      connectionTimeoutMillis: 15_000,  // 15 s — handles cold-start DB wakeup
+      idleTimeoutMillis: 30_000,
+      statement_timeout: 20_000,        // kill runaway queries after 20 s
+      // TCP keep-alive: prevents silent connection drops on long-idle ISP links
+      // (Robi/Teletalk NAT tables can silently discard idle TCP flows after ~60 s).
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000,
     });
 
     _pool.on("error", (err) => {
