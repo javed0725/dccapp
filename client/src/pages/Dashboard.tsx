@@ -205,12 +205,14 @@ export default function Dashboard() {
     };
   }).filter(m => m.hasData).reverse();
 
-  // Current Balance = most recent month that has cleared deposits − that month's expenses.
-  // Skips months with only income entries but no cleared deposits yet (e.g. current month).
-  // Example: April deposits (৳112,480) − April expenses (৳38,795) = ৳73,685.
+  // Current Balance = most recent month's cleared deposits − ALL months' expenses.
+  // Deposits anchor the cash-in figure; expenses from every month (including months
+  // that have no deposit yet, like the current month) are all subtracted so any
+  // new expense immediately reduces the displayed balance.
   const latestMonthWithDeposits = monthlyData.find(m => m.totalDeposits > 0);
+  const totalAllExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpense, 0);
   const currentBalance = latestMonthWithDeposits
-    ? (latestMonthWithDeposits.totalDeposits - latestMonthWithDeposits.totalExpense)
+    ? (latestMonthWithDeposits.totalDeposits - totalAllExpenses)
     : 0;
   const batchStats = batches?.map(batch => ({
     ...batch,
