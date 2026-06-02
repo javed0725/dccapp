@@ -205,11 +205,11 @@ export default function Dashboard() {
     };
   }).filter(m => m.hasData).reverse();
 
-  // Current Balance = ALL cleared deposits (every month) − ALL expenses (every month).
-  // Summing across all months means adding an expense to any month immediately reduces
-  // the balance, which is the correct accounting view of the centre's net cash position.
-  const totalAllDeposits = monthlyData.reduce((sum, m) => sum + m.totalDeposits, 0);
-  const totalAllExpenses = monthlyData.reduce((sum, m) => sum + m.totalExpense, 0);
+  // Current Balance = ALL cleared deposits (raw array) − ALL expenses (raw array).
+  // Calculated directly from the source arrays — NOT via monthlyData — so every
+  // expense, regardless of month, is always included even if that month has no income.
+  const totalAllDeposits = (deposits || []).reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const totalAllExpenses = (expenses || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const currentBalance = totalAllDeposits > 0
     ? (totalAllDeposits - totalAllExpenses)
     : 0;
