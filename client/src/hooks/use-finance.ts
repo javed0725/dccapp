@@ -134,6 +134,7 @@ export function useCreateExpense() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.expenses.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.deposits.list.path] });
     },
   });
 }
@@ -145,6 +146,7 @@ export function useDeleteExpense() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.expenses.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.deposits.list.path] });
     },
   });
 }
