@@ -202,7 +202,7 @@ export default function Income() {
     defaultValues: {
       studentId: 0,
       batchId: 0,
-      month: MONTHS[new Date().getMonth()],
+      month: MONTHS[(new Date().getMonth() + 11) % 12],
       amount: 0,
     },
   });
