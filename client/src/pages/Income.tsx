@@ -217,6 +217,13 @@ export default function Income() {
     enabled: Number(selectedStudentId) > 0,
   });
 
+  /* Fetch due months for the selected student (past months not yet paid this year) */
+  const { data: dueMonthsData, isFetching: isDueFetching } = useQuery<{ dueMonths: string[] }>({
+    queryKey: ["/api/students", Number(selectedStudentId), "due-months"],
+    enabled: Number(selectedStudentId) > 0,
+  });
+  const dueMonths = dueMonthsData?.dueMonths ?? [];
+
   /* Auto-fill amount whenever a student is picked or their last-payment data arrives */
   useEffect(() => {
     if (Number(selectedStudentId) === 0) return;
@@ -382,6 +389,18 @@ export default function Income() {
                                         </FormItem>
                                     )}
                                 />
+                                {/* Due Months Status — shown instantly when a student is selected */}
+                                {Number(selectedStudentId) > 0 && (
+                                  <div className="text-xs font-semibold px-1 -mt-1">
+                                    {isDueFetching ? (
+                                      <span className="text-muted-foreground">Checking dues…</span>
+                                    ) : dueMonths.length > 0 ? (
+                                      <span className="text-red-500">Due: {dueMonths.join(", ")}</span>
+                                    ) : (
+                                      <span className="text-green-500">✓ No pending dues</span>
+                                    )}
+                                  </div>
+                                )}
                                 <FormField
                                     control={form.control}
                                     name="month"

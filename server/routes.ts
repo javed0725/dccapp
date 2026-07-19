@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { students, incomes as incomesTable, users } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
@@ -288,6 +288,34 @@ export async function registerRoutes(
     } catch (err) {
       res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  /* Returns due months for a student — past months (Jan → prev month) not yet paid this year */
+  app.get("/api/students/:id/due-months", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const studentId = Number(req.params.id);
+    if (isNaN(studentId)) return res.status(400).json({ message: "Invalid student id" });
+
+    const ALL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const currentMonthIndex = new Date().getMonth(); // 0-based; July = 6
+    const pastMonths = ALL_MONTHS.slice(0, currentMonthIndex); // Jan → prev month
+
+    if (pastMonths.length === 0) return res.json({ dueMonths: [] });
+
+    const currentYear = new Date().getFullYear();
+    const paid = await db
+      .select({ month: incomesTable.month })
+      .from(incomesTable)
+      .where(
+        and(
+          eq(incomesTable.studentId, studentId),
+          sql`EXTRACT(YEAR FROM ${incomesTable.date}) = ${currentYear}`
+        )
+      );
+
+    const paidSet = new Set(paid.map((r) => r.month));
+    const dueMonths = pastMonths.filter((m) => !paidSet.has(m));
+    return res.json({ dueMonths });
   });
 
   /* Returns the most recent payment amount for a given student (any recorder) */
