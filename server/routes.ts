@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
 import { students, incomes as incomesTable, users } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
@@ -298,23 +298,35 @@ export async function registerRoutes(
 
     const ALL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
     const currentMonthIndex = new Date().getMonth(); // 0-based; July = 6
-    const pastMonths = ALL_MONTHS.slice(0, currentMonthIndex); // Jan → prev month
+    const pastMonths = ALL_MONTHS.slice(0, currentMonthIndex); // ["January" … "June"] for July
 
     if (pastMonths.length === 0) return res.json({ dueMonths: [] });
 
+    // Use date range (gte/lt) instead of EXTRACT to avoid drizzle sql-template
+    // column-reference rendering issues that silently break the year filter.
     const currentYear = new Date().getFullYear();
+    const yearStart = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+    const yearEnd   = new Date(`${currentYear + 1}-01-01T00:00:00.000Z`);
+
     const paid = await db
       .select({ month: incomesTable.month })
       .from(incomesTable)
       .where(
         and(
           eq(incomesTable.studentId, studentId),
-          sql`EXTRACT(YEAR FROM ${incomesTable.date}) = ${currentYear}`
+          gte(incomesTable.date, yearStart),
+          lt(incomesTable.date, yearEnd)
         )
       );
 
-    const paidSet = new Set(paid.map((r) => r.month));
-    const dueMonths = pastMonths.filter((m) => !paidSet.has(m));
+    // Normalise to lowercase for case-safe comparison
+    const dbPaidMonths = paid.map((r) => r.month.toLowerCase());
+    const paidSet = new Set(dbPaidMonths);
+    const dueMonths = pastMonths.filter((m) => !paidSet.has(m.toLowerCase()));
+
+    // Debug log — remove once confirmed working
+    console.log(`[DueMonths] studentId=${studentId} year=${currentYear} pastMonths=${JSON.stringify(pastMonths)} dbPaidMonths=${JSON.stringify(dbPaidMonths)} dueMonths=${JSON.stringify(dueMonths)}`);
+
     return res.json({ dueMonths });
   });
 
