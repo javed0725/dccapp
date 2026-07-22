@@ -19,6 +19,7 @@ import Notifications from "@/pages/Notifications";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
 import TeacherDirectory from "@/pages/TeacherDirectory";
+import StudentDirectory from "@/pages/StudentDirectory";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
@@ -249,6 +250,9 @@ function Router() {
               <Route path="/admission">
                 {(effectiveRole === "teacher" || (user.isAuthority && activePortal === "teacher")) ? <Admission /> : <Redirect to={roleHomePath} />}
               </Route>
+              {(effectiveRole === "teacher" || (user.isAuthority && activePortal === "teacher")) && (
+                <Route path="/student-directory" component={StudentDirectory} />
+              )}
               {effectiveRole === "admin" && (
                 <>
                   <Route path="/expenses" component={Expenses} />

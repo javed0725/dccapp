@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Wallet, FileText, Key, LogOut, UserCircle, LayoutDashboard, Home, Banknote, Settings, BookUser, ClipboardCheck } from "lucide-react";
+import { Wallet, FileText, Key, LogOut, UserCircle, LayoutDashboard, Home, Banknote, Settings, BookUser, ClipboardCheck, GraduationCap } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { type User } from "@/lib/schemas";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -69,6 +69,7 @@ export function MobileNav() {
     { href: "/income", label: "Payment", icon: Wallet },
     { href: "/results", label: "Results", icon: FileText },
     { href: "/attendance", label: "Attendance", icon: ClipboardCheck },
+    { href: "/student-directory", label: "Directory", icon: GraduationCap },
   ];
 
   const studentLinks = [
