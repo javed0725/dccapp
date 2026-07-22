@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2, Loader2, RefreshCw, Wifi, WifiOff, Clock } from "lucide-react";
+import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2, Loader2 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 
 type AttendanceRow = {
@@ -203,11 +203,10 @@ export default function Attendance() {
   return (
     <Layout title="Attendance" subtitle="Mark and review daily attendance">
       <Tabs defaultValue="mark" className="space-y-4">
-        <TabsList className={`grid w-full ${isAdmin ? "grid-cols-4" : "grid-cols-2"} max-w-2xl`}>
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
           <TabsTrigger value="mark" data-testid="tab-mark"><ClipboardCheck className="w-4 h-4 mr-1.5" />Mark</TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history"><HistoryIcon className="w-4 h-4 mr-1.5" />History</TabsTrigger>
           {isAdmin && <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1.5" />Summary</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="device" data-testid="tab-device"><Wifi className="w-4 h-4 mr-1.5" />Device</TabsTrigger>}
         </TabsList>
 
         {/* MARK TAB */}
@@ -416,13 +415,6 @@ export default function Attendance() {
         {isAdmin && (
           <TabsContent value="summary" className="space-y-4">
             <SummaryView subjectOptions={subjectOptions} students={students} batches={batches} />
-          </TabsContent>
-        )}
-
-        {/* DEVICE TAB (admin) */}
-        {isAdmin && (
-          <TabsContent value="device" className="space-y-4">
-            <ZktecoDeviceView />
           </TabsContent>
         )}
       </Tabs>
@@ -840,196 +832,5 @@ function SummaryView({ subjectOptions, students, batches }: { subjectOptions: st
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// ── ZKTeco Device Sync View (admin only) ────────────────────────────────────
-type ZkLog = {
-  id: number;
-  deviceUserId: string;
-  studentId: number | null;
-  studentName: string | null;
-  timestamp: string;
-  punchType: string;
-  syncedAt: string;
-};
-
-type ZkStatus = {
-  lastSyncAt: string | null;
-  lastSyncStatus: "idle" | "running" | "success" | "error";
-  lastSyncMessage: string;
-  lastSyncCount: number;
-  logs: ZkLog[];
-};
-
-const PUNCH_COLORS: Record<string, string> = {
-  "check-in":  "bg-emerald-100 text-emerald-700",
-  "check-out": "bg-slate-100 text-slate-600",
-  "ot-in":     "bg-blue-100 text-blue-700",
-  "ot-out":    "bg-purple-100 text-purple-700",
-};
-
-function ZktecoDeviceView() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { data: status, isLoading } = useQuery<ZkStatus>({
-    queryKey: ["/api/attendance/sync-zkteco/status"],
-    refetchInterval: 30_000,
-  });
-
-  const syncMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/attendance/sync-zkteco", { method: "POST", credentials: "include" });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Sync failed");
-      return body;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance/sync-zkteco/status"] });
-      toast({
-        title: "Sync complete",
-        description: `${data.inserted} new record(s) pulled (${data.total} total on device).`,
-      });
-    },
-    onError: (err: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance/sync-zkteco/status"] });
-      toast({ variant: "destructive", title: "Sync failed", description: err.message });
-    },
-  });
-
-  const formatTs = (ts: string | null) => {
-    if (!ts) return "—";
-    return new Date(ts).toLocaleString("en-US", {
-      year: "numeric", month: "short", day: "numeric",
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
-    });
-  };
-
-  const statusColor = () => {
-    if (!status) return "text-slate-400";
-    switch (status.lastSyncStatus) {
-      case "success": return "text-emerald-600";
-      case "error":   return "text-rose-600";
-      case "running": return "text-blue-600";
-      default:        return "text-slate-400";
-    }
-  };
-
-  const SyncStatusIcon = () => {
-    if (!status) return <Wifi className="w-4 h-4 text-slate-400" />;
-    switch (status.lastSyncStatus) {
-      case "success": return <Wifi className="w-4 h-4 text-emerald-500" />;
-      case "error":   return <WifiOff className="w-4 h-4 text-rose-500" />;
-      case "running": return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
-      default:        return <Wifi className="w-4 h-4 text-slate-400" />;
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Status card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <SyncStatusIcon />
-              ZKTeco K40 — Device Sync
-            </CardTitle>
-            <Button
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
-              data-testid="button-sync-zkteco"
-            >
-              {syncMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Syncing…</>
-              ) : (
-                <><RefreshCw className="w-4 h-4 mr-2" />Sync Attendance</>
-              )}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Device</p>
-              <p className="font-mono text-slate-700">36.255.83.199:4370</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Last Sync</p>
-              <p className="flex items-center gap-1.5 text-slate-700">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                {isLoading ? "…" : formatTs(status?.lastSyncAt ?? null)}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</p>
-              <p className={`font-medium ${statusColor()}`}>
-                {isLoading ? "Loading…" : (status?.lastSyncMessage ?? "Never synced")}
-              </p>
-            </div>
-          </div>
-          <p className="mt-3 text-[11px] text-slate-400">
-            Auto-syncs every 15 minutes in the background. Use the button above for an immediate pull.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Punch log */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="w-4 h-4 text-blue-500" />
-            Recent Punch Logs
-            {status?.logs?.length != null && (
-              <Badge variant="secondary" className="text-xs">{status.logs.length} records</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-slate-500 text-center py-6">Loading…</p>
-          ) : !status?.logs?.length ? (
-            <p className="text-sm text-slate-500 text-center py-8">
-              No punch logs yet. Click <strong>Sync Attendance</strong> to pull records from the device.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="text-left border-b border-slate-100">
-                    <th className="pb-2 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Time</th>
-                    <th className="pb-2 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Device ID</th>
-                    <th className="pb-2 pr-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Student</th>
-                    <th className="pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Type</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {status.logs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 pr-4 font-mono text-xs text-slate-600 whitespace-nowrap">
-                        {formatTs(log.timestamp)}
-                      </td>
-                      <td className="py-2 pr-4 font-mono text-xs text-slate-500">{log.deviceUserId}</td>
-                      <td className="py-2 pr-4 text-slate-800">
-                        {log.studentName ?? (
-                          <span className="text-slate-400 text-xs italic">Unmatched</span>
-                        )}
-                      </td>
-                      <td className="py-2">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${PUNCH_COLORS[log.punchType] ?? "bg-slate-100 text-slate-500"}`}>
-                          {log.punchType}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
   );
 }
