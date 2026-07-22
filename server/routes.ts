@@ -1117,7 +1117,12 @@ export async function registerRoutes(
   }).passthrough(); // keep all extra device fields in rawLog
 
   app.post("/api/attendance/sync-zkteco", async (req, res) => {
-    if (!requireAdmin(req, res)) return;
+    // Allow authentication via x-api-key header (for device/script callers that
+    // cannot maintain a browser session) OR via the normal admin session cookie.
+    const apiKey = process.env.ZKTECO_API_KEY;
+    const providedKey = req.headers["x-api-key"];
+    const apiKeyValid = apiKey && providedKey === apiKey;
+    if (!apiKeyValid && !requireAdmin(req, res)) return;
 
     try {
       // Body must be a non-empty array.
