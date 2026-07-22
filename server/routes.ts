@@ -1095,6 +1095,93 @@ export async function registerRoutes(
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // ZKTeco Integration
+  // POST /api/attendance/sync-zkteco
+  //
+  // Accepts an array of raw punch log objects straight from the ZKTeco device
+  // (or any intermediary script that forwards them).  Each object must contain
+  // at least `userId` (device-enrolled ID) and `punchTime` (ISO-8601 string).
+  // All other fields are stored verbatim in the `rawLog` JSON column for
+  // auditing and future processing.
+  //
+  // Deduplication: a log is considered a duplicate if the same (userId, punchTime)
+  // pair already exists in the zkteco_logs table.
+  //
+  // Response: { status, inserted, duplicates, total }
+  // ---------------------------------------------------------------------------
+  const zktecoLogSchema = z.object({
+    userId:    z.string({ required_error: "userId is required" }).min(1),
+    deviceId:  z.string().optional().default(""),
+    punchTime: z.string({ required_error: "punchTime is required" }),
+  }).passthrough(); // keep all extra device fields in rawLog
+
+  app.post("/api/attendance/sync-zkteco", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+
+    try {
+      // Body must be a non-empty array.
+      if (!Array.isArray(req.body) || req.body.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "Request body must be a non-empty array of punch log objects.",
+        });
+      }
+
+      // Validate every entry; collect validation errors with their index.
+      const validLogs: z.infer<typeof zktecoLogSchema>[] = [];
+      const validationErrors: { index: number; error: string }[] = [];
+
+      for (let i = 0; i < req.body.length; i++) {
+        const parsed = zktecoLogSchema.safeParse(req.body[i]);
+        if (parsed.success) {
+          validLogs.push(parsed.data);
+        } else {
+          validationErrors.push({
+            index: i,
+            error: parsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join("; "),
+          });
+        }
+      }
+
+      if (validLogs.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "No valid log entries found.",
+          validationErrors,
+        });
+      }
+
+      // Map validated payloads → InsertZktecoLog rows.
+      const insertRows = validLogs.map(log => {
+        // Normalise punchTime — reject unparseable timestamps.
+        const punchDate = new Date(log.punchTime);
+        if (isNaN(punchDate.getTime())) {
+          throw new Error(`Invalid punchTime value: "${log.punchTime}"`);
+        }
+        return {
+          deviceUserId: log.userId,
+          deviceId:     log.deviceId ?? "",
+          punchTime:    punchDate,
+          rawLog:       log as Record<string, unknown>,
+        };
+      });
+
+      const { inserted, duplicates } = await storage.syncZktecoLogs(insertRows);
+
+      return res.status(200).json({
+        status:     "ok",
+        inserted,
+        duplicates,
+        total:      req.body.length,
+        ...(validationErrors.length > 0 ? { skippedInvalid: validationErrors.length, validationErrors } : {}),
+      });
+    } catch (err: any) {
+      console.error("[ZKTeco] sync error:", err);
+      return res.status(500).json({ status: "error", message: err?.message ?? "Internal server error" });
+    }
+  });
+
   return httpServer;
 }
 

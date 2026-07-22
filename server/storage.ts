@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { 
   incomes, expenses, deposits, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
-  collectionTracking, attendance,
+  collectionTracking, attendance, zktecoLogs,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Deposit, type InsertDeposit,
@@ -13,8 +13,9 @@ import {
   type Notification,
   type CollectionTracking,
   type Attendance, type InsertAttendance,
+  type ZktecoLog, type InsertZktecoLog,
 } from "@shared/schema";
-import { eq, desc, asc, inArray, sql } from "drizzle-orm";
+import { eq, desc, asc, inArray, sql, and } from "drizzle-orm";
 
 function removePassword<T extends User | null | undefined>(user: T) {
   if (!user) return user;
@@ -99,6 +100,9 @@ export interface IStorage {
   getAllCollections(): Promise<(CollectionTracking & { user: Omit<User, "password"> })[]>;
   addToCollection(userId: number, amount: number): Promise<CollectionTracking>;
   resetCollection(userId: number): Promise<CollectionTracking>;
+
+  // ZKTeco Logs
+  syncZktecoLogs(logs: InsertZktecoLog[]): Promise<{ inserted: number; duplicates: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -638,6 +642,40 @@ export class DatabaseStorage implements IStorage {
         lastDate,
       };
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // ZKTeco Logs
+  // ---------------------------------------------------------------------------
+  // Deduplication key: (deviceUserId, punchTime).
+  // We fetch all existing keys that overlap with the incoming batch, then only
+  // insert the ones that are genuinely new.  This avoids ON CONFLICT issues on
+  // tables without a unique constraint and keeps the logic transparent.
+  async syncZktecoLogs(logs: InsertZktecoLog[]): Promise<{ inserted: number; duplicates: number }> {
+    if (logs.length === 0) return { inserted: 0, duplicates: 0 };
+
+    // Build a set of "deviceUserId|punchTimeISO" strings for O(1) lookup.
+    const incomingKeys = logs.map(l => `${l.deviceUserId}|${new Date(l.punchTime as Date).toISOString()}`);
+
+    // Fetch existing rows whose deviceUserId matches any in the batch.
+    const deviceUserIds = Array.from(new Set(logs.map(l => l.deviceUserId)));
+    const existingRows = await db
+      .select({ deviceUserId: zktecoLogs.deviceUserId, punchTime: zktecoLogs.punchTime })
+      .from(zktecoLogs)
+      .where(inArray(zktecoLogs.deviceUserId, deviceUserIds));
+
+    const existingKeys = new Set(
+      existingRows.map(r => `${r.deviceUserId}|${new Date(r.punchTime).toISOString()}`)
+    );
+
+    const newLogs = logs.filter((_, i) => !existingKeys.has(incomingKeys[i]));
+    const duplicates = logs.length - newLogs.length;
+
+    if (newLogs.length > 0) {
+      await db.insert(zktecoLogs).values(newLogs);
+    }
+
+    return { inserted: newLogs.length, duplicates };
   }
 }
 

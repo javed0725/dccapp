@@ -118,10 +118,23 @@ export const collectionTracking = pgTable("collection_tracking", {
   lastResetAt: timestamp("last_reset_at").defaultNow(),
 });
 
+// ZKTeco device punch log — one row per raw punch event received from the device.
+// (deviceUserId, punchTime) forms the natural deduplication key.
+export const zktecoLogs = pgTable("zkteco_logs", {
+  id: serial("id").primaryKey(),
+  deviceUserId: text("device_user_id").notNull(),   // user ID enrolled on the ZKTeco device
+  deviceId: text("device_id").notNull().default(""), // device serial / identifier
+  punchTime: timestamp("punch_time", { withTimezone: true }).notNull(), // normalised punch timestamp
+  rawLog: json("raw_log").notNull(),                 // full original payload for auditing
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export type ModelTestDraft = typeof modelTestDrafts.$inferSelect;
 export type InsertModelTestDraft = typeof modelTestDrafts.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type CollectionTracking = typeof collectionTracking.$inferSelect;
+export type ZktecoLog = typeof zktecoLogs.$inferSelect;
+export type InsertZktecoLog = typeof zktecoLogs.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertBatchSchema = createInsertSchema(batches).omit({ id: true });
