@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
-import { students, incomes as incomesTable, users } from "@shared/schema";
+import { students, incomes as incomesTable, users, zktecoLogs } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
@@ -9,6 +9,7 @@ import { z } from "zod";
 import { setupAuth } from "./auth/auth";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
+import { syncZktecoAttendance, getZkSyncStatus } from "./zkteco-sync";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -1093,6 +1094,40 @@ export async function registerRoutes(
       console.error("Collection reset error:", err);
       res.status(500).json({ message: err.message });
     }
+  });
+
+  // ── ZKTeco Device Sync Routes (admin only) ──────────────────────────────────
+
+  // POST /api/attendance/sync-zkteco — manual trigger
+  app.post("/api/attendance/sync-zkteco", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const result = await syncZktecoAttendance();
+    if (result.error && result.inserted === 0) {
+      return res.status(502).json({ ok: false, ...result });
+    }
+    return res.json({ ok: true, ...result });
+  });
+
+  // GET /api/attendance/sync-zkteco/status — last sync status + recent logs
+  app.get("/api/attendance/sync-zkteco/status", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const status = getZkSyncStatus();
+    // Fetch last 100 punch logs with student name joined
+    const logs = await db
+      .select({
+        id: zktecoLogs.id,
+        deviceUserId: zktecoLogs.deviceUserId,
+        studentId: zktecoLogs.studentId,
+        studentName: students.name,
+        timestamp: zktecoLogs.timestamp,
+        punchType: zktecoLogs.punchType,
+        syncedAt: zktecoLogs.syncedAt,
+      })
+      .from(zktecoLogs)
+      .leftJoin(students, eq(zktecoLogs.studentId, students.id))
+      .orderBy(desc(zktecoLogs.timestamp))
+      .limit(100);
+    return res.json({ ...status, logs });
   });
 
   return httpServer;

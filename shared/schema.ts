@@ -118,6 +118,17 @@ export const collectionTracking = pgTable("collection_tracking", {
   lastResetAt: timestamp("last_reset_at").defaultNow(),
 });
 
+// ZKTeco device attendance punch logs — raw records synced from the physical device
+export const zktecoLogs = pgTable("zkteco_logs", {
+  id: serial("id").primaryKey(),
+  deviceUserId: text("device_user_id").notNull(),          // ID enrolled on the ZKTeco device
+  studentId: integer("student_id").references(() => students.id), // matched via studentCustomId (nullable)
+  timestamp: timestamp("timestamp").notNull(),              // punch time from device
+  punchType: text("punch_type").notNull().default("check-in"), // check-in | check-out | unknown
+  verifyMethod: integer("verify_method"),                   // 0=password,1=fingerprint,etc.
+  syncedAt: timestamp("synced_at").defaultNow().notNull(),
+});
+
 export type ModelTestDraft = typeof modelTestDrafts.$inferSelect;
 export type InsertModelTestDraft = typeof modelTestDrafts.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;

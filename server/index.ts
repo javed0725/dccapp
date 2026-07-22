@@ -4,6 +4,8 @@ import compression from "compression";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import cron from "node-cron";
+import { syncZktecoAttendance } from "./zkteco-sync";
 
 const app = express();
 const httpServer = createServer(app);
@@ -141,4 +143,16 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  // ── ZKTeco background cron: sync attendance every 15 minutes ─────────────
+  cron.schedule("*/15 * * * *", async () => {
+    log("Running scheduled ZKTeco attendance sync…", "zkteco-cron");
+    const result = await syncZktecoAttendance();
+    if (result.error) {
+      log(`ZKTeco sync error: ${result.error}`, "zkteco-cron");
+    } else {
+      log(`ZKTeco sync done — inserted ${result.inserted}/${result.total}`, "zkteco-cron");
+    }
+  });
+  log("ZKTeco cron scheduled (every 15 min).");
 })();
