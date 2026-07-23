@@ -21,6 +21,11 @@ type ZktecoLogRow = {
   createdAt: string;
 };
 
+type DisplayRow =
+  | { kind: "present";  log: ZktecoLogRow; match: { name: string; kind: "student" | "staff"; batchId?: number; group?: string; shift?: string } }
+  | { kind: "unlinked"; log: ZktecoLogRow }
+  | { kind: "absent";   studentId: string; name: string; group?: string; shift?: string };
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -180,9 +185,53 @@ export default function Attendance() {
         }
         return true;
       })
-      // Strictly descending by punchTime (latest first)
       .sort((a, b) => new Date(b.punchTime).getTime() - new Date(a.punchTime).getTime());
   }, [zkLogs, fStudentId, fBatchId, fGroup, fShift, deviceUserMap]);
+
+  // ── Combined display rows: Present + Unlinked + Absent ───────────────────
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    const rows: DisplayRow[] = filteredLogs.map((log) => {
+      const match = deviceUserMap[log.deviceUserId];
+      if (match) return { kind: "present", log, match };
+      return { kind: "unlinked", log };
+    });
+
+    // Absent rows: only when a batch or specific student filter is active
+    if (fBatchId || fStudentId) {
+      const punchedIds = new Set(filteredLogs.map((l) => l.deviceUserId));
+      (students as any[])
+        .filter((s: any) => {
+          if (s.isActive === false) return false;
+          if (!s.studentCustomId) return false;
+          if (punchedIds.has(String(s.studentCustomId))) return false;
+          if (fStudentId && String(s.studentCustomId) !== fStudentId) return false;
+          if (fBatchId && String(s.batchId) !== fBatchId) return false;
+          if (fGroup && s.academicGroup !== fGroup) return false;
+          if (fShift && s.shift !== fShift) return false;
+          return true;
+        })
+        .forEach((s: any) =>
+          rows.push({
+            kind: "absent",
+            studentId: String(s.studentCustomId),
+            name: s.name,
+            group: s.academicGroup,
+            shift: s.shift,
+          })
+        );
+    }
+
+    // Sort: present (desc by punchTime) → unlinked (desc by punchTime) → absent (alpha)
+    const order: Record<DisplayRow["kind"], number> = { present: 0, unlinked: 1, absent: 2 };
+    return rows.sort((a, b) => {
+      if (order[a.kind] !== order[b.kind]) return order[a.kind] - order[b.kind];
+      if (a.kind !== "absent" && b.kind !== "absent")
+        return new Date((b as any).log.punchTime).getTime() - new Date((a as any).log.punchTime).getTime();
+      if (a.kind === "absent" && b.kind === "absent")
+        return a.name.localeCompare(b.name);
+      return 0;
+    });
+  }, [filteredLogs, deviceUserMap, students, fBatchId, fStudentId, fGroup, fShift]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const applyPreset = (preset: string) => {
@@ -436,7 +485,7 @@ export default function Attendance() {
                 )}
                 {!zkLoading && (
                   <span className="text-xs text-slate-500 tabular-nums">
-                    {filteredLogs.length} record{filteredLogs.length !== 1 ? "s" : ""}
+                    {displayRows.length} record{displayRows.length !== 1 ? "s" : ""}
                     {" · "}
                     {fFromDate === fToDate ? fFromDate : `${fFromDate} → ${fToDate}`}
                   </span>
@@ -468,72 +517,123 @@ export default function Attendance() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {filteredLogs.map((log) => {
-                  const match = deviceUserMap[log.deviceUserId];
-                  const punchDate = new Date(log.punchTime);
-                  const timeStr = punchDate.toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: true,
-                  });
-                  const dateStr = punchDate.toLocaleDateString("en-US", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    ...(fFromDate !== fToDate ? { year: "numeric" } : {}),
-                  });
+                {displayRows.map((row, idx) => {
+                  // ── Derive display values per row kind ──────────────────
+                  let name = "";
+                  let idStr = "";
+                  let group: string | undefined;
+                  let shift: string | undefined;
+                  let isStaff = false;
+                  let timeStr = "—";
+                  let dateStr = "";
+                  let deviceId = "";
+                  let rowKey = String(idx);
+
+                  if (row.kind === "present") {
+                    name   = row.match.name;
+                    idStr  = `ID ${row.log.deviceUserId}`;
+                    group  = row.match.kind === "student" ? row.match.group : undefined;
+                    shift  = row.match.kind === "student" ? row.match.shift : undefined;
+                    isStaff = row.match.kind === "staff";
+                    deviceId = row.log.deviceId;
+                    rowKey = `p-${row.log.id}`;
+                    const d = new Date(row.log.punchTime);
+                    timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+                    dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(fFromDate !== fToDate ? { year: "numeric" } : {}) });
+                  } else if (row.kind === "unlinked") {
+                    name    = row.log.deviceUserId;
+                    idStr   = "Unknown ID";
+                    deviceId = row.log.deviceId;
+                    rowKey  = `u-${row.log.id}`;
+                    const d = new Date(row.log.punchTime);
+                    timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+                    dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(fFromDate !== fToDate ? { year: "numeric" } : {}) });
+                  } else {
+                    name   = row.name;
+                    idStr  = `ID ${row.studentId}`;
+                    group  = row.group;
+                    shift  = row.shift;
+                    rowKey = `a-${row.studentId}`;
+                    dateStr = fFromDate === fToDate ? fFromDate : `${fFromDate} – ${fToDate}`;
+                  }
+
+                  // ── Row border / bg colour per status ──────────────────
+                  const rowClass =
+                    row.kind === "present"
+                      ? "border-l-2 border-l-emerald-400 bg-emerald-50/40 hover:bg-emerald-50/70"
+                      : row.kind === "absent"
+                      ? "border-l-2 border-l-rose-400 bg-rose-50/40 hover:bg-rose-50/70"
+                      : "border-l-2 border-l-amber-400 bg-amber-50/40 hover:bg-amber-50/70";
+
                   return (
                     <div
-                      key={log.id}
-                      data-testid={`zkteco-row-${log.id}`}
-                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-100/60 transition-colors"
+                      key={rowKey}
+                      data-testid={`attendance-row-${rowKey}`}
+                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 gap-y-0.5 px-3 py-2.5 rounded-lg border border-slate-100 transition-colors ${rowClass}`}
                     >
-                      {/* Left: name + metadata */}
-                      <div className="min-w-0 flex-1">
-                        {match ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-sm font-semibold text-slate-800">{match.name}</p>
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] h-4 px-1.5 ${
-                                match.kind === "staff"
-                                  ? "border-purple-200 text-purple-700 bg-purple-50"
-                                  : "border-blue-200 text-blue-700 bg-blue-50"
-                              }`}
-                            >
-                              {match.kind === "staff" ? "Staff" : "Student"}
-                            </Badge>
-                            {match.kind === "student" && match.group && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-slate-200 text-slate-500">
-                                {match.group}
-                              </Badge>
-                            )}
-                            <span className="text-[11px] text-slate-400 font-mono">
-                              ID {log.deviceUserId}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-semibold text-slate-600 font-mono">
-                              {log.deviceUserId}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] h-4 px-1.5 border-amber-200 text-amber-700 bg-amber-50"
-                            >
-                              Unlinked
-                            </Badge>
-                          </div>
-                        )}
-                        <p className="text-[11px] text-slate-500 mt-0.5">{dateStr}</p>
+                      {/* ── Col 1: Name + ID ─────────────────────────────── */}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate leading-snug">
+                          {name}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-[11px] text-slate-400 font-mono">{idStr}</span>
+                          {dateStr && (
+                            <span className="text-[11px] text-slate-400">{dateStr}</span>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Right: time + device */}
+                      {/* ── Col 2: Class / Group / Shift badges (hidden xs) ── */}
+                      <div className="hidden sm:flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                        {isStaff && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-200 text-purple-700 bg-purple-50">
+                            Staff
+                          </Badge>
+                        )}
+                        {!isStaff && row.kind !== "unlinked" && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-blue-200 text-blue-700 bg-blue-50">
+                            Student
+                          </Badge>
+                        )}
+                        {group && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-200 text-purple-700 bg-purple-50">
+                            {group}
+                          </Badge>
+                        )}
+                        {shift && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-blue-200 text-blue-700 bg-blue-50">
+                            {shift}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* ── Col 3: Punch Time ────────────────────────────── */}
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-mono font-semibold text-slate-700">{timeStr}</p>
-                        {log.deviceId && (
-                          <p className="text-[10px] text-slate-400 font-mono">dev: {log.deviceId}</p>
+                        <p className={`text-sm font-mono font-semibold ${row.kind === "absent" ? "text-slate-400" : "text-slate-700 dark:text-slate-300"}`}>
+                          {timeStr}
+                        </p>
+                        {deviceId && (
+                          <p className="text-[10px] text-slate-400 font-mono">dev: {deviceId}</p>
+                        )}
+                      </div>
+
+                      {/* ── Col 4: Status Badge ──────────────────────────── */}
+                      <div className="shrink-0">
+                        {row.kind === "present" && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            🟢 Present
+                          </span>
+                        )}
+                        {row.kind === "absent" && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                            🔴 Absent
+                          </span>
+                        )}
+                        {row.kind === "unlinked" && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                            🟡 Unlinked
+                          </span>
                         )}
                       </div>
                     </div>
