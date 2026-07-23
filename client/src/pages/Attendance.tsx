@@ -15,8 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2, Loader2, Fingerprint, Wifi, WifiOff, RefreshCw, CircleCheck, AlertCircle } from "lucide-react";
-import { syncZkteco, type ZkSyncPhase } from "@/lib/zkteco-sync";
+import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2, Loader2, Fingerprint } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 
 type AttendanceRow = {
@@ -201,23 +200,13 @@ export default function Attendance() {
     setPresence(next);
   };
 
-  // ── ZKTeco device sync ────────────────────────────────────────────────────
-  const [syncStatus, setSyncStatus] = useState<ZkSyncPhase>({ phase: "idle" });
-  const isSyncing = syncStatus.phase === "connecting" || syncStatus.phase === "fetching" || syncStatus.phase === "syncing";
-
-  const handleDeviceSync = async () => {
-    setSyncStatus({ phase: "idle" });
-    await syncZkteco(setSyncStatus);
-  };
-
   return (
     <Layout title="Attendance" subtitle="Mark and review daily attendance">
       <Tabs defaultValue="mark" className="space-y-4">
-        <TabsList className={`grid w-full max-w-2xl ${isAdmin ? "grid-cols-4" : "grid-cols-2"}`}>
+        <TabsList className={`grid w-full max-w-xl ${isAdmin ? "grid-cols-3" : "grid-cols-2"}`}>
           <TabsTrigger value="mark" data-testid="tab-mark"><ClipboardCheck className="w-4 h-4 mr-1.5" />Mark</TabsTrigger>
           <TabsTrigger value="history" data-testid="tab-history"><HistoryIcon className="w-4 h-4 mr-1.5" />History</TabsTrigger>
           {isAdmin && <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1.5" />Summary</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="device" data-testid="tab-device"><Fingerprint className="w-4 h-4 mr-1.5" />Device</TabsTrigger>}
         </TabsList>
 
         {/* MARK TAB */}
@@ -419,7 +408,7 @@ export default function Attendance() {
 
         {/* HISTORY TAB */}
         <TabsContent value="history" className="space-y-4">
-          <HistoryView batches={batches} students={students} subjectOptions={subjectOptions} />
+          <HistoryView batches={batches} students={students} subjectOptions={subjectOptions} isAdmin={isAdmin} />
         </TabsContent>
 
         {/* SUMMARY TAB (admin) */}
@@ -429,146 +418,31 @@ export default function Attendance() {
           </TabsContent>
         )}
 
-        {/* DEVICE TAB (admin) – ZKTeco biometric sync */}
-        {isAdmin && (
-          <TabsContent value="device" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Fingerprint className="w-5 h-5 text-blue-500" />
-                  <CardTitle className="text-base">Biometric Device Sync</CardTitle>
-                </div>
-                <p className="text-sm text-slate-500 mt-1">
-                  Pulls punch logs directly from the ZKTeco device on the coaching center Wi-Fi
-                  and stores them in the database.
-                </p>
-              </CardHeader>
-
-              <CardContent className="space-y-5">
-                {/* Device info row */}
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50">
-                  <Fingerprint className="w-5 h-5 text-slate-400 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-700">ZKTeco Attendance Device</p>
-                    <p className="text-xs text-slate-500 font-mono">192.168.0.201 : 4370</p>
-                  </div>
-                  <div className="ml-auto shrink-0">
-                    {syncStatus.phase === "error" ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-2.5 py-1">
-                        <WifiOff className="w-3 h-3" /> Unreachable
-                      </span>
-                    ) : syncStatus.phase === "success" ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2.5 py-1">
-                        <Wifi className="w-3 h-3" /> Connected
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-white border border-slate-200 rounded-full px-2.5 py-1">
-                        <Wifi className="w-3 h-3" /> Local Wi-Fi
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Status feedback */}
-                {syncStatus.phase !== "idle" && (
-                  <div
-                    className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm
-                      ${syncStatus.phase === "error"
-                        ? "bg-rose-50 border-rose-200 text-rose-700"
-                        : syncStatus.phase === "success"
-                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                          : "bg-blue-50 border-blue-200 text-blue-700"}`}
-                  >
-                    {/* Icon */}
-                    <span className="mt-0.5 shrink-0">
-                      {isSyncing && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {syncStatus.phase === "success" && <CircleCheck className="w-4 h-4" />}
-                      {syncStatus.phase === "error" && <AlertCircle className="w-4 h-4" />}
-                    </span>
-
-                    {/* Message */}
-                    <div className="space-y-0.5">
-                      {syncStatus.phase === "connecting" && (
-                        <p className="font-medium">Connecting to local device…</p>
-                      )}
-                      {syncStatus.phase === "fetching" && (
-                        <p className="font-medium">Reading attendance logs from device…</p>
-                      )}
-                      {syncStatus.phase === "syncing" && (
-                        <p className="font-medium">Syncing {syncStatus.count} record{syncStatus.count !== 1 ? "s" : ""} to the server…</p>
-                      )}
-                      {syncStatus.phase === "success" && (
-                        <>
-                          <p className="font-semibold">
-                            Successfully synced {syncStatus.total} record{syncStatus.total !== 1 ? "s" : ""}!
-                          </p>
-                          <p className="text-xs opacity-80">
-                            {syncStatus.inserted} new &nbsp;·&nbsp; {syncStatus.duplicates} already stored (skipped)
-                          </p>
-                        </>
-                      )}
-                      {syncStatus.phase === "error" && (
-                        <p className="font-medium">{syncStatus.message}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Wi-Fi reminder */}
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Wifi className="w-3.5 h-3.5 shrink-0" />
-                  <span>
-                    Your device must be connected to the <strong>coaching center Wi-Fi</strong> for the sync to reach the attendance machine.
-                  </span>
-                </div>
-
-                {/* Sync button */}
-                <Button
-                  onClick={handleDeviceSync}
-                  disabled={isSyncing}
-                  data-testid="button-sync-zkteco"
-                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 gap-2"
-                  size="lg"
-                >
-                  {isSyncing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {syncStatus.phase === "connecting" && "Connecting…"}
-                      {syncStatus.phase === "fetching" && "Reading logs…"}
-                      {syncStatus.phase === "syncing" && `Uploading ${(syncStatus as { count: number }).count} records…`}
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4" />
-                      Sync Attendance from Device
-                    </>
-                  )}
-                </Button>
-
-                {/* Reset status after success */}
-                {syncStatus.phase === "success" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSyncStatus({ phase: "idle" })}
-                    className="gap-1.5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Sync Again
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
       </Tabs>
     </Layout>
   );
 }
 
-function HistoryView({ batches, students, subjectOptions }: { batches: any[]; students: any[]; subjectOptions: string[] }) {
+type ZktecoLogRow = {
+  id: number;
+  deviceUserId: string;
+  deviceId: string;
+  punchTime: string;
+  createdAt: string;
+};
+
+function HistoryView({
+  batches, students, subjectOptions, isAdmin,
+}: {
+  batches: any[];
+  students: any[];
+  subjectOptions: string[];
+  isAdmin: boolean;
+}) {
   const [batchId, setBatchId] = useState<string>("");
   const [group, setGroup] = useState<string>("all");
   const [filterSubject, setFilterSubject] = useState<string>("");
+  const [zkDate, setZkDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const { activePortal } = usePortal();
 
   const batchStudents = (students || []).filter((s: any) => !batchId || String(s.batchId) === batchId);
@@ -632,7 +506,40 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
   };
   const batchName = (id: number) => batches.find((b: any) => b.id === id)?.name || `Batch #${id}`;
 
-  // Group rows by batch
+  // ZKTeco biometric punch logs (admin only) ────────────────────────────────
+  const { data: teachers = [] } = useQuery<any[]>({
+    queryKey: ["/api/teachers"],
+    enabled: isAdmin,
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: zkLogs = [], isLoading: zkLoading } = useQuery<ZktecoLogRow[]>({
+    queryKey: ["/api/attendance/zkteco-logs", zkDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (zkDate) params.set("date", zkDate);
+      const res = await fetch(`/api/attendance/zkteco-logs?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+
+  // Build deviceUserId → display name from enrolled students + staff
+  const deviceUserMap = useMemo(() => {
+    const map: Record<string, { name: string; kind: "student" | "staff" }> = {};
+    (students || []).forEach((s: any) => {
+      if (s.studentCustomId) map[String(s.studentCustomId)] = { name: s.name, kind: "student" };
+    });
+    (teachers || []).forEach((t: any) => {
+      if (t.teacherId) map[String(t.teacherId)] = { name: t.name || t.username, kind: "staff" };
+    });
+    return map;
+  }, [students, teachers]);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Group manual-attendance rows by batch
   const byBatch: Record<number, AttendanceRow[]> = {};
   rows.forEach(r => {
     if (!byBatch[r.batchId]) byBatch[r.batchId] = [];
@@ -640,6 +547,7 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
   });
 
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -793,6 +701,94 @@ function HistoryView({ batches, students, subjectOptions }: { batches: any[]; st
         )}
       </CardContent>
     </Card>
+
+    {/* ── Biometric Punch Logs (ZKTeco) — admin only ─────────────────────── */}
+    {isAdmin && (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Fingerprint className="w-4 h-4 text-blue-500" /> Biometric Punch Logs
+          </CardTitle>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Raw punch records from the ZKTeco device. Unlinked IDs are shown as-is until a student or staff profile is matched.
+          </p>
+          <div className="pt-2 max-w-xs">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 block">Date</Label>
+            <div className="relative">
+              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <Input
+                type="date"
+                value={zkDate}
+                onChange={(e) => setZkDate(e.target.value)}
+                className="pl-9"
+                data-testid="input-zkteco-date"
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {zkLoading ? (
+            <p className="text-sm text-slate-500 text-center py-6 flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading biometric logs…
+            </p>
+          ) : zkLogs.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">
+              No biometric punch records found for {zkDate}.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {zkLogs.map((log) => {
+                const match = deviceUserMap[log.deviceUserId];
+                const punchDate = new Date(log.punchTime);
+                const timeStr = punchDate.toLocaleTimeString("en-US", {
+                  hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
+                });
+                const dateStr = punchDate.toLocaleDateString("en-US", {
+                  weekday: "short", year: "numeric", month: "short", day: "numeric",
+                });
+                return (
+                  <div
+                    key={log.id}
+                    data-testid={`zkteco-row-${log.id}`}
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-100/60 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      {match ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-semibold text-slate-800">{match.name}</p>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] h-4 px-1.5 ${match.kind === "staff" ? "border-purple-200 text-purple-700 bg-purple-50" : "border-blue-200 text-blue-700 bg-blue-50"}`}
+                          >
+                            {match.kind === "staff" ? "Staff" : "Student"}
+                          </Badge>
+                          <span className="text-[11px] text-slate-400 font-mono">ID: {log.deviceUserId}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-slate-600 font-mono">{log.deviceUserId}</p>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-amber-200 text-amber-700 bg-amber-50">
+                            Unlinked
+                          </Badge>
+                        </div>
+                      )}
+                      <p className="text-[11px] text-slate-500 mt-0.5">{dateStr}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-mono font-semibold text-slate-700">{timeStr}</p>
+                      {log.deviceId && (
+                        <p className="text-[10px] text-slate-400 font-mono">dev: {log.deviceId}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )}
+    </div>
   );
 }
 

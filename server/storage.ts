@@ -15,7 +15,7 @@ import {
   type Attendance, type InsertAttendance,
   type ZktecoLog, type InsertZktecoLog,
 } from "@shared/schema";
-import { eq, desc, asc, inArray, sql, and } from "drizzle-orm";
+import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
 
 function removePassword<T extends User | null | undefined>(user: T) {
   if (!user) return user;
@@ -103,6 +103,7 @@ export interface IStorage {
 
   // ZKTeco Logs
   syncZktecoLogs(logs: InsertZktecoLog[]): Promise<{ inserted: number; duplicates: number }>;
+  getZktecoLogs(filter?: { fromDate?: Date; toDate?: Date; limit?: number }): Promise<ZktecoLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -676,6 +677,23 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { inserted: newLogs.length, duplicates };
+  }
+
+  async getZktecoLogs(filter?: { fromDate?: Date; toDate?: Date; limit?: number }): Promise<ZktecoLog[]> {
+    const where =
+      filter?.fromDate && filter?.toDate
+        ? and(gte(zktecoLogs.punchTime, filter.fromDate), lte(zktecoLogs.punchTime, filter.toDate))
+        : filter?.fromDate
+          ? gte(zktecoLogs.punchTime, filter.fromDate)
+          : filter?.toDate
+            ? lte(zktecoLogs.punchTime, filter.toDate)
+            : undefined;
+    return db
+      .select()
+      .from(zktecoLogs)
+      .where(where)
+      .orderBy(desc(zktecoLogs.punchTime))
+      .limit(filter?.limit ?? 300);
   }
 }
 

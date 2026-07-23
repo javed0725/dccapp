@@ -816,6 +816,25 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  // GET /api/attendance/zkteco-logs — raw biometric punch log viewer (admin only)
+  // Optional query params: date=YYYY-MM-DD (single day), limit=N (max 500)
+  app.get("/api/attendance/zkteco-logs", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const dateParam = req.query.date ? String(req.query.date) : undefined;
+    const limit = req.query.limit ? Math.min(Number(req.query.limit), 500) : 300;
+    let fromDate: Date | undefined;
+    let toDate: Date | undefined;
+    if (dateParam) {
+      fromDate = new Date(`${dateParam}T00:00:00`);
+      toDate   = new Date(`${dateParam}T23:59:59.999`);
+      if (isNaN(fromDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date parameter" });
+      }
+    }
+    const logs = await storage.getZktecoLogs({ fromDate, toDate, limit });
+    res.json(logs);
+  });
+
   app.get("/api/attendance/summary", async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const subject = req.query.subject ? String(req.query.subject) : undefined;
