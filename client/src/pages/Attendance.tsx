@@ -188,50 +188,110 @@ export default function Attendance() {
       .sort((a, b) => new Date(b.punchTime).getTime() - new Date(a.punchTime).getTime());
   }, [zkLogs, fStudentId, fBatchId, fGroup, fShift, deviceUserMap]);
 
-  // ── Combined display rows: Present + Unlinked + Absent ───────────────────
+  // ── Combined display rows: Present + Absent + Unlinked ───────────────────
   const displayRows = useMemo<DisplayRow[]>(() => {
-    const rows: DisplayRow[] = filteredLogs.map((log) => {
-      const match = deviceUserMap[log.deviceUserId];
-      if (match) return { kind: "present", log, match };
-      return { kind: "unlinked", log };
-    });
 
-    // Absent rows: only when a batch or specific student filter is active
-    if (fBatchId || fStudentId) {
-      const punchedIds = new Set(filteredLogs.map((l) => l.deviceUserId));
-      (students as any[])
+    // ── CASE 1: Batch selected → roster-first, sorted by roll number ─────────
+    if (fBatchId) {
+      // 1a. All active students in this batch (respecting group/shift/student filters)
+      const rosterStudents = (students as any[])
         .filter((s: any) => {
           if (s.isActive === false) return false;
           if (!s.studentCustomId) return false;
-          if (punchedIds.has(String(s.studentCustomId))) return false;
+          if (String(s.batchId) !== fBatchId) return false;
+          if (fGroup    && s.academicGroup !== fGroup) return false;
+          if (fShift    && s.shift         !== fShift) return false;
           if (fStudentId && String(s.studentCustomId) !== fStudentId) return false;
-          if (fBatchId && String(s.batchId) !== fBatchId) return false;
-          if (fGroup && s.academicGroup !== fGroup) return false;
-          if (fShift && s.shift !== fShift) return false;
           return true;
         })
-        .forEach((s: any) =>
-          rows.push({
-            kind: "absent",
-            studentId: String(s.studentCustomId),
-            name: s.name,
-            group: s.academicGroup,
-            shift: s.shift,
-          })
+        .sort((a: any, b: any) =>
+          parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0")
         );
+
+      // 1b. Build earliest-punch-per-student map from the already-filtered logs
+      //     (filteredLogs already restricts to this batch via deviceUserMap)
+      const punchByStudent = new Map<string, ZktecoLogRow>();
+      for (const log of zkLogs) {                      // use raw zkLogs so we catch every punch
+        const sid = log.deviceUserId;
+        const existing = punchByStudent.get(sid);
+        if (!existing || new Date(log.punchTime) < new Date(existing.punchTime))
+          punchByStudent.set(sid, log);
+      }
+
+      // 1c. One row per student: Present if punched, Absent otherwise
+      const rows: DisplayRow[] = rosterStudents.map((s: any) => {
+        const sid = String(s.studentCustomId);
+        const log = punchByStudent.get(sid);
+        if (log) {
+          return {
+            kind: "present",
+            log,
+            match: {
+              name: s.name,
+              kind: "student",
+              batchId: s.batchId,
+              group: s.academicGroup,
+              shift: s.shift,
+            },
+          };
+        }
+        return {
+          kind: "absent",
+          studentId: sid,
+          name: s.name,
+          group: s.academicGroup,
+          shift: s.shift,
+        };
+      });
+
+      return rows;
     }
 
-    // Sort: present (desc by punchTime) → unlinked (desc by punchTime) → absent (alpha)
-    const order: Record<DisplayRow["kind"], number> = { present: 0, unlinked: 1, absent: 2 };
-    return rows.sort((a, b) => {
-      if (order[a.kind] !== order[b.kind]) return order[a.kind] - order[b.kind];
-      if (a.kind !== "absent" && b.kind !== "absent")
-        return new Date((b as any).log.punchTime).getTime() - new Date((a as any).log.punchTime).getTime();
-      if (a.kind === "absent" && b.kind === "absent")
-        return a.name.localeCompare(b.name);
-      return 0;
-    });
-  }, [filteredLogs, deviceUserMap, students, fBatchId, fStudentId, fGroup, fShift]);
+    // ── CASE 2: Specific student selected (no batch) ──────────────────────────
+    if (fStudentId) {
+      const student = (students as any[]).find(
+        (s: any) => String(s.studentCustomId) === fStudentId
+      );
+      const log = zkLogs
+        .filter((l) => l.deviceUserId === fStudentId)
+        .sort((a, b) => new Date(a.punchTime).getTime() - new Date(b.punchTime).getTime())[0];
+
+      if (log) {
+        const mapEntry = deviceUserMap[fStudentId];
+        return [{
+          kind: "present",
+          log,
+          match: mapEntry ?? {
+            name: student?.name ?? fStudentId,
+            kind: "student",
+            batchId: student?.batchId,
+            group: student?.academicGroup,
+            shift: student?.shift,
+          },
+        }];
+      }
+      if (student) {
+        return [{
+          kind: "absent",
+          studentId: fStudentId,
+          name: student.name,
+          group: student.academicGroup,
+          shift: student.shift,
+        }];
+      }
+      // Fallthrough: unrecognised ID
+    }
+
+    // ── CASE 3: No batch/student filter → punch-log view (latest first) ──────
+    return [...filteredLogs]
+      .sort((a, b) => new Date(b.punchTime).getTime() - new Date(a.punchTime).getTime())
+      .map((log) => {
+        const match = deviceUserMap[log.deviceUserId];
+        if (match) return { kind: "present", log, match };
+        return { kind: "unlinked", log };
+      });
+
+  }, [zkLogs, filteredLogs, deviceUserMap, students, fBatchId, fStudentId, fGroup, fShift]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const applyPreset = (preset: string) => {
