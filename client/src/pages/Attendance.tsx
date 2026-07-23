@@ -617,29 +617,29 @@ export default function Attendance() {
                     dateStr = fFromDate === fToDate ? fFromDate : `${fFromDate} – ${fToDate}`;
                   }
 
-                  // ── Row border / bg colour per status ──────────────────
+                  // ── Row border / bg colour per status (light + dark) ───
                   const rowClass =
                     row.kind === "present"
-                      ? "border-l-2 border-l-emerald-400 bg-emerald-50/40 hover:bg-emerald-50/70"
+                      ? "border-l-2 border-l-emerald-400 bg-emerald-50/40 hover:bg-emerald-50/70 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30"
                       : row.kind === "absent"
-                      ? "border-l-2 border-l-rose-400 bg-rose-50/40 hover:bg-rose-50/70"
-                      : "border-l-2 border-l-amber-400 bg-amber-50/40 hover:bg-amber-50/70";
+                      ? "border-l-2 border-l-rose-400 bg-rose-50/40 hover:bg-rose-50/70 dark:bg-rose-900/20 dark:hover:bg-rose-900/30"
+                      : "border-l-2 border-l-amber-400 bg-amber-50/40 hover:bg-amber-50/70 dark:bg-amber-900/20 dark:hover:bg-amber-900/30";
 
                   return (
                     <div
                       key={rowKey}
                       data-testid={`attendance-row-${rowKey}`}
-                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 gap-y-0.5 px-3 py-2.5 rounded-lg border border-slate-100 transition-colors ${rowClass}`}
+                      className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 gap-y-0.5 px-3 py-2.5 rounded-lg border border-slate-100 dark:border-slate-700 transition-colors ${rowClass}`}
                     >
                       {/* ── Col 1: Name + ID ─────────────────────────────── */}
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate leading-snug">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-snug">
                           {name}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="text-[11px] text-slate-400 font-mono">{idStr}</span>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{idStr}</span>
                           {dateStr && (
-                            <span className="text-[11px] text-slate-400">{dateStr}</span>
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">{dateStr}</span>
                           )}
                         </div>
                       </div>
@@ -647,22 +647,22 @@ export default function Attendance() {
                       {/* ── Col 2: Class / Group / Shift badges (hidden xs) ── */}
                       <div className="hidden sm:flex items-center gap-1 shrink-0 flex-wrap justify-end">
                         {isStaff && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-200 text-purple-700 bg-purple-50">
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-200 text-purple-700 bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:bg-purple-900/30">
                             Staff
                           </Badge>
                         )}
                         {!isStaff && row.kind !== "unlinked" && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-blue-200 text-blue-700 bg-blue-50">
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-blue-200 text-blue-700 bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:bg-blue-900/30">
                             Student
                           </Badge>
                         )}
                         {group && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-200 text-purple-700 bg-purple-50">
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-purple-200 text-purple-700 bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:bg-purple-900/30">
                             {group}
                           </Badge>
                         )}
                         {shift && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-blue-200 text-blue-700 bg-blue-50">
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-blue-200 text-blue-700 bg-blue-50 dark:border-blue-700 dark:text-blue-300 dark:bg-blue-900/30">
                             {shift}
                           </Badge>
                         )}
@@ -670,28 +670,28 @@ export default function Attendance() {
 
                       {/* ── Col 3: Punch Time ────────────────────────────── */}
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-mono font-semibold ${row.kind === "absent" ? "text-slate-400" : "text-slate-700 dark:text-slate-300"}`}>
+                        <p className={`text-sm font-mono font-semibold ${row.kind === "absent" ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"}`}>
                           {timeStr}
                         </p>
                         {deviceId && (
-                          <p className="text-[10px] text-slate-400 font-mono">dev: {deviceId}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">dev: {deviceId}</p>
                         )}
                       </div>
 
                       {/* ── Col 4: Status Badge ──────────────────────────── */}
                       <div className="shrink-0">
                         {row.kind === "present" && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-700">
                             🟢 Present
                           </span>
                         )}
                         {row.kind === "absent" && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/40 dark:text-rose-400 dark:border-rose-700">
                             🔴 Absent
                           </span>
                         )}
                         {row.kind === "unlinked" && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/40 dark:text-amber-400 dark:border-amber-700">
                             🟡 Unlinked
                           </span>
                         )}
