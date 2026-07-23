@@ -191,16 +191,17 @@ export default function Attendance() {
   // ── Combined display rows: Present + Absent + Unlinked ───────────────────
   const displayRows = useMemo<DisplayRow[]>(() => {
 
-    // ── CASE 1: Batch selected → roster-first, sorted by roll number ─────────
+    // ── CASE 1: Batch selected → grouped by student (roll-number order),
+    //            all punches per student chronologically, absent students last ──
     if (fBatchId) {
-      // 1a. All active students in this batch (respecting group/shift/student filters)
+      // 1a. Active roster filtered by group / shift / student
       const rosterStudents = (students as any[])
         .filter((s: any) => {
           if (s.isActive === false) return false;
           if (!s.studentCustomId) return false;
           if (String(s.batchId) !== fBatchId) return false;
-          if (fGroup    && s.academicGroup !== fGroup) return false;
-          if (fShift    && s.shift         !== fShift) return false;
+          if (fGroup     && s.academicGroup !== fGroup) return false;
+          if (fShift     && s.shift         !== fShift) return false;
           if (fStudentId && String(s.studentCustomId) !== fStudentId) return false;
           return true;
         })
@@ -208,67 +209,66 @@ export default function Attendance() {
           parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0")
         );
 
-      // 1b. Build earliest-punch-per-student map from the already-filtered logs
-      //     (filteredLogs already restricts to this batch via deviceUserMap)
-      const punchByStudent = new Map<string, ZktecoLogRow>();
-      for (const log of zkLogs) {                      // use raw zkLogs so we catch every punch
-        const sid = log.deviceUserId;
-        const existing = punchByStudent.get(sid);
-        if (!existing || new Date(log.punchTime) < new Date(existing.punchTime))
-          punchByStudent.set(sid, log);
+      // 1b. Collect ALL punches per student from raw zkLogs
+      const punchesByStudent = new Map<string, ZktecoLogRow[]>();
+      for (const log of zkLogs) {
+        const arr = punchesByStudent.get(log.deviceUserId) ?? [];
+        arr.push(log);
+        punchesByStudent.set(log.deviceUserId, arr);
       }
 
-      // 1c. One row per student: Present if punched, Absent otherwise
-      const rows: DisplayRow[] = rosterStudents.map((s: any) => {
+      // 1c. Emit one row per punch (chronological) per student; absent if no punches
+      const rows: DisplayRow[] = [];
+      for (const s of rosterStudents) {
         const sid = String(s.studentCustomId);
-        const log = punchByStudent.get(sid);
-        if (log) {
-          return {
-            kind: "present",
-            log,
-            match: {
-              name: s.name,
-              kind: "student",
-              batchId: s.batchId,
-              group: s.academicGroup,
-              shift: s.shift,
-            },
-          };
+        const punches = (punchesByStudent.get(sid) ?? [])
+          .sort((a, b) => new Date(a.punchTime).getTime() - new Date(b.punchTime).getTime());
+        if (punches.length > 0) {
+          for (const log of punches) {
+            rows.push({
+              kind: "present",
+              log,
+              match: {
+                name: s.name,
+                kind: "student",
+                batchId: s.batchId,
+                group: s.academicGroup,
+                shift: s.shift,
+              },
+            });
+          }
+        } else {
+          rows.push({
+            kind: "absent",
+            studentId: sid,
+            name: s.name,
+            group: s.academicGroup,
+            shift: s.shift,
+          });
         }
-        return {
-          kind: "absent",
-          studentId: sid,
-          name: s.name,
-          group: s.academicGroup,
-          shift: s.shift,
-        };
-      });
-
+      }
       return rows;
     }
 
-    // ── CASE 2: Specific student selected (no batch) ──────────────────────────
+    // ── CASE 2: Specific student selected (no batch) → all punches, chrono ───
     if (fStudentId) {
       const student = (students as any[]).find(
         (s: any) => String(s.studentCustomId) === fStudentId
       );
-      const log = zkLogs
+      const punches = zkLogs
         .filter((l) => l.deviceUserId === fStudentId)
-        .sort((a, b) => new Date(a.punchTime).getTime() - new Date(b.punchTime).getTime())[0];
+        .sort((a, b) => new Date(a.punchTime).getTime() - new Date(b.punchTime).getTime());
 
-      if (log) {
+      if (punches.length > 0) {
         const mapEntry = deviceUserMap[fStudentId];
-        return [{
-          kind: "present",
-          log,
-          match: mapEntry ?? {
-            name: student?.name ?? fStudentId,
-            kind: "student",
-            batchId: student?.batchId,
-            group: student?.academicGroup,
-            shift: student?.shift,
-          },
-        }];
+        const match = mapEntry ?? {
+          name: student?.name ?? fStudentId,
+          kind: "student" as const,
+          batchId: student?.batchId,
+          group: student?.academicGroup,
+          shift: student?.shift,
+        };
+        return punches.map((log) => ({ kind: "present" as const, log, match }));
       }
       if (student) {
         return [{
@@ -282,14 +282,34 @@ export default function Attendance() {
       // Fallthrough: unrecognised ID
     }
 
-    // ── CASE 3: No batch/student filter → punch-log view (latest first) ──────
-    return [...filteredLogs]
-      .sort((a, b) => new Date(b.punchTime).getTime() - new Date(a.punchTime).getTime())
-      .map((log) => {
+    // ── CASE 3: No batch/student filter → grouped by person, groups ordered
+    //            by each person's earliest punch (most-recent group first),
+    //            punches within each group chronological ──────────────────────
+    const groupMap = new Map<string, ZktecoLogRow[]>();
+    for (const log of filteredLogs) {
+      const arr = groupMap.get(log.deviceUserId) ?? [];
+      arr.push(log);
+      groupMap.set(log.deviceUserId, arr);
+    }
+    // Sort each group's punches chronologically (earliest first)
+    for (const arr of groupMap.values()) {
+      arr.sort((a, b) => new Date(a.punchTime).getTime() - new Date(b.punchTime).getTime());
+    }
+    // Order groups by the most recent punch in each group (latest-active group first)
+    const sortedGroups = [...groupMap.entries()].sort(([, a], [, b]) => {
+      const aLatest = new Date(a[a.length - 1].punchTime).getTime();
+      const bLatest = new Date(b[b.length - 1].punchTime).getTime();
+      return bLatest - aLatest;
+    });
+    const rows: DisplayRow[] = [];
+    for (const [, punches] of sortedGroups) {
+      for (const log of punches) {
         const match = deviceUserMap[log.deviceUserId];
-        if (match) return { kind: "present", log, match };
-        return { kind: "unlinked", log };
-      });
+        if (match) rows.push({ kind: "present", log, match });
+        else rows.push({ kind: "unlinked", log });
+      }
+    }
+    return rows;
 
   }, [zkLogs, filteredLogs, deviceUserMap, students, fBatchId, fStudentId, fGroup, fShift]);
 
