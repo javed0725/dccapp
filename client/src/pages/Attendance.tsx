@@ -618,16 +618,16 @@ export default function Attendance() {
                     deviceId = row.log.deviceId;
                     rowKey = `p-${row.log.id}`;
                     const d = new Date(row.log.punchTime);
-                    timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
-                    dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(fFromDate !== fToDate ? { year: "numeric" } : {}) });
+                    timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "Asia/Dhaka" });
+                    dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Dhaka", ...(fFromDate !== fToDate ? { year: "numeric" } : {}) });
                   } else if (row.kind === "unlinked") {
                     name    = row.log.deviceUserId;
                     idStr   = "Unknown ID";
                     deviceId = row.log.deviceId;
                     rowKey  = `u-${row.log.id}`;
                     const d = new Date(row.log.punchTime);
-                    timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
-                    dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...(fFromDate !== fToDate ? { year: "numeric" } : {}) });
+                    timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "Asia/Dhaka" });
+                    dateStr = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Asia/Dhaka", ...(fFromDate !== fToDate ? { year: "numeric" } : {}) });
                   } else {
                     name   = row.name;
                     idStr  = `ID ${row.studentId}`;
