@@ -817,19 +817,22 @@ export async function registerRoutes(
   });
 
   // GET /api/attendance/zkteco-logs — raw biometric punch log viewer (admin only)
-  // Optional query params: date=YYYY-MM-DD (single day), limit=N (max 500)
+  // Optional query params: from=YYYY-MM-DD, to=YYYY-MM-DD, date=YYYY-MM-DD (legacy single day), limit=N (max 2000)
   app.get("/api/attendance/zkteco-logs", async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    const dateParam = req.query.date ? String(req.query.date) : undefined;
-    const limit = req.query.limit ? Math.min(Number(req.query.limit), 500) : 300;
+    const fromParam = req.query.from ? String(req.query.from) : undefined;
+    const toParam   = req.query.to   ? String(req.query.to)   : undefined;
+    const dateParam = req.query.date ? String(req.query.date) : undefined; // legacy
+    const limit = req.query.limit ? Math.min(Number(req.query.limit), 2000) : 500;
     let fromDate: Date | undefined;
-    let toDate: Date | undefined;
-    if (dateParam) {
+    let toDate:   Date | undefined;
+    if (fromParam || toParam) {
+      if (fromParam) { fromDate = new Date(`${fromParam}T00:00:00`); if (isNaN(fromDate.getTime())) return res.status(400).json({ message: "Invalid from date" }); }
+      if (toParam)   { toDate   = new Date(`${toParam}T23:59:59.999`); if (isNaN(toDate.getTime())) return res.status(400).json({ message: "Invalid to date" }); }
+    } else if (dateParam) {
       fromDate = new Date(`${dateParam}T00:00:00`);
       toDate   = new Date(`${dateParam}T23:59:59.999`);
-      if (isNaN(fromDate.getTime())) {
-        return res.status(400).json({ message: "Invalid date parameter" });
-      }
+      if (isNaN(fromDate.getTime())) return res.status(400).json({ message: "Invalid date parameter" });
     }
     const logs = await storage.getZktecoLogs({ fromDate, toDate, limit });
     res.json(logs);

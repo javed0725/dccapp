@@ -1,427 +1,17 @@
 import { useState, useMemo, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useStudents, useBatches } from "@/hooks/use-finance";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { type User } from "@/lib/schemas";
-import { usePortal } from "@/lib/portal-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarDays, Users, CheckCircle2, XCircle, ClipboardCheck, History as HistoryIcon, BarChart3, BookOpen, Phone, Trash2, Loader2, Fingerprint } from "lucide-react";
-import { SiWhatsapp } from "react-icons/si";
+import { CalendarDays, Fingerprint, Loader2, Search, X, SlidersHorizontal } from "lucide-react";
 
-type AttendanceRow = {
-  id: number;
-  date: string;
-  batchId: number;
-  teacherId: number | null;
-  subject: string;
-  academicGroup: string;
-  shift: string;
-  absentStudentIds: number[];
-  totalStudents: number;
-};
-
-type SummaryRow = {
-  batchId: number;
-  batchName: string;
-  totalSessions: number;
-  averageAttendance: number;
-  lastDate: string | null;
-};
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
-// Parse YYYY-MM-DD as a local date to avoid timezone shifting the day name
-const parseLocalDate = (iso: string): Date | null => {
-  if (!iso) return null;
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d);
-};
-
-const formatDayName = (iso: string): string => {
-  const dt = parseLocalDate(iso);
-  return dt ? dt.toLocaleDateString("en-US", { weekday: "long" }) : "";
-};
-
-const formatFullDate = (iso: string): string => {
-  const dt = parseLocalDate(iso);
-  return dt
-    ? dt.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
-    : iso;
-};
-
-export default function Attendance() {
-  const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
-  const isAdmin = user?.role === "admin";
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { data: batches = [] } = useBatches();
-  const { data: students = [] } = useStudents();
-
-  const [selectedBatchId, setSelectedBatchId] = useState<string>("");
-  const [selectedGroup, setSelectedGroup] = useState<string>("all");
-  const [selectedShift, setSelectedShift] = useState<string>("all");
-  const [subject, setSubject] = useState<string>("");
-  const [date, setDate] = useState<string>(todayISO());
-  const [presence, setPresence] = useState<Record<number, boolean>>({});
-
-  // Auto-clear downstream filters when batch changes (matches Result section pattern)
-  useEffect(() => {
-    setSelectedGroup("all");
-    setSelectedShift("all");
-  }, [selectedBatchId]);
-
-  const batchStudents = useMemo(
-    () => (students || []).filter((s: any) => String(s.batchId) === selectedBatchId && s.isActive !== false),
-    [students, selectedBatchId]
-  );
-
-  const availableGroups = useMemo(
-    () => Array.from(new Set(batchStudents.map((s: any) => s.academicGroup).filter(Boolean))) as string[],
-    [batchStudents]
-  );
-  const availableShifts = useMemo(
-    () => Array.from(new Set(batchStudents.map((s: any) => s.shift).filter(Boolean))) as string[],
-    [batchStudents]
-  );
-
-  // Filter students by group + shift (mirrors EntryMarks pattern)
-  const studentsInBatch = useMemo(
-    () => batchStudents.filter((s: any) => {
-      const matchGroup = selectedGroup === "all" || s.academicGroup === selectedGroup;
-      const matchShift = selectedShift === "all" || s.shift === selectedShift;
-      return matchGroup && matchShift;
-    }).sort((a: any, b: any) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0")),
-    [batchStudents, selectedGroup, selectedShift]
-  );
-
-  // Fetch all results to extract a list of subjects for the dropdown suggestions
-  const { data: allResults = [] } = useQuery<any[]>({ queryKey: ["/api/results"] });
-  const { data: allAttendance = [] } = useQuery<AttendanceRow[]>({ queryKey: ["/api/attendance"] });
-
-  const subjectOptions = useMemo(() => {
-    const set = new Set<string>();
-    (allResults || []).forEach((r: any) => { if (r.subject) set.add(String(r.subject)); });
-    (allAttendance || []).forEach((a: AttendanceRow) => { if (a.subject) set.add(a.subject); });
-    if (user?.subject) set.add(user.subject);
-    return Array.from(set).sort();
-  }, [allResults, allAttendance, user]);
-
-  // Effective values sent to the API ("" means "general / unspecified")
-  const effGroup = selectedGroup === "all" ? "" : selectedGroup;
-  const effShift = selectedShift === "all" ? "" : selectedShift;
-  const effSubject = subject.trim();
-
-  const { data: existing } = useQuery<AttendanceRow | null>({
-    queryKey: ["/api/attendance", selectedBatchId, date, effSubject, effGroup, effShift],
-    queryFn: async () => {
-      if (!selectedBatchId || !date) return null;
-      const params = new URLSearchParams({ batchId: selectedBatchId, date });
-      if (effSubject) params.set("subject", effSubject);
-      if (effGroup) params.set("academicGroup", effGroup);
-      if (effShift) params.set("shift", effShift);
-      const res = await fetch(`/api/attendance?${params.toString()}`);
-      if (!res.ok) return null;
-      return res.json();
-    },
-    enabled: !!selectedBatchId && !!date,
-  });
-
-  // Hydrate presence map whenever filters or existing record change
-  useEffect(() => {
-    const initial: Record<number, boolean> = {};
-    const absentSet = new Set<number>(existing?.absentStudentIds || []);
-    studentsInBatch.forEach((s: any) => {
-      initial[s.id] = !absentSet.has(s.id);
-    });
-    setPresence(initial);
-  }, [selectedBatchId, date, effSubject, effGroup, effShift, existing, studentsInBatch.length]);
-
-  const presentCount = Object.values(presence).filter(Boolean).length;
-  const absentCount = studentsInBatch.length - presentCount;
-
-  const resetAttendanceForm = () => {
-    setSelectedBatchId("");
-    setSelectedGroup("all");
-    setSelectedShift("all");
-    setSubject("");
-    setPresence({});
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const absentStudentIds = studentsInBatch.filter((s: any) => !presence[s.id]).map((s: any) => s.id);
-      const payload = {
-        date,
-        batchId: Number(selectedBatchId),
-        subject: effSubject,
-        academicGroup: effGroup,
-        shift: effShift,
-        absentStudentIds,
-        totalStudents: studentsInBatch.length,
-      };
-
-      const res = await apiRequest("POST", "/api/attendance", payload);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
-      toast({
-        title: "Attendance saved successfully!",
-        description: `${presentCount} present, ${absentCount} absent.`,
-      });
-      resetAttendanceForm();
-    },
-    onError: (err: any) => {
-      toast({ variant: "destructive", title: "Save failed", description: err.message });
-    },
-  });
-
-  const markAllPresent = () => {
-    const next: Record<number, boolean> = {};
-    studentsInBatch.forEach((s: any) => { next[s.id] = true; });
-    setPresence(next);
-  };
-  const markAllAbsent = () => {
-    const next: Record<number, boolean> = {};
-    studentsInBatch.forEach((s: any) => { next[s.id] = false; });
-    setPresence(next);
-  };
-
-  return (
-    <Layout title="Attendance" subtitle="Mark and review daily attendance">
-      <Tabs defaultValue="mark" className="space-y-4">
-        <TabsList className={`grid w-full max-w-xl ${isAdmin ? "grid-cols-3" : "grid-cols-2"}`}>
-          <TabsTrigger value="mark" data-testid="tab-mark"><ClipboardCheck className="w-4 h-4 mr-1.5" />Mark</TabsTrigger>
-          <TabsTrigger value="history" data-testid="tab-history"><HistoryIcon className="w-4 h-4 mr-1.5" />History</TabsTrigger>
-          {isAdmin && <TabsTrigger value="summary" data-testid="tab-summary"><BarChart3 className="w-4 h-4 mr-1.5" />Summary</TabsTrigger>}
-        </TabsList>
-
-        {/* MARK TAB */}
-        <TabsContent value="mark" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Selection</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Batch / Class</Label>
-                <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
-                  <SelectTrigger data-testid="select-batch"><SelectValue placeholder="Select Batch" /></SelectTrigger>
-                  <SelectContent>
-                    {batches?.map((b: any) => (
-                      <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Group</Label>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup} disabled={!selectedBatchId || availableGroups.length === 0}>
-                  <SelectTrigger data-testid="select-group">
-                    <SelectValue placeholder={availableGroups.length === 0 ? "—" : "All Groups"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Groups</SelectItem>
-                    {availableGroups.map((g) => (
-                      <SelectItem key={g} value={g}>{g}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Shift</Label>
-                <Select value={selectedShift} onValueChange={setSelectedShift} disabled={!selectedBatchId || availableShifts.length === 0}>
-                  <SelectTrigger data-testid="select-shift">
-                    <SelectValue placeholder={availableShifts.length === 0 ? "—" : "All Shifts"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Shifts</SelectItem>
-                    {availableShifts.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Subject <span className="text-rose-600" aria-hidden="true">*</span>
-                </Label>
-                <div className="relative">
-                  <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <Input
-                    list="attendance-subjects"
-                    placeholder="e.g. Math, Physics"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    required
-                    aria-required="true"
-                    aria-invalid={!effSubject}
-                    data-testid="input-subject"
-                    className={`pl-9 ${!effSubject ? 'border-rose-300 focus-visible:ring-rose-300' : ''}`}
-                  />
-                  <datalist id="attendance-subjects">
-                    {subjectOptions.map((s) => <option key={s} value={s} />)}
-                  </datalist>
-                </div>
-                {!effSubject && (
-                  <p className="text-[11px] text-rose-600" data-testid="text-subject-required">
-                    Subject is required to save attendance.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2 sm:col-span-2 lg:col-span-1">
-                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600">Date</Label>
-                <div className="relative">
-                  <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    data-testid="input-date"
-                    className="pl-9"
-                  />
-                </div>
-                {date && (
-                  <p className="text-xs font-medium text-slate-600" data-testid="text-day-name">
-                    {formatFullDate(date)}
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {selectedBatchId && (
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Users className="w-4 h-4 text-blue-500" />
-                    <CardTitle className="text-base">Students ({studentsInBatch.length})</CardTitle>
-                    {effSubject && <Badge variant="outline" className="text-xs">{effSubject}</Badge>}
-                    {effGroup && <Badge variant="outline" className="text-xs">{effGroup}</Badge>}
-                    {effShift && <Badge variant="outline" className="text-xs">{effShift}</Badge>}
-                    {existing && (
-                      <Badge variant="secondary" className="text-xs">Saved for this session</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-emerald-100 text-emerald-700 border-0 hover:bg-emerald-100 gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> {presentCount} Present
-                    </Badge>
-                    <Badge className="bg-rose-100 text-rose-700 border-0 hover:bg-rose-100 gap-1">
-                      <XCircle className="w-3 h-3" /> {absentCount} Absent
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {studentsInBatch.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-8">No students match the selected filters.</p>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Button variant="outline" size="sm" onClick={markAllPresent} data-testid="button-mark-all-present">
-                        <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600" /> Mark All Present
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={markAllAbsent} data-testid="button-mark-all-absent">
-                        <XCircle className="w-4 h-4 mr-1.5 text-rose-600" /> Mark All Absent
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {studentsInBatch.map((s: any) => {
-                        const present = presence[s.id] ?? true;
-                        return (
-                          <div
-                            key={s.id}
-                            data-testid={`row-attendance-${s.id}`}
-                            className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border transition-colors ${present ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'}`}
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
-                              <p className="text-[11px] text-slate-500 truncate">
-                                {s.studentCustomId || `ID ${s.id}`}
-                                {s.academicGroup && ` · ${s.academicGroup}`}
-                                {s.shift && ` · ${s.shift}`}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className={`text-[11px] font-bold uppercase tracking-wider ${present ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {present ? 'Present' : 'Absent'}
-                              </span>
-                              <Switch
-                                checked={present}
-                                onCheckedChange={(v) => setPresence(prev => ({ ...prev, [s.id]: v }))}
-                                data-testid={`switch-attendance-${s.id}`}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex flex-col items-end gap-1 mt-4">
-                      <Button
-                        onClick={() => {
-                          if (!effSubject) {
-                            toast({ variant: "destructive", title: "Subject required", description: "Please enter or select a subject before saving." });
-                            return;
-                          }
-                          saveMutation.mutate();
-                        }}
-                        disabled={saveMutation.isPending || !effSubject}
-                        data-testid="button-save-attendance"
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        {saveMutation.isPending ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Saving...
-                          </>
-                        ) : existing ? "Update Attendance" : "Save Attendance"}
-                      </Button>
-                      {!effSubject && (
-                        <p className="text-[11px] text-rose-600">Enter a subject to enable saving.</p>
-                      )}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* HISTORY TAB */}
-        <TabsContent value="history" className="space-y-4">
-          <HistoryView batches={batches} students={students} subjectOptions={subjectOptions} isAdmin={isAdmin} />
-        </TabsContent>
-
-        {/* SUMMARY TAB (admin) */}
-        {isAdmin && (
-          <TabsContent value="summary" className="space-y-4">
-            <SummaryView subjectOptions={subjectOptions} students={students} batches={batches} />
-          </TabsContent>
-        )}
-
-      </Tabs>
-    </Layout>
-  );
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type ZktecoLogRow = {
   id: number;
@@ -431,545 +21,530 @@ type ZktecoLogRow = {
   createdAt: string;
 };
 
-function HistoryView({
-  batches, students, subjectOptions, isAdmin,
-}: {
-  batches: any[];
-  students: any[];
-  subjectOptions: string[];
-  isAdmin: boolean;
-}) {
-  const [batchId, setBatchId] = useState<string>("");
-  const [group, setGroup] = useState<string>("all");
-  const [filterSubject, setFilterSubject] = useState<string>("");
-  const [zkDate, setZkDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const { activePortal } = usePortal();
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-  const batchStudents = (students || []).filter((s: any) => !batchId || String(s.batchId) === batchId);
-  const availableGroups = Array.from(new Set(batchStudents.map((s: any) => s.academicGroup).filter(Boolean))) as string[];
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
-  // Auto-clear group when batch changes
-  useEffect(() => {
-    setGroup("all");
-  }, [batchId]);
+const PRESETS = [
+  { id: "today",     label: "Today" },
+  { id: "yesterday", label: "Yesterday" },
+  { id: "week",      label: "This Week" },
+  { id: "month",     label: "This Month" },
+] as const;
 
-  const { data: rows = [], isLoading } = useQuery<AttendanceRow[]>({
-    queryKey: ["/api/attendance", "history", batchId || "all", group, filterSubject, activePortal],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (batchId) params.set("batchId", batchId);
-      if (group !== "all") params.set("academicGroup", group);
-      if (filterSubject) params.set("subject", filterSubject);
-      params.set("portal", activePortal);
-      const res = await fetch(`/api/attendance?${params.toString()}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    staleTime: 5 * 60_000,
-  });
-
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/attendance/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/attendance/summary"] });
-      toast({ title: "Session deleted", description: "Attendance session and its records were removed." });
-    },
-    onError: (err: any) => toast({ variant: "destructive", title: "Delete failed", description: err?.message || "Could not delete session" }),
-  });
-
-  const handleDeleteSession = (s: AttendanceRow) => {
-    const label = `${s.date}${s.subject ? ` · ${s.subject}` : ''}`;
-    if (confirm(`Are you sure you want to delete this attendance session (${label})? This will remove all student records in this session and cannot be undone.`)) {
-      deleteMutation.mutate(s.id);
+function getPresetRange(preset: string): { from: string; to: string } {
+  const today = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  switch (preset) {
+    case "today":
+      return { from: iso(today), to: iso(today) };
+    case "yesterday": {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      return { from: iso(y), to: iso(y) };
     }
-  };
+    case "week": {
+      const mon = new Date(today);
+      mon.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+      return { from: iso(mon), to: iso(today) };
+    }
+    case "month": {
+      const first = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { from: iso(first), to: iso(today) };
+    }
+    default:
+      return { from: iso(today), to: iso(today) };
+  }
+}
 
-  const studentName = (id: number) => students.find((s: any) => s.id === id)?.name || `Student #${id}`;
-  const studentMobile = (id: number): string | null => {
-    const s = students.find((st: any) => st.id === id);
-    return s?.mobileNumber || null;
-  };
-  const buildAbsentMessage = (date: string, subject: string | null | undefined, name: string) => {
-    const subjPart = subject && subject.trim() ? `${subject} ক্লাসে` : "ক্লাসে";
-    return `আসসালামু আলাইকুম, আজ ${date} তারিখে ${subjPart} ${name} অনুপস্থিত ছিল। ধন্যবাদ - ডায়নামিক কোচিং সেন্টার।`;
-  };
-  const toWaNumber = (mobile: string) => {
-    const digits = mobile.replace(/\D/g, "");
-    if (digits.startsWith("880")) return digits;
-    if (digits.startsWith("0")) return `880${digits.slice(1)}`;
-    return digits;
-  };
-  const batchName = (id: number) => batches.find((b: any) => b.id === id)?.name || `Batch #${id}`;
+function activePreset(from: string, to: string): string | null {
+  for (const p of PRESETS) {
+    const r = getPresetRange(p.id);
+    if (r.from === from && r.to === to) return p.id;
+  }
+  return null;
+}
 
-  // ZKTeco biometric punch logs (admin only) ────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export default function Attendance() {
+  const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
+  const { data: batches = [] } = useBatches();
+  const { data: students = [] } = useStudents();
+
+  // ── Filter state ─────────────────────────────────────────────────────────
+  const [fBatchId,    setFBatchId]    = useState<string>("");
+  const [fGroup,      setFGroup]      = useState<string>("");
+  const [fShift,      setFShift]      = useState<string>("");
+  const [fFromDate,   setFFromDate]   = useState<string>(todayISO());
+  const [fToDate,     setFToDate]     = useState<string>(todayISO());
+  const [fStudentId,  setFStudentId]  = useState<string>("");
+  const [studentSearch, setStudentSearch] = useState<string>("");
+
+  // Cascade: batch change resets downstream filters
+  useEffect(() => {
+    setFGroup("");
+    setFShift("");
+    setFStudentId("");
+    setStudentSearch("");
+  }, [fBatchId]);
+
+  // ── Derived filter options ────────────────────────────────────────────────
+  const batchStudents = useMemo(
+    () => (students || []).filter((s: any) => !fBatchId || String(s.batchId) === fBatchId),
+    [students, fBatchId],
+  );
+
+  const availableGroups = useMemo(
+    () => Array.from(new Set(batchStudents.map((s: any) => s.academicGroup).filter(Boolean))) as string[],
+    [batchStudents],
+  );
+
+  const availableShifts = useMemo(
+    () => Array.from(new Set(batchStudents.map((s: any) => s.shift).filter(Boolean))) as string[],
+    [batchStudents],
+  );
+
+  // Students eligible for the student selector (respects group+shift)
+  const selectorStudents = useMemo(
+    () =>
+      batchStudents
+        .filter((s: any) => {
+          if (fGroup && s.academicGroup !== fGroup) return false;
+          if (fShift && s.shift !== fShift) return false;
+          return true;
+        })
+        .sort((a: any, b: any) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0")),
+    [batchStudents, fGroup, fShift],
+  );
+
+  const filteredSelectorStudents = useMemo(() => {
+    if (!studentSearch.trim()) return selectorStudents;
+    const q = studentSearch.toLowerCase();
+    return selectorStudents.filter(
+      (s: any) => s.name?.toLowerCase().includes(q) || String(s.studentCustomId || "").toLowerCase().includes(q),
+    );
+  }, [selectorStudents, studentSearch]);
+
+  // ── Teachers for name resolution ─────────────────────────────────────────
   const { data: teachers = [] } = useQuery<any[]>({
     queryKey: ["/api/teachers"],
-    enabled: isAdmin,
     staleTime: 10 * 60_000,
   });
 
-  const { data: zkLogs = [], isLoading: zkLoading } = useQuery<ZktecoLogRow[]>({
-    queryKey: ["/api/attendance/zkteco-logs", zkDate],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (zkDate) params.set("date", zkDate);
-      const res = await fetch(`/api/attendance/zkteco-logs?${params.toString()}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: isAdmin,
-    staleTime: 60_000,
-  });
-
-  // Build deviceUserId → display name from enrolled students + staff
+  // deviceUserId → display info (includes batch/group/shift for client-side filtering)
   const deviceUserMap = useMemo(() => {
-    const map: Record<string, { name: string; kind: "student" | "staff" }> = {};
+    const map: Record<string, { name: string; kind: "student" | "staff"; batchId?: number; group?: string; shift?: string }> = {};
     (students || []).forEach((s: any) => {
-      if (s.studentCustomId) map[String(s.studentCustomId)] = { name: s.name, kind: "student" };
+      if (s.studentCustomId)
+        map[String(s.studentCustomId)] = {
+          name: s.name,
+          kind: "student",
+          batchId: s.batchId,
+          group: s.academicGroup,
+          shift: s.shift,
+        };
     });
     (teachers || []).forEach((t: any) => {
       if (t.teacherId) map[String(t.teacherId)] = { name: t.name || t.username, kind: "staff" };
     });
     return map;
   }, [students, teachers]);
-  // ─────────────────────────────────────────────────────────────────────────
 
-  // Group manual-attendance rows by batch
-  const byBatch: Record<number, AttendanceRow[]> = {};
-  rows.forEach(r => {
-    if (!byBatch[r.batchId]) byBatch[r.batchId] = [];
-    byBatch[r.batchId].push(r);
+  // ── Fetch ZKTeco logs for the selected date range ─────────────────────────
+  const { data: zkLogs = [], isLoading: zkLoading } = useQuery<ZktecoLogRow[]>({
+    queryKey: ["/api/attendance/zkteco-logs", fFromDate, fToDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (fFromDate) params.set("from", fFromDate);
+      if (fToDate)   params.set("to",   fToDate);
+      const res = await fetch(`/api/attendance/zkteco-logs?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 60_000,
+    enabled: !!fFromDate && !!fToDate,
   });
 
-  return (
-    <div className="space-y-4">
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <HistoryIcon className="w-4 h-4 text-blue-500" /> Attendance History
-          </CardTitle>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
-          <Select value={batchId || "__all__"} onValueChange={(v) => setBatchId(v === "__all__" ? "" : v)}>
-            <SelectTrigger data-testid="select-history-batch"><SelectValue placeholder="All Batches" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All Batches</SelectItem>
-              {batches.map((b: any) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={group} onValueChange={setGroup} disabled={!batchId || availableGroups.length === 0}>
-            <SelectTrigger data-testid="select-history-group"><SelectValue placeholder={availableGroups.length === 0 ? "—" : "All Groups"} /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Groups</SelectItem>
-              {availableGroups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <div className="relative">
-            <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <Input
-              list="attendance-history-subjects"
-              placeholder="All Subjects"
-              value={filterSubject}
-              onChange={(e) => setFilterSubject(e.target.value)}
-              data-testid="input-history-subject"
-              className="pl-9"
-            />
-            <datalist id="attendance-history-subjects">
-              {subjectOptions.map((s) => <option key={s} value={s} />)}
-            </datalist>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <p className="text-sm text-slate-500 text-center py-6">Loading...</p>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">No attendance records match these filters.</p>
-        ) : (
-          <Accordion type="multiple" className="space-y-2">
-            {Object.entries(byBatch).map(([bId, sessions]) => (
-              <AccordionItem key={bId} value={bId} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-800">{batchName(Number(bId))}</span>
-                    <Badge variant="secondary" className="text-xs">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</Badge>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="p-0">
-                  <div className="divide-y divide-slate-100">
-                    {sessions.map(s => {
-                      const present = (s.totalStudents || 0) - (s.absentStudentIds?.length || 0);
-                      const pct = s.totalStudents ? Math.round((present / s.totalStudents) * 100) : 0;
-                      return (
-                        <div key={s.id} className="px-4 py-3" data-testid={`history-row-${s.id}`}>
-                          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <CalendarDays className="w-4 h-4 text-slate-400" />
-                              <span className="font-semibold text-sm text-slate-800">{formatDayName(s.date)}, {s.date}</span>
-                              {s.subject && <Badge variant="outline" className="text-[10px] h-5">{s.subject}</Badge>}
-                              {s.academicGroup && <Badge variant="outline" className="text-[10px] h-5">{s.academicGroup}</Badge>}
-                              {s.shift && <Badge variant="outline" className="text-[10px] h-5">{s.shift}</Badge>}
-                              <Badge className={`text-xs border-0 ${pct >= 75 ? 'bg-emerald-100 text-emerald-700' : pct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
-                                {pct}% present
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-xs text-slate-500">{present}/{s.totalStudents} present</span>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleDeleteSession(s)}
-                                disabled={deleteMutation.isPending}
-                                aria-label="Delete session"
-                                className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                data-testid={`button-delete-session-${s.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          {s.absentStudentIds?.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 mb-1.5">
-                                Absent ({s.absentStudentIds.length})
-                              </p>
-                              <div className="space-y-1.5">
-                                {s.absentStudentIds.map(sid => {
-                                  const name = studentName(sid);
-                                  const mobile = studentMobile(sid);
-                                  const message = buildAbsentMessage(s.date, s.subject, name);
-                                  const waHref = mobile
-                                    ? `https://wa.me/${toWaNumber(mobile)}?text=${encodeURIComponent(message)}`
-                                    : null;
-                                  return (
-                                    <div
-                                      key={sid}
-                                      className="flex items-center justify-between gap-2 px-3 py-2 bg-rose-50 border border-rose-100 rounded-lg"
-                                      data-testid={`absent-row-${s.id}-${sid}`}
-                                    >
-                                      <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-medium text-slate-800 truncate" data-testid={`text-absent-name-${sid}`}>
-                                          {name}
-                                        </p>
-                                        {mobile ? (
-                                          <a
-                                            href={`tel:${mobile.replace(/\s+/g, '')}`}
-                                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5"
-                                            data-testid={`link-call-${sid}`}
-                                          >
-                                            <Phone className="w-3 h-3" />
-                                            {mobile}
-                                          </a>
-                                        ) : (
-                                          <span className="text-[11px] text-slate-400">No phone on file</span>
-                                        )}
-                                      </div>
-                                      {waHref && (
-                                        <a
-                                          href={waHref}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-                                          aria-label={`Send WhatsApp message to ${name}'s guardian`}
-                                          data-testid={`link-whatsapp-${sid}`}
-                                        >
-                                          <SiWhatsapp className="w-4 h-4" />
-                                        </a>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        )}
-      </CardContent>
-    </Card>
-
-    {/* ── Biometric Punch Logs (ZKTeco) — admin only ─────────────────────── */}
-    {isAdmin && (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Fingerprint className="w-4 h-4 text-blue-500" /> Biometric Punch Logs
-          </CardTitle>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Raw punch records from the ZKTeco device. Unlinked IDs are shown as-is until a student or staff profile is matched.
-          </p>
-          <div className="pt-2 max-w-xs">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5 block">Date</Label>
-            <div className="relative">
-              <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <Input
-                type="date"
-                value={zkDate}
-                onChange={(e) => setZkDate(e.target.value)}
-                className="pl-9"
-                data-testid="input-zkteco-date"
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {zkLoading ? (
-            <p className="text-sm text-slate-500 text-center py-6 flex items-center justify-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading biometric logs…
-            </p>
-          ) : zkLogs.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-8">
-              No biometric punch records found for {zkDate}.
-            </p>
-          ) : (
-            <div className="space-y-1.5">
-              {zkLogs.map((log) => {
-                const match = deviceUserMap[log.deviceUserId];
-                const punchDate = new Date(log.punchTime);
-                const timeStr = punchDate.toLocaleTimeString("en-US", {
-                  hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
-                });
-                const dateStr = punchDate.toLocaleDateString("en-US", {
-                  weekday: "short", year: "numeric", month: "short", day: "numeric",
-                });
-                return (
-                  <div
-                    key={log.id}
-                    data-testid={`zkteco-row-${log.id}`}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-100/60 transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      {match ? (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-semibold text-slate-800">{match.name}</p>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] h-4 px-1.5 ${match.kind === "staff" ? "border-purple-200 text-purple-700 bg-purple-50" : "border-blue-200 text-blue-700 bg-blue-50"}`}
-                          >
-                            {match.kind === "staff" ? "Staff" : "Student"}
-                          </Badge>
-                          <span className="text-[11px] text-slate-400 font-mono">ID: {log.deviceUserId}</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-semibold text-slate-600 font-mono">{log.deviceUserId}</p>
-                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-amber-200 text-amber-700 bg-amber-50">
-                            Unlinked
-                          </Badge>
-                        </div>
-                      )}
-                      <p className="text-[11px] text-slate-500 mt-0.5">{dateStr}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-mono font-semibold text-slate-700">{timeStr}</p>
-                      {log.deviceId && (
-                        <p className="text-[10px] text-slate-400 font-mono">dev: {log.deviceId}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    )}
-    </div>
-  );
-}
-
-function SummaryView({ subjectOptions, students, batches }: { subjectOptions: string[]; students: any[]; batches: any[] }) {
-  const [filterSubject, setFilterSubject] = useState<string>("");
-  const [filterGroup, setFilterGroup] = useState<string>("");
-
-  const { data: allAttendance = [], isLoading } = useQuery<AttendanceRow[]>({
-    queryKey: ["/api/attendance"],
-  });
-
-  const allGroups = Array.from(new Set((allAttendance || []).map(a => a.academicGroup).filter(Boolean))) as string[];
-
-  const barColor = (pct: number) => pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
-  const pctColor = (pct: number) => pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
-
-  // Build per-batch summary with student-wise percentages from raw attendance records
-  const batchSummaries = useMemo(() => {
-    return batches.map(batch => {
-      // Filter sessions for this batch, respecting subject/group filters
-      const sessions = allAttendance.filter(a => {
-        if (a.batchId !== batch.id) return false;
-        if (filterSubject && a.subject !== filterSubject) return false;
-        if (filterGroup && a.academicGroup !== filterGroup) return false;
+  // ── Client-side filter: batch / group / shift / student ──────────────────
+  const filteredLogs = useMemo(() => {
+    return [...zkLogs]
+      .filter((log) => {
+        if (fStudentId && log.deviceUserId !== fStudentId) return false;
+        if (fBatchId || fGroup || fShift) {
+          const match = deviceUserMap[log.deviceUserId];
+          if (!match || match.kind !== "student") return fBatchId ? false : true;
+          if (fBatchId && String(match.batchId) !== fBatchId) return false;
+          if (fGroup  && match.group  !== fGroup)  return false;
+          if (fShift  && match.shift  !== fShift)  return false;
+        }
         return true;
-      });
+      })
+      // Strictly descending by punchTime (latest first)
+      .sort((a, b) => new Date(b.punchTime).getTime() - new Date(a.punchTime).getTime());
+  }, [zkLogs, fStudentId, fBatchId, fGroup, fShift, deviceUserMap]);
 
-      const totalSessions = sessions.length;
-      const lastDate = sessions.length > 0
-        ? sessions.map(s => s.date).sort().at(-1) ?? null
-        : null;
+  // ── Actions ───────────────────────────────────────────────────────────────
+  const applyPreset = (preset: string) => {
+    const { from, to } = getPresetRange(preset);
+    setFFromDate(from);
+    setFToDate(to);
+  };
 
-      // Average attendance across all sessions
-      const avgAttendance = totalSessions === 0 ? 0
-        : sessions.reduce((sum, s) => {
-            const present = s.totalStudents - s.absentStudentIds.length;
-            return sum + (s.totalStudents > 0 ? (present / s.totalStudents) * 100 : 0);
-          }, 0) / totalSessions;
+  const clearFilters = () => {
+    setFBatchId("");
+    setFGroup("");
+    setFShift("");
+    setFFromDate(todayISO());
+    setFToDate(todayISO());
+    setFStudentId("");
+    setStudentSearch("");
+  };
 
-      // Student-wise percentages sorted by studentCustomId
-      const batchStudents = (students || [])
-        .filter(s => s.batchId === batch.id && s.isActive !== false)
-        .sort((a, b) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0"));
+  const hasActiveFilters = !!(fBatchId || fGroup || fShift || fStudentId);
+  const currentPreset = activePreset(fFromDate, fToDate);
 
-      const studentRows = batchStudents.map(student => {
-        const absentCount = sessions.filter(s => s.absentStudentIds.includes(student.id)).length;
-        const presentCount = totalSessions - absentCount;
-        const pct = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
-        return { student, pct, presentCount, totalSessions };
-      });
-
-      return { batch, totalSessions, lastDate, avgAttendance, studentRows };
-    }).filter(b => b.totalSessions > 0 || b.studentRows.length > 0);
-  }, [batches, allAttendance, students, filterSubject, filterGroup]);
-
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-blue-500" /> Batch Attendance Summary
-        </CardTitle>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
-          <Select value={filterGroup || "__all__"} onValueChange={(v) => setFilterGroup(v === "__all__" ? "" : v)}>
-            <SelectTrigger data-testid="select-summary-group"><SelectValue placeholder="All Groups" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All Groups</SelectItem>
-              {allGroups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-            </SelectContent>
-          </Select>
+    <Layout title="Attendance" subtitle="Live biometric punch log">
+      <div className="space-y-4">
 
-          <div className="relative">
-            <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <Input
-              list="attendance-summary-subjects"
-              placeholder="All Subjects"
-              value={filterSubject}
-              onChange={(e) => setFilterSubject(e.target.value)}
-              data-testid="input-summary-subject"
-              className="pl-9"
-            />
-            <datalist id="attendance-summary-subjects">
-              {subjectOptions.map((s) => <option key={s} value={s} />)}
-            </datalist>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <p className="text-sm text-slate-500 text-center py-6">Loading...</p>
-        ) : batchSummaries.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">No attendance data found.</p>
-        ) : (
-          <Accordion type="multiple" className="space-y-2">
-            {batchSummaries.map(({ batch, totalSessions, lastDate, avgAttendance, studentRows }) => (
-              <AccordionItem
-                key={batch.id}
-                value={String(batch.id)}
-                className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden"
-                data-testid={`summary-batch-${batch.id}`}
-              >
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50 dark:hover:bg-slate-800/50 [&>svg]:shrink-0">
-                  <div className="flex-1 flex items-center justify-between gap-4 mr-2">
-                    <div className="text-left">
-                      <p className="font-bold text-slate-800 text-sm">{batch.name}</p>
-                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                        <p className="text-[11px] text-slate-500 font-normal">
-                          {totalSessions} session{totalSessions !== 1 ? 's' : ''}
-                          {lastDate && ` · last on ${formatDayName(lastDate)}, ${lastDate}`}
-                        </p>
-                        {(() => {
-                          const atRisk = studentRows.filter(r => r.totalSessions > 0 && r.pct < 75).length;
-                          return atRisk > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">
-                              ⚠ {atRisk} at risk
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="w-24 h-1.5 rounded-full bg-slate-100 overflow-hidden hidden sm:block">
-                        <div
-                          className={`h-full ${barColor(avgAttendance)} transition-all`}
-                          style={{ width: `${Math.min(100, Math.max(0, avgAttendance))}%` }}
+        {/* ── Filter Bar ──────────────────────────────────────────────────── */}
+        <Card>
+          <CardContent className="pt-4 pb-4 space-y-3">
+
+            {/* Row 1 — Batch · Group · Shift · From · To · Clear */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
+
+              {/* Class / Batch */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Class / Batch
+                </Label>
+                <Select
+                  value={fBatchId || "__all__"}
+                  onValueChange={(v) => setFBatchId(v === "__all__" ? "" : v)}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="All Batches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Batches</SelectItem>
+                    {(batches as any[]).map((b) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Group */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Group
+                </Label>
+                <Select
+                  value={fGroup || "__all__"}
+                  onValueChange={(v) => setFGroup(v === "__all__" ? "" : v)}
+                  disabled={availableGroups.length === 0}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="All Groups" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Groups</SelectItem>
+                    {availableGroups.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Shift */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Shift
+                </Label>
+                <Select
+                  value={fShift || "__all__"}
+                  onValueChange={(v) => setFShift(v === "__all__" ? "" : v)}
+                  disabled={availableShifts.length === 0}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="All Shifts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Shifts</SelectItem>
+                    {availableShifts.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* From Date */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  From
+                </Label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  <Input
+                    type="date"
+                    value={fFromDate}
+                    onChange={(e) => {
+                      setFFromDate(e.target.value);
+                      if (e.target.value > fToDate) setFToDate(e.target.value);
+                    }}
+                    className="h-9 text-sm pl-8"
+                    data-testid="input-from-date"
+                  />
+                </div>
+              </div>
+
+              {/* To Date */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  To
+                </Label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  <Input
+                    type="date"
+                    value={fToDate}
+                    min={fFromDate}
+                    onChange={(e) => setFToDate(e.target.value)}
+                    className="h-9 text-sm pl-8"
+                    data-testid="input-to-date"
+                  />
+                </div>
+              </div>
+
+              {/* Clear / indicator */}
+              <div className="flex items-end">
+                {hasActiveFilters ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-9 gap-1.5 text-sm w-full"
+                    data-testid="button-clear-filters"
+                  >
+                    <X className="w-3.5 h-3.5" /> Clear
+                  </Button>
+                ) : (
+                  <div className="h-9 flex items-center gap-1.5 text-xs text-slate-400 px-1">
+                    <SlidersHorizontal className="w-3.5 h-3.5" /> Filters
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Row 2 — Quick presets · Student selector */}
+            <div className="flex flex-wrap items-end gap-3">
+
+              {/* Presets */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Quick Range
+                </Label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {PRESETS.map((p) => (
+                    <Button
+                      key={p.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => applyPreset(p.id)}
+                      className={`h-8 px-3 text-xs transition-colors ${
+                        currentPreset === p.id
+                          ? "bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100"
+                          : ""
+                      }`}
+                      data-testid={`preset-${p.id}`}
+                    >
+                      {p.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Student selector */}
+              <div className="flex-1 min-w-[220px] max-w-sm space-y-1">
+                <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Student
+                </Label>
+                <Select
+                  value={fStudentId || "__all__"}
+                  onValueChange={(v) => {
+                    setFStudentId(v === "__all__" ? "" : v);
+                    setStudentSearch("");
+                  }}
+                  disabled={selectorStudents.length === 0}
+                >
+                  <SelectTrigger className="h-9 text-sm" data-testid="select-student">
+                    <SelectValue
+                      placeholder={fBatchId ? "All Students" : "Select a batch first"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Inline search */}
+                    <div className="px-2 pt-1.5 pb-1 border-b border-slate-100 sticky top-0 bg-white z-10">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                        <Input
+                          placeholder="Search by name or ID…"
+                          value={studentSearch}
+                          onChange={(e) => setStudentSearch(e.target.value)}
+                          className="h-7 text-xs pl-7 border-slate-200"
+                          onKeyDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          data-testid="input-student-search"
                         />
                       </div>
-                      <span className={`text-lg font-extrabold ${pctColor(avgAttendance)}`}>
-                        {totalSessions > 0 ? `${avgAttendance.toFixed(1)}%` : '—'}
-                      </span>
                     </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-3 pt-1">
-                  {studentRows.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-4">No students enrolled.</p>
-                  ) : (
-                    <div className="max-h-80 overflow-y-auto space-y-1 pr-1">
-                      {studentRows.map(({ student, pct, presentCount }) => {
-                        const atRisk = totalSessions > 0 && pct < 75;
-                        return (
-                        <div
-                          key={student.id}
-                          className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors ${atRisk ? 'bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-900/50' : 'bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/70'}`}
-                          data-testid={`summary-student-${student.id}`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-sm font-medium text-slate-800 truncate">{student.name}</p>
-                              {atRisk && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold shrink-0">
-                                  At Risk
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-400">
-                              {student.studentCustomId || `#${student.id}`}
-                              {totalSessions > 0 && ` · ${presentCount}/${totalSessions} present`}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="w-14 h-1.5 rounded-full bg-slate-200 overflow-hidden">
-                              <div
-                                className={`h-full ${barColor(pct)} transition-all`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                            <span className={`text-sm font-bold tabular-nums ${pctColor(pct)}`}>
-                              {totalSessions > 0 ? `${pct}%` : '—'}
+                    <SelectItem value="__all__">All Students</SelectItem>
+                    {filteredSelectorStudents.map((s: any) => (
+                      <SelectItem
+                        key={s.studentCustomId || s.id}
+                        value={s.studentCustomId || String(s.id)}
+                      >
+                        <span className="font-mono text-[11px] text-slate-400 mr-1.5">
+                          {s.studentCustomId}
+                        </span>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                    {filteredSelectorStudents.length === 0 && studentSearch && (
+                      <div className="px-3 py-2 text-xs text-slate-500 text-center">
+                        No students match "{studentSearch}"
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Attendance Log Feed ──────────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Fingerprint className="w-4 h-4 text-blue-500" />
+                Biometric Attendance Log
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                {zkLoading && (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                )}
+                {!zkLoading && (
+                  <span className="text-xs text-slate-500 tabular-nums">
+                    {filteredLogs.length} record{filteredLogs.length !== 1 ? "s" : ""}
+                    {" · "}
+                    {fFromDate === fToDate ? fFromDate : `${fFromDate} → ${fToDate}`}
+                  </span>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {zkLoading ? (
+              <div className="flex items-center justify-center gap-2 py-14 text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-sm">Loading punch records…</span>
+              </div>
+            ) : filteredLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-14 gap-3 text-slate-400">
+                <Fingerprint className="w-9 h-9 opacity-25" />
+                <p className="text-sm">No punch records for the selected filters.</p>
+                {hasActiveFilters && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="text-blue-500 h-auto p-0 text-xs"
+                  >
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {filteredLogs.map((log) => {
+                  const match = deviceUserMap[log.deviceUserId];
+                  const punchDate = new Date(log.punchTime);
+                  const timeStr = punchDate.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  });
+                  const dateStr = punchDate.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    ...(fFromDate !== fToDate ? { year: "numeric" } : {}),
+                  });
+                  return (
+                    <div
+                      key={log.id}
+                      data-testid={`zkteco-row-${log.id}`}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-slate-100/60 transition-colors"
+                    >
+                      {/* Left: name + metadata */}
+                      <div className="min-w-0 flex-1">
+                        {match ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-semibold text-slate-800">{match.name}</p>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] h-4 px-1.5 ${
+                                match.kind === "staff"
+                                  ? "border-purple-200 text-purple-700 bg-purple-50"
+                                  : "border-blue-200 text-blue-700 bg-blue-50"
+                              }`}
+                            >
+                              {match.kind === "staff" ? "Staff" : "Student"}
+                            </Badge>
+                            {match.kind === "student" && match.group && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-slate-200 text-slate-500">
+                                {match.group}
+                              </Badge>
+                            )}
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              ID {log.deviceUserId}
                             </span>
                           </div>
-                        </div>
-                        );
-                      })}
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold text-slate-600 font-mono">
+                              {log.deviceUserId}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] h-4 px-1.5 border-amber-200 text-amber-700 bg-amber-50"
+                            >
+                              Unlinked
+                            </Badge>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-500 mt-0.5">{dateStr}</p>
+                      </div>
+
+                      {/* Right: time + device */}
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-mono font-semibold text-slate-700">{timeStr}</p>
+                        {log.deviceId && (
+                          <p className="text-[10px] text-slate-400 font-mono">dev: {log.deviceId}</p>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        )}
-      </CardContent>
-    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+      </div>
+    </Layout>
   );
 }
