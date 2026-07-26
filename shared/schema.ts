@@ -181,3 +181,30 @@ export type InsertIncome = z.infer<typeof insertIncomeSchema>;
 export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 export type InsertDeposit = z.infer<typeof insertDepositSchema>;
 export type InsertResult = z.infer<typeof insertResultSchema>;
+
+// ── Class Routine ──────────────────────────────────────────────────────────────
+export const classRoutines = pgTable("class_routines", {
+  id: serial("id").primaryKey(),
+  batchId: integer("batch_id").references(() => batches.id).notNull(),
+  dayOfWeek: text("day_of_week").notNull(), // "Saturday" | "Sunday" | ... | "Friday"
+  startTime: text("start_time").notNull().default(""), // "07:00 AM"
+  endTime: text("end_time").notNull().default(""),     // "08:00 AM"
+  subjectName: text("subject_name").notNull().default(""),
+  isOffDay: boolean("is_off_day").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertClassRoutineSchema = createInsertSchema(classRoutines).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  batchId: z.coerce.number().min(1, "Select a class"),
+  dayOfWeek: z.enum(["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"]),
+  startTime: z.string().default(""),
+  endTime: z.string().default(""),
+  subjectName: z.string().default(""),
+  isOffDay: z.boolean().default(false),
+});
+
+export type ClassRoutine = typeof classRoutines.$inferSelect;
+export type InsertClassRoutine = z.infer<typeof insertClassRoutineSchema>;

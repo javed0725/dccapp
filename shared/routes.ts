@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertIncomeSchema, insertExpenseSchema, insertDepositSchema, incomes, expenses, deposits, batches, students, insertBatchSchema, insertStudentSchema, results, insertResultSchema } from './schema';
+import { insertIncomeSchema, insertExpenseSchema, insertDepositSchema, incomes, expenses, deposits, batches, students, insertBatchSchema, insertStudentSchema, results, insertResultSchema, classRoutines, insertClassRoutineSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -166,7 +166,42 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
-  }
+  },
+  classRoutines: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/class-routines',
+      responses: {
+        200: z.array(z.custom<typeof classRoutines.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/class-routines',
+      input: insertClassRoutineSchema,
+      responses: {
+        201: z.custom<typeof classRoutines.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/class-routines/:id',
+      input: insertClassRoutineSchema.partial(),
+      responses: {
+        200: z.custom<typeof classRoutines.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/class-routines/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {

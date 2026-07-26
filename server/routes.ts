@@ -1209,6 +1209,68 @@ export async function registerRoutes(
     }
   });
 
+  // ── Class Routine CRUD ─────────────────────────────────────────────────────
+  // GET /api/class-routines?batchId=N  — auth required (admin + teacher)
+  app.get(api.classRoutines.list.path, async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
+    const routines = await storage.getClassRoutines(batchId);
+    res.json(routines);
+  });
+
+  // POST /api/class-routines  — admin only
+  app.post(api.classRoutines.create.path, async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const input = api.classRoutines.create.input.parse({
+        ...req.body,
+        batchId: Number(req.body.batchId),
+        isOffDay: Boolean(req.body.isOffDay),
+      });
+      const routine = await storage.createClassRoutine(input);
+      res.status(201).json(routine);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join(".") });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // PUT /api/class-routines/:id  — admin only
+  app.put(api.classRoutines.update.path, async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    try {
+      const input = api.classRoutines.update.input.parse({
+        ...req.body,
+        ...(req.body.batchId !== undefined && { batchId: Number(req.body.batchId) }),
+        ...(req.body.isOffDay !== undefined && { isOffDay: Boolean(req.body.isOffDay) }),
+      });
+      const routine = await storage.updateClassRoutine(id, input);
+      res.json(routine);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ message: err.errors[0].message });
+      } else if ((err as any)?.message === "Class routine not found") {
+        res.status(404).json({ message: "Class routine not found" });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  });
+
+  // DELETE /api/class-routines/:id  — admin only
+  app.delete(api.classRoutines.delete.path, async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+    await storage.deleteClassRoutine(id);
+    res.sendStatus(204);
+  });
+
   return httpServer;
 }
 

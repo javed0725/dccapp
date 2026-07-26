@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { 
   incomes, expenses, deposits, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
-  collectionTracking, attendance, zktecoLogs,
+  collectionTracking, attendance, zktecoLogs, classRoutines,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Deposit, type InsertDeposit,
@@ -14,6 +14,7 @@ import {
   type CollectionTracking,
   type Attendance, type InsertAttendance,
   type ZktecoLog, type InsertZktecoLog,
+  type ClassRoutine, type InsertClassRoutine,
 } from "@shared/schema";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
 
@@ -104,6 +105,12 @@ export interface IStorage {
   // ZKTeco Logs
   syncZktecoLogs(logs: InsertZktecoLog[]): Promise<{ inserted: number; duplicates: number }>;
   getZktecoLogs(filter?: { fromDate?: Date; toDate?: Date; limit?: number }): Promise<ZktecoLog[]>;
+
+  // Class Routines
+  getClassRoutines(batchId?: number): Promise<ClassRoutine[]>;
+  createClassRoutine(data: InsertClassRoutine): Promise<ClassRoutine>;
+  updateClassRoutine(id: number, data: Partial<InsertClassRoutine>): Promise<ClassRoutine>;
+  deleteClassRoutine(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -694,6 +701,29 @@ export class DatabaseStorage implements IStorage {
       .where(where)
       .orderBy(desc(zktecoLogs.punchTime))
       .limit(filter?.limit ?? 300);
+  }
+
+  // ── Class Routines ──────────────────────────────────────────────────────────
+  async getClassRoutines(batchId?: number): Promise<ClassRoutine[]> {
+    if (batchId) {
+      return db.select().from(classRoutines).where(eq(classRoutines.batchId, batchId)).orderBy(asc(classRoutines.id));
+    }
+    return db.select().from(classRoutines).orderBy(asc(classRoutines.id));
+  }
+
+  async createClassRoutine(data: InsertClassRoutine): Promise<ClassRoutine> {
+    const [row] = await db.insert(classRoutines).values(data).returning();
+    return row;
+  }
+
+  async updateClassRoutine(id: number, data: Partial<InsertClassRoutine>): Promise<ClassRoutine> {
+    const [row] = await db.update(classRoutines).set(data).where(eq(classRoutines.id, id)).returning();
+    if (!row) throw new Error("Class routine not found");
+    return row;
+  }
+
+  async deleteClassRoutine(id: number): Promise<void> {
+    await db.delete(classRoutines).where(eq(classRoutines.id, id));
   }
 }
 
