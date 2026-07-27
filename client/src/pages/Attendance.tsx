@@ -42,6 +42,8 @@ type SmartSlot = {
   startTime: string;
   endTime: string;
   isOffDay: boolean;
+  shift: string | null;
+  academicGroup: string | null;
   presentCount: number;
   absentCount: number;
   students: SmartStudentRow[];
@@ -113,15 +115,22 @@ function SmartAttendanceView({
   batchId,
   date,
   batchName,
+  shift,
+  group,
 }: {
   batchId: string;
   date: string;
   batchName: string;
+  shift?: string;
+  group?: string;
 }) {
   const { data, isLoading, isError } = useQuery<SmartAttendanceResponse>({
-    queryKey: ["/api/attendance/smart", batchId, date],
+    queryKey: ["/api/attendance/smart", batchId, date, shift ?? "", group ?? ""],
     queryFn: async () => {
-      const res = await fetch(`/api/attendance/smart?batchId=${batchId}&date=${date}`);
+      const params = new URLSearchParams({ batchId, date });
+      if (shift) params.set("shift", shift);
+      if (group) params.set("group", group);
+      const res = await fetch(`/api/attendance/smart?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to load smart attendance");
       return res.json();
     },
@@ -193,8 +202,8 @@ function SmartAttendanceView({
         return (
           <div key={slot.routineId} className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             {/* Slot header */}
-            <div className="flex items-center justify-between gap-4 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
+              <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
                 <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
                 <span className="font-semibold text-slate-800 text-sm truncate">
                   {slot.subject || <span className="italic text-slate-400">No subject</span>}
@@ -202,6 +211,16 @@ function SmartAttendanceView({
                 {(slot.startTime || slot.endTime) && (
                   <span className="text-xs text-slate-400 font-mono shrink-0">
                     {slot.startTime}{slot.endTime ? ` – ${slot.endTime}` : ""}
+                  </span>
+                )}
+                {slot.shift && (
+                  <span className="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 shrink-0">
+                    {slot.shift}
+                  </span>
+                )}
+                {slot.academicGroup && (
+                  <span className="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 shrink-0">
+                    {slot.academicGroup}
                   </span>
                 )}
               </div>
@@ -830,6 +849,8 @@ export default function Attendance() {
                   batchId={fBatchId}
                   date={fFromDate}
                   batchName={selectedBatchName}
+                  shift={fShift || undefined}
+                  group={fGroup || undefined}
                 />
               ) : (
                 /* Raw log view (same as the bottom card but inline here) */

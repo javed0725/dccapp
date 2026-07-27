@@ -17,11 +17,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Pencil, Trash2, Plus, Clock } from "lucide-react";
 
-const DAYS_OF_WEEK = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+export const SHIFTS = ["Morning", "Day"] as const;
+export const ACADEMIC_GROUPS = [
+  "Science",
+  "Business Studies/Commerce",
+  "Humanities/Arts",
+  "General",
+] as const;
+
+const DAYS_OF_WEEK = [
+  "Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday",
+] as const;
 
 type DayOfWeek = typeof DAYS_OF_WEEK[number];
 
-interface ClassRoutine {
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface ClassRoutine {
   id: number;
   batchId: number;
   dayOfWeek: string;
@@ -29,24 +43,51 @@ interface ClassRoutine {
   endTime: string;
   subjectName: string;
   isOffDay: boolean;
+  shift: string | null;
+  academicGroup: string | null;
   createdAt: string;
 }
 
+// ── Form schema ───────────────────────────────────────────────────────────────
+
 const routineFormSchema = z.object({
-  batchId: z.coerce.number().min(1, "Select a class"),
-  dayOfWeek: z.enum(DAYS_OF_WEEK, { required_error: "Select a day" }),
-  startTime: z.string().default(""),
-  endTime: z.string().default(""),
-  subjectName: z.string().default(""),
-  isOffDay: z.boolean().default(false),
+  batchId:      z.coerce.number().min(1, "Select a class"),
+  dayOfWeek:    z.enum(DAYS_OF_WEEK, { required_error: "Select a day" }),
+  startTime:    z.string().default(""),
+  endTime:      z.string().default(""),
+  subjectName:  z.string().default(""),
+  isOffDay:     z.boolean().default(false),
+  shift:        z.string().nullable().optional(),
+  academicGroup: z.string().nullable().optional(),
 });
 
 type RoutineFormValues = z.infer<typeof routineFormSchema>;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const DAY_SHORT: Record<string, string> = {
   Saturday: "Sat", Sunday: "Sun", Monday: "Mon",
   Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri",
 };
+
+function ShiftBadge({ shift }: { shift: string | null }) {
+  if (!shift) return null;
+  return (
+    <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-blue-200 text-blue-600 bg-blue-50">
+      {shift}
+    </Badge>
+  );
+}
+function GroupBadge({ group }: { group: string | null }) {
+  if (!group) return null;
+  return (
+    <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-purple-200 text-purple-600 bg-purple-50">
+      {group}
+    </Badge>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function ClassRoutineManager() {
   const { data: batches } = useBatches();
@@ -63,7 +104,6 @@ export function ClassRoutineManager() {
       const res = await apiRequest("GET", url);
       return res.json();
     },
-    enabled: true,
   });
 
   const createMutation = useMutation({
@@ -73,7 +113,12 @@ export function ClassRoutineManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/class-routines"] });
-      form.reset({ batchId: selectedBatchId ?? 0, dayOfWeek: "Saturday", startTime: "", endTime: "", subjectName: "", isOffDay: false });
+      form.reset({
+        batchId: selectedBatchId ?? 0,
+        dayOfWeek: "Saturday",
+        startTime: "", endTime: "", subjectName: "",
+        isOffDay: false, shift: null, academicGroup: null,
+      });
       toast({ title: "Routine slot added" });
     },
     onError: (err: any) => {
@@ -111,10 +156,8 @@ export function ClassRoutineManager() {
     defaultValues: {
       batchId: selectedBatchId ?? 0,
       dayOfWeek: "Saturday",
-      startTime: "",
-      endTime: "",
-      subjectName: "",
-      isOffDay: false,
+      startTime: "", endTime: "", subjectName: "",
+      isOffDay: false, shift: null, academicGroup: null,
     },
   });
 
@@ -124,7 +167,7 @@ export function ClassRoutineManager() {
     createMutation.mutate(values);
   };
 
-  // Group displayed routines by day for the weekly table
+  // Group displayed routines by day
   const filteredRoutines = selectedBatchId
     ? routines.filter(r => r.batchId === selectedBatchId)
     : routines;
@@ -134,7 +177,7 @@ export function ClassRoutineManager() {
     routinesByDay[day] = filteredRoutines.filter(r => r.dayOfWeek === day);
   }
 
-  // Edit form state
+  // Edit dialog state
   const [editForm, setEditForm] = useState<Partial<RoutineFormValues>>({});
 
   function openEdit(r: ClassRoutine) {
@@ -146,24 +189,28 @@ export function ClassRoutineManager() {
       endTime: r.endTime,
       subjectName: r.subjectName,
       isOffDay: r.isOffDay,
+      shift: r.shift ?? null,
+      academicGroup: r.academicGroup ?? null,
     });
   }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* ── Form ── */}
+
+      {/* ── Add Slot Form ─────────────────────────────────────────────────── */}
       <Card className="lg:col-span-1">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-primary" />
             Add Routine Slot
           </CardTitle>
-          <CardDescription>Assign a subject or off-day to a class & day</CardDescription>
+          <CardDescription>Assign a subject or off-day to a class &amp; day</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Class */}
+
+              {/* Class / Batch */}
               <FormField
                 control={form.control}
                 name="batchId"
@@ -178,9 +225,7 @@ export function ClassRoutineManager() {
                       }}
                     >
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select class" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {batches?.map(b => (
@@ -193,7 +238,7 @@ export function ClassRoutineManager() {
                 )}
               />
 
-              {/* Day */}
+              {/* Day of Week */}
               <FormField
                 control={form.control}
                 name="dayOfWeek"
@@ -202,14 +247,64 @@ export function ClassRoutineManager() {
                     <FormLabel>Day of Week</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select day" />
-                        </SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select day" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {DAYS_OF_WEEK.map(d => (
                           <SelectItem key={d} value={d}>{d}</SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Shift (optional) */}
+              <FormField
+                control={form.control}
+                name="shift"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Shift <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                    </FormLabel>
+                    <Select
+                      value={field.value ?? "__any__"}
+                      onValueChange={(v) => field.onChange(v === "__any__" ? null : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Any shift" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__any__">Any shift</SelectItem>
+                        {SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Academic Group (optional) */}
+              <FormField
+                control={form.control}
+                name="academicGroup"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Group <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                    </FormLabel>
+                    <Select
+                      value={field.value ?? "__any__"}
+                      onValueChange={(v) => field.onChange(v === "__any__" ? null : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Any group" /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__any__">Any group</SelectItem>
+                        {ACADEMIC_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -231,7 +326,7 @@ export function ClassRoutineManager() {
                 )}
               />
 
-              {/* Time & Subject — hidden when off day */}
+              {/* Subject + Times — hidden when off day */}
               {!isOffDayWatch && (
                 <>
                   <FormField
@@ -247,7 +342,6 @@ export function ClassRoutineManager() {
                       </FormItem>
                     )}
                   />
-
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
                       control={form.control}
@@ -288,7 +382,7 @@ export function ClassRoutineManager() {
         </CardContent>
       </Card>
 
-      {/* ── Weekly Routine Table ── */}
+      {/* ── Weekly Routine Table ──────────────────────────────────────────── */}
       <Card className="lg:col-span-2">
         <CardHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -330,9 +424,10 @@ export function ClassRoutineManager() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[110px]">Day</TableHead>
+                  <TableHead className="w-[90px]">Day</TableHead>
                   <TableHead>Subject</TableHead>
                   <TableHead>Time Slot</TableHead>
+                  <TableHead>Shift / Group</TableHead>
                   {!selectedBatchId && <TableHead>Class</TableHead>}
                   <TableHead className="w-[90px] text-right">Actions</TableHead>
                 </TableRow>
@@ -345,7 +440,7 @@ export function ClassRoutineManager() {
                     <TableRow key={slot.id} className="group hover:bg-muted/30">
                       {idx === 0 && (
                         <TableCell rowSpan={slots.length} className="font-semibold text-primary align-top pt-3">
-                          {day}
+                          {DAY_SHORT[day] ?? day}
                         </TableCell>
                       )}
                       <TableCell>
@@ -354,7 +449,9 @@ export function ClassRoutineManager() {
                             OFF DAY
                           </Badge>
                         ) : (
-                          <span className="font-medium">{slot.subjectName || <span className="text-muted-foreground italic text-sm">No subject</span>}</span>
+                          <span className="font-medium">
+                            {slot.subjectName || <span className="text-muted-foreground italic text-sm">No subject</span>}
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -364,6 +461,15 @@ export function ClassRoutineManager() {
                             : slot.startTime || slot.endTime || "—"
                         )}
                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <ShiftBadge shift={slot.shift} />
+                          <GroupBadge group={slot.academicGroup} />
+                          {!slot.shift && !slot.academicGroup && (
+                            <span className="text-[10px] text-muted-foreground italic">All</span>
+                          )}
+                        </div>
+                      </TableCell>
                       {!selectedBatchId && (
                         <TableCell className="text-xs text-muted-foreground">
                           {batches?.find(b => b.id === slot.batchId)?.name ?? `Batch #${slot.batchId}`}
@@ -372,21 +478,15 @@ export function ClassRoutineManager() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
+                            variant="ghost" size="icon" className="h-7 w-7"
                             onClick={() => openEdit(slot)}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
+                            variant="ghost" size="icon" className="h-7 w-7 text-destructive"
                             onClick={() => {
-                              if (confirm("Delete this routine slot?")) {
-                                deleteMutation.mutate(slot.id);
-                              }
+                              if (confirm("Delete this routine slot?")) deleteMutation.mutate(slot.id);
                             }}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -402,14 +502,15 @@ export function ClassRoutineManager() {
         </CardContent>
       </Card>
 
-      {/* ── Edit Dialog ── */}
+      {/* ── Edit Dialog ───────────────────────────────────────────────────── */}
       <Dialog open={!!editingRoutine} onOpenChange={(open) => !open && setEditingRoutine(null)}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
             <DialogTitle>Edit Routine Slot</DialogTitle>
           </DialogHeader>
           {editingRoutine && (
             <div className="space-y-4 py-2">
+
               {/* Class */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Class / Batch</label>
@@ -436,6 +537,40 @@ export function ClassRoutineManager() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {DAYS_OF_WEEK.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Shift */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Shift <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                </label>
+                <Select
+                  value={(editForm.shift ?? editingRoutine.shift) ?? "__any__"}
+                  onValueChange={(v) => setEditForm(f => ({ ...f, shift: v === "__any__" ? null : v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any shift</SelectItem>
+                    {SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Academic Group */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Group <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                </label>
+                <Select
+                  value={(editForm.academicGroup ?? editingRoutine.academicGroup) ?? "__any__"}
+                  onValueChange={(v) => setEditForm(f => ({ ...f, academicGroup: v === "__any__" ? null : v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any group</SelectItem>
+                    {ACADEMIC_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -485,9 +620,7 @@ export function ClassRoutineManager() {
                 <Button variant="outline" onClick={() => setEditingRoutine(null)}>Cancel</Button>
                 <Button
                   disabled={updateMutation.isPending}
-                  onClick={() => {
-                    updateMutation.mutate({ id: editingRoutine.id, data: editForm });
-                  }}
+                  onClick={() => updateMutation.mutate({ id: editingRoutine.id, data: editForm })}
                 >
                   {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
@@ -496,6 +629,7 @@ export function ClassRoutineManager() {
           )}
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

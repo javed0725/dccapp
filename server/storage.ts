@@ -107,7 +107,7 @@ export interface IStorage {
   getZktecoLogs(filter?: { fromDate?: Date; toDate?: Date; limit?: number }): Promise<ZktecoLog[]>;
 
   // Class Routines
-  getClassRoutines(batchId?: number): Promise<ClassRoutine[]>;
+  getClassRoutines(batchId?: number, shift?: string, academicGroup?: string): Promise<ClassRoutine[]>;
   createClassRoutine(data: InsertClassRoutine): Promise<ClassRoutine>;
   updateClassRoutine(id: number, data: Partial<InsertClassRoutine>): Promise<ClassRoutine>;
   deleteClassRoutine(id: number): Promise<void>;
@@ -704,9 +704,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ── Class Routines ──────────────────────────────────────────────────────────
-  async getClassRoutines(batchId?: number): Promise<ClassRoutine[]> {
-    if (batchId) {
-      return db.select().from(classRoutines).where(eq(classRoutines.batchId, batchId)).orderBy(asc(classRoutines.id));
+  async getClassRoutines(batchId?: number, shift?: string, academicGroup?: string): Promise<ClassRoutine[]> {
+    const { and: dbAnd, isNull, or } = await import("drizzle-orm");
+    const conditions: any[] = [];
+    if (batchId) conditions.push(eq(classRoutines.batchId, batchId));
+    // When a shift filter is given, include slots that match OR have no shift set
+    if (shift) conditions.push(or(eq(classRoutines.shift, shift), isNull(classRoutines.shift)));
+    if (academicGroup) conditions.push(or(eq(classRoutines.academicGroup, academicGroup), isNull(classRoutines.academicGroup)));
+    if (conditions.length > 0) {
+      return db.select().from(classRoutines).where(dbAnd(...conditions)).orderBy(asc(classRoutines.id));
     }
     return db.select().from(classRoutines).orderBy(asc(classRoutines.id));
   }

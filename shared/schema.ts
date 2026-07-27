@@ -191,6 +191,9 @@ export const classRoutines = pgTable("class_routines", {
   endTime: text("end_time").notNull().default(""),     // "08:00 AM"
   subjectName: text("subject_name").notNull().default(""),
   isOffDay: boolean("is_off_day").notNull().default(false),
+  // Optional: narrow this slot to a specific student shift / academic group
+  shift: text("shift"),         // "Morning" | "Day" | null (applies to all shifts)
+  academicGroup: text("academic_group"), // "Science" | "Business Studies/Commerce" | "Humanities/Arts" | "General" | null
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -204,6 +207,8 @@ export const insertClassRoutineSchema = createInsertSchema(classRoutines).omit({
   endTime: z.string().default(""),
   subjectName: z.string().default(""),
   isOffDay: z.boolean().default(false),
+  shift: z.string().nullable().optional(),
+  academicGroup: z.string().nullable().optional(),
 });
 
 export type ClassRoutine = typeof classRoutines.$inferSelect;
