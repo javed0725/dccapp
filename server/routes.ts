@@ -847,6 +847,128 @@ export async function registerRoutes(
     res.json(summary);
   });
 
+  // ── Smart Attendance Cross-Check ──────────────────────────────────────────
+  // GET /api/attendance/smart?batchId=N&date=YYYY-MM-DD
+  // Cross-checks biometric punch logs against class_routines for the given
+  // batch + day. For each non-off-day slot, checks whether each student has
+  // a punch within [startTime-30min … endTime+30min] and returns Present/Absent.
+  app.get("/api/attendance/smart", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+
+    const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
+    const dateStr  = req.query.date   ? String(req.query.date)   : undefined;
+
+    if (!batchId || isNaN(batchId) || !dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return res.status(400).json({ message: "batchId and date (YYYY-MM-DD) are required" });
+    }
+
+    // Determine day-of-week in Dhaka local time (UTC+6).
+    // Using midday prevents DST/date-boundary edge cases.
+    const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const midday = new Date(`${dateStr}T12:00:00+06:00`);
+    const dayOfWeek = DAY_NAMES[midday.getDay()];
+
+    // Load all routines for this batch, filter to today's day
+    const allRoutines = await storage.getClassRoutines(batchId);
+    const dayRoutines = allRoutines.filter(r => r.dayOfWeek === dayOfWeek);
+
+    if (dayRoutines.length === 0) {
+      return res.json({ date: dateStr, dayOfWeek, batchId, offDay: false, noRoutine: true, slots: [] });
+    }
+
+    // If every slot is off-day, report the whole day as off
+    const allOff = dayRoutines.every(r => r.isOffDay);
+
+    // Helper: parse "HH:MM AM/PM" → Date in Dhaka tz on dateStr
+    function parseSlotTime(timeStr: string): Date | null {
+      if (!timeStr) return null;
+      const m = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!m) return null;
+      let h = parseInt(m[1]);
+      const min = parseInt(m[2]);
+      const mer = m[3].toUpperCase();
+      if (mer === "PM" && h !== 12) h += 12;
+      if (mer === "AM" && h === 12) h = 0;
+      return new Date(`${dateStr}T${String(h).padStart(2,"0")}:${String(min).padStart(2,"0")}:00+06:00`);
+    }
+
+    const GRACE_MS = 30 * 60 * 1000; // ±30 min grace window
+
+    // Load students & ZKTeco logs only when there's at least one active slot
+    const batchStudents = allOff ? [] : (await storage.getStudents()).filter(
+      (s: any) => s.batchId === batchId && s.isActive !== false && s.studentCustomId
+    );
+
+    const dayStart = new Date(`${dateStr}T00:00:00+06:00`);
+    const dayEnd   = new Date(`${dateStr}T23:59:59+06:00`);
+    const zkLogs   = allOff ? [] : await storage.getZktecoLogs({ fromDate: dayStart, toDate: dayEnd, limit: 5000 });
+
+    // Build a map studentCustomId → punches for O(1) lookup per slot
+    const punchesByStudent = new Map<string, Date[]>();
+    for (const log of zkLogs) {
+      const t = new Date(log.punchTime);
+      const arr = punchesByStudent.get(log.deviceUserId) ?? [];
+      arr.push(t);
+      punchesByStudent.set(log.deviceUserId, arr);
+    }
+
+    const slots = dayRoutines.map(routine => {
+      if (routine.isOffDay) {
+        return {
+          routineId:   routine.id,
+          subject:     routine.subjectName,
+          startTime:   routine.startTime,
+          endTime:     routine.endTime,
+          isOffDay:    true,
+          presentCount: 0,
+          absentCount:  0,
+          students:    [],
+        };
+      }
+
+      // Build time window with grace
+      const slotStart = parseSlotTime(routine.startTime);
+      const slotEnd   = parseSlotTime(routine.endTime);
+      const winStart  = slotStart ? new Date(slotStart.getTime() - GRACE_MS) : dayStart;
+      const winEnd    = slotEnd   ? new Date(slotEnd.getTime()   + GRACE_MS) : dayEnd;
+
+      const studentRows = (batchStudents as any[]).map(student => {
+        const sid = String(student.studentCustomId);
+        const punches = punchesByStudent.get(sid) ?? [];
+        // Find the earliest punch within the window
+        const matched = punches
+          .filter(t => t >= winStart && t <= winEnd)
+          .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+
+        return {
+          studentId:       student.id,
+          studentCustomId: sid,
+          name:            student.name,
+          group:           student.academicGroup ?? null,
+          shift:           student.shift ?? null,
+          status:          matched ? "Present" : "Absent",
+          punchTime:       matched ? matched.toISOString() : null,
+        };
+      });
+
+      const presentCount = studentRows.filter(r => r.status === "Present").length;
+      const absentCount  = studentRows.length - presentCount;
+
+      return {
+        routineId:    routine.id,
+        subject:      routine.subjectName,
+        startTime:    routine.startTime,
+        endTime:      routine.endTime,
+        isOffDay:     false,
+        presentCount,
+        absentCount,
+        students:     studentRows,
+      };
+    });
+
+    res.json({ date: dateStr, dayOfWeek, batchId, offDay: allOff, noRoutine: false, slots });
+  });
+
   // Bulk delete an entire exam (all student results matching batch + exam, optional subject)
   app.delete("/api/results/exam/bulk", async (req, res) => {
     if (!requireAdmin(req, res)) return;
