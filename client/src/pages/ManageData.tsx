@@ -151,7 +151,7 @@ export default function ManageData() {
   return (
     <Layout title="Manage Data" subtitle="Configure batches, students, and teachers">
       <Tabs defaultValue="academic" className="space-y-6">
-        <TabsList className="bg-muted/50 p-1">
+        <TabsList className="bg-muted/50 p-1 flex-wrap h-auto gap-y-1">
           <TabsTrigger value="academic" className="flex items-center gap-2">
             <Layers className="w-4 h-4" /> Academic Data
           </TabsTrigger>
