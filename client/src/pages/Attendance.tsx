@@ -49,13 +49,19 @@ type SmartSlot = {
   students: SmartStudentRow[];
 };
 
-type SmartAttendanceResponse = {
+type SmartDayResult = {
   date: string;
   dayOfWeek: string;
-  batchId: number;
   offDay: boolean;
   noRoutine: boolean;
   slots: SmartSlot[];
+};
+
+type MultiSmartAttendanceResponse = {
+  startDate: string;
+  endDate: string;
+  batchId: number;
+  days: SmartDayResult[];
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -109,25 +115,148 @@ function fmtPunchTime(isoStr: string): string {
   });
 }
 
+// ── Slot card (shared between single-day and multi-day views) ─────────────────
+
+function SmartSlotCard({ slot }: { slot: SmartSlot }) {
+  if (slot.isOffDay) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-5 py-4 flex items-center gap-3">
+        <Moon className="w-5 h-5 text-amber-500 shrink-0" />
+        <div>
+          <p className="font-semibold text-amber-700 text-sm">
+            {slot.subject || "Off Day"} — {slot.startTime}{slot.endTime ? ` – ${slot.endTime}` : ""}
+          </p>
+          <p className="text-xs text-amber-600 mt-0.5">This slot is marked as an off-day.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const total = slot.students.length;
+  const pct   = total > 0 ? Math.round((slot.presentCount / total) * 100) : 0;
+
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+      {/* Slot header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
+        <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+          <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="font-semibold text-slate-800 text-sm truncate">
+            {slot.subject || <span className="italic text-slate-400">No subject</span>}
+          </span>
+          {(slot.startTime || slot.endTime) && (
+            <span className="text-xs text-slate-400 font-mono shrink-0">
+              {slot.startTime}{slot.endTime ? ` – ${slot.endTime}` : ""}
+            </span>
+          )}
+          {slot.shift && (
+            <span className="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 shrink-0">
+              {slot.shift}
+            </span>
+          )}
+          {slot.academicGroup && (
+            <span className="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 shrink-0">
+              {slot.academicGroup}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+            🟢 {slot.presentCount} Present
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+            🔴 {slot.absentCount} Absent
+          </span>
+          <span className="text-xs text-slate-400 font-mono tabular-nums">{pct}%</span>
+        </div>
+      </div>
+
+      {/* Student rows */}
+      {slot.students.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-slate-400 italic">
+          No active students found in this batch.
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {slot.students.map((student) => (
+            <div
+              key={student.studentCustomId}
+              className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 px-4 py-2.5 transition-colors ${
+                student.status === "Present"
+                  ? "bg-emerald-50/30 hover:bg-emerald-50/60"
+                  : "bg-rose-50/20 hover:bg-rose-50/50"
+              }`}
+            >
+              <span className="hidden sm:inline-flex font-mono text-[11px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                {student.studentCustomId}
+              </span>
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-slate-800 truncate block leading-snug">
+                  {student.name}
+                </span>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <span className="sm:hidden font-mono text-[10px] text-slate-400">{student.studentCustomId}</span>
+                  {student.group && (
+                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-purple-200 text-purple-600 bg-purple-50">
+                      {student.group}
+                    </Badge>
+                  )}
+                  {student.shift && (
+                    <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-blue-200 text-blue-600 bg-blue-50">
+                      {student.shift}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                {student.punchTime ? (
+                  <span className="text-xs font-mono font-semibold text-emerald-700 tabular-nums">
+                    {fmtPunchTime(student.punchTime)}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-300 font-mono">—</span>
+                )}
+              </div>
+              <div className="shrink-0">
+                {student.status === "Present" ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                    🟢 Present
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                    🔴 Absent
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Smart View Sub-component ──────────────────────────────────────────────────
 
 function SmartAttendanceView({
   batchId,
-  date,
+  startDate,
+  endDate,
   batchName,
   shift,
   group,
 }: {
   batchId: string;
-  date: string;
+  startDate: string;
+  endDate: string;
   batchName: string;
   shift?: string;
   group?: string;
 }) {
-  const { data, isLoading, isError } = useQuery<SmartAttendanceResponse>({
-    queryKey: ["/api/attendance/smart", batchId, date, shift ?? "", group ?? ""],
+  const { data, isLoading, isError } = useQuery<MultiSmartAttendanceResponse>({
+    queryKey: ["/api/attendance/smart", batchId, startDate, endDate, shift ?? "", group ?? ""],
     queryFn: async () => {
-      const params = new URLSearchParams({ batchId, date });
+      const params = new URLSearchParams({ batchId, startDate, endDate });
       if (shift) params.set("shift", shift);
       if (group) params.set("group", group);
       const res = await fetch(`/api/attendance/smart?${params.toString()}`);
@@ -154,157 +283,143 @@ function SmartAttendanceView({
     );
   }
 
-  // ── No routine configured ──────────────────────────────────────────────────
-  if (data.noRoutine) {
+  // ── Aggregate summary across all days ─────────────────────────────────────
+  const activeDays = data.days.filter(d => !d.noRoutine && !d.offDay);
+  const totalSlots = activeDays.reduce(
+    (n, d) => n + d.slots.filter(s => !s.isOffDay).length, 0
+  );
+  const totalPresent = activeDays.reduce(
+    (n, d) => n + d.slots.filter(s => !s.isOffDay).reduce((m, s) => m + s.presentCount, 0), 0
+  );
+  const totalAbsent = activeDays.reduce(
+    (n, d) => n + d.slots.filter(s => !s.isOffDay).reduce((m, s) => m + s.absentCount, 0), 0
+  );
+  const totalRecords  = totalPresent + totalAbsent;
+  const overallPct    = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100) : null;
+
+  const isMultiDay = startDate !== endDate;
+
+  if (activeDays.length === 0) {
+    const allOff   = data.days.every(d => d.offDay);
+    const noSched  = data.days.every(d => d.noRoutine);
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
-        <BookOpen className="w-9 h-9 opacity-25" />
-        <p className="text-sm font-medium">No class routine set for <span className="font-bold text-slate-600">{batchName}</span> on {data.dayOfWeek}.</p>
-        <p className="text-xs text-slate-400">Go to Manage → Class Shift &amp; Routine to add a schedule.</p>
-      </div>
-    );
-  }
-
-  // ── Whole day off ──────────────────────────────────────────────────────────
-  if (data.offDay) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 gap-3">
-        <Moon className="w-9 h-9 text-slate-300" />
-        <p className="text-base font-semibold text-slate-500">
-          {data.dayOfWeek} is an <span className="text-amber-600">Off Day</span> for {batchName}
+        {allOff
+          ? <Moon className="w-9 h-9 text-slate-300" />
+          : <BookOpen className="w-9 h-9 opacity-25" />
+        }
+        <p className="text-sm font-medium text-center">
+          {allOff
+            ? `All days in this range are off-days for ${batchName}.`
+            : noSched
+            ? `No class routine found for ${batchName} in this date range.`
+            : `No active class days in this range for ${batchName}.`
+          }
         </p>
-        <p className="text-xs text-slate-400">No attendance is tracked on off-days.</p>
+        {noSched && (
+          <p className="text-xs text-slate-400">Go to Manage → Class Shift &amp; Routine to add a schedule.</p>
+        )}
       </div>
     );
   }
 
-  // ── Slot-wise attendance ───────────────────────────────────────────────────
+  // ── Format helper for section date headers ────────────────────────────────
+  const fmtDateHeader = (ds: string, dow: string) =>
+    `${dow}, ${new Date(ds + "T12:00:00").toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric",
+    })}`;
+
   return (
     <div className="space-y-6">
-      {data.slots.map((slot) => {
-        if (slot.isOffDay) {
+
+      {/* ── Aggregate summary bar (multi-day only) ────────────────────────── */}
+      {isMultiDay && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-sm">
+          <span className="font-semibold text-slate-700">
+            {activeDays.length} class day{activeDays.length !== 1 ? "s" : ""}
+          </span>
+          <span className="text-slate-300">·</span>
+          <span className="text-slate-600">{totalSlots} session{totalSlots !== 1 ? "s" : ""}</span>
+          <span className="text-slate-300">·</span>
+          <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+            🟢 {totalPresent} present
+          </span>
+          <span className="inline-flex items-center gap-1 font-bold text-rose-700">
+            🔴 {totalAbsent} absent
+          </span>
+          {overallPct !== null && (
+            <>
+              <span className="text-slate-300">·</span>
+              <span className={`font-bold tabular-nums ${overallPct >= 75 ? "text-emerald-600" : overallPct >= 50 ? "text-amber-600" : "text-rose-600"}`}>
+                {overallPct}% overall
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Per-day sections ─────────────────────────────────────────────── */}
+      {data.days.map((day) => {
+        // Off-day: compact banner
+        if (day.offDay) {
           return (
-            <div key={slot.routineId} className="rounded-lg border border-amber-200 bg-amber-50/60 px-5 py-4 flex items-center gap-3">
-              <Moon className="w-5 h-5 text-amber-500 shrink-0" />
-              <div>
-                <p className="font-semibold text-amber-700 text-sm">
-                  {slot.subject || "Off Day"} — {slot.startTime}{slot.endTime ? ` – ${slot.endTime}` : ""}
-                </p>
-                <p className="text-xs text-amber-600 mt-0.5">This slot is marked as an off-day.</p>
-              </div>
+            <div key={day.date} className="flex items-center gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50/60">
+              <Moon className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-sm font-medium text-amber-700">
+                {fmtDateHeader(day.date, day.dayOfWeek)} — Off Day
+              </span>
             </div>
           );
         }
 
-        const total = slot.students.length;
-        const pct = total > 0 ? Math.round((slot.presentCount / total) * 100) : 0;
+        // No routine: skip silently in single-day mode; show compact note in multi-day
+        if (day.noRoutine) {
+          if (!isMultiDay) {
+            return (
+              <div key={day.date} className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
+                <BookOpen className="w-9 h-9 opacity-25" />
+                <p className="text-sm font-medium">
+                  No class routine set for <span className="font-bold text-slate-600">{batchName}</span> on {day.dayOfWeek}.
+                </p>
+                <p className="text-xs">Go to Manage → Class Shift &amp; Routine to add a schedule.</p>
+              </div>
+            );
+          }
+          return null; // silently skip in multi-day
+        }
+
+        const activeSlots = day.slots.filter(s => !s.isOffDay);
 
         return (
-          <div key={slot.routineId} className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            {/* Slot header */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
-              <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
-                <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
-                <span className="font-semibold text-slate-800 text-sm truncate">
-                  {slot.subject || <span className="italic text-slate-400">No subject</span>}
+          <div key={day.date} className="space-y-3">
+            {/* Date section header (multi-day only) */}
+            {isMultiDay && (
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide px-2">
+                  {fmtDateHeader(day.date, day.dayOfWeek)}
                 </span>
-                {(slot.startTime || slot.endTime) && (
-                  <span className="text-xs text-slate-400 font-mono shrink-0">
-                    {slot.startTime}{slot.endTime ? ` – ${slot.endTime}` : ""}
-                  </span>
-                )}
-                {slot.shift && (
-                  <span className="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-blue-700 shrink-0">
-                    {slot.shift}
-                  </span>
-                )}
-                {slot.academicGroup && (
-                  <span className="inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-700 shrink-0">
-                    {slot.academicGroup}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                  🟢 {slot.presentCount} Present
-                </span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                  🔴 {slot.absentCount} Absent
-                </span>
-                <span className="text-xs text-slate-400 font-mono tabular-nums">
-                  {pct}% rate
-                </span>
-              </div>
-            </div>
-
-            {/* Student rows */}
-            {slot.students.length === 0 ? (
-              <div className="px-5 py-8 text-center text-sm text-slate-400 italic">
-                No active students found in this batch.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {slot.students.map((student) => (
-                  <div
-                    key={student.studentCustomId}
-                    className={`grid grid-cols-[1fr_auto_auto] sm:grid-cols-[auto_1fr_auto_auto] items-center gap-x-3 px-4 py-2.5 transition-colors ${
-                      student.status === "Present"
-                        ? "bg-emerald-50/30 hover:bg-emerald-50/60"
-                        : "bg-rose-50/20 hover:bg-rose-50/50"
-                    }`}
-                  >
-                    {/* Roll badge */}
-                    <span className="hidden sm:inline-flex font-mono text-[11px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
-                      {student.studentCustomId}
+                {activeSlots.length > 0 && (() => {
+                  const dp = activeSlots.reduce((n, s) => n + s.presentCount, 0);
+                  const da = activeSlots.reduce((n, s) => n + s.absentCount, 0);
+                  const dr = dp + da;
+                  const dpct = dr > 0 ? Math.round((dp / dr) * 100) : null;
+                  return (
+                    <span className={`text-[11px] font-semibold tabular-nums ${dpct !== null && dpct >= 75 ? "text-emerald-600" : dpct !== null && dpct >= 50 ? "text-amber-600" : "text-rose-600"}`}>
+                      {dpct !== null ? `${dpct}%` : "—"}
                     </span>
-
-                    {/* Name + tags */}
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium text-slate-800 truncate block leading-snug">
-                        {student.name}
-                      </span>
-                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className="sm:hidden font-mono text-[10px] text-slate-400">{student.studentCustomId}</span>
-                        {student.group && (
-                          <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-purple-200 text-purple-600 bg-purple-50">
-                            {student.group}
-                          </Badge>
-                        )}
-                        {student.shift && (
-                          <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-blue-200 text-blue-600 bg-blue-50">
-                            {student.shift}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Punch time */}
-                    <div className="text-right shrink-0">
-                      {student.punchTime ? (
-                        <span className="text-xs font-mono font-semibold text-emerald-700 tabular-nums">
-                          {fmtPunchTime(student.punchTime)}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-300 font-mono">—</span>
-                      )}
-                    </div>
-
-                    {/* Status badge */}
-                    <div className="shrink-0">
-                      {student.status === "Present" ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
-                          🟢 Present
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                          🔴 Absent
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })()}
+                <div className="h-px flex-1 bg-slate-200" />
               </div>
             )}
+
+            {/* Slot cards for this day */}
+            <div className="space-y-4">
+              {day.slots.map((slot) => (
+                <SmartSlotCard key={`${day.date}-${slot.routineId}`} slot={slot} />
+              ))}
+            </div>
           </div>
         );
       })}
@@ -331,8 +446,8 @@ export default function Attendance() {
   // Smart view toggle — true = smart check, false = raw logs
   const [smartMode, setSmartMode] = useState<boolean>(true);
 
-  // Smart view is available only when batch + single date are selected
-  const smartEligible = !!fBatchId && fFromDate === fToDate;
+  // Smart view is available whenever a batch is selected (any date range)
+  const smartEligible = !!fBatchId;
 
   // Cascade: batch change resets downstream filters
   useEffect(() => {
@@ -801,16 +916,16 @@ export default function Attendance() {
           </CardContent>
         </Card>
 
-        {/* ── Smart Attendance Card (batch + single-day only) ──────────────── */}
+        {/* ── Smart Attendance Card (batch selected, any date range) ─────────── */}
         {smartEligible && (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-indigo-500" />
-                  Smart Attendance Check
+                  Smart Attendance
                   <span className="text-xs font-normal text-slate-400 ml-1">
-                    — {selectedBatchName} · {fFromDate}
+                    — {selectedBatchName} · {fFromDate === fToDate ? fFromDate : `${fFromDate} → ${fToDate}`}
                   </span>
                 </CardTitle>
                 {/* View mode toggle */}
@@ -847,7 +962,8 @@ export default function Attendance() {
               {smartMode ? (
                 <SmartAttendanceView
                   batchId={fBatchId}
-                  date={fFromDate}
+                  startDate={fFromDate}
+                  endDate={fToDate}
                   batchName={selectedBatchName}
                   shift={fShift || undefined}
                   group={fGroup || undefined}
