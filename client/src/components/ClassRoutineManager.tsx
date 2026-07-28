@@ -71,18 +71,16 @@ const DAY_SHORT: Record<string, string> = {
 };
 
 function ShiftBadge({ shift }: { shift: string | null }) {
-  if (!shift) return null;
   return (
     <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-blue-200 text-blue-600 bg-blue-50">
-      {shift}
+      {shift ?? "All Shifts"}
     </Badge>
   );
 }
 function GroupBadge({ group }: { group: string | null }) {
-  if (!group) return null;
   return (
     <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-purple-200 text-purple-600 bg-purple-50">
-      {group}
+      {group ?? "All Groups"}
     </Badge>
   );
 }
@@ -274,10 +272,10 @@ export function ClassRoutineManager() {
                       onValueChange={(v) => field.onChange(v === "__any__" ? null : v)}
                     >
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Any shift" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="All Shifts" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="__any__">Any shift</SelectItem>
+                        <SelectItem value="__any__">All Shifts</SelectItem>
                         {SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -300,10 +298,10 @@ export function ClassRoutineManager() {
                       onValueChange={(v) => field.onChange(v === "__any__" ? null : v)}
                     >
                       <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Any group" /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="All Groups" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="__any__">Any group</SelectItem>
+                        <SelectItem value="__any__">All Groups</SelectItem>
                         {ACADEMIC_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -465,9 +463,6 @@ export function ClassRoutineManager() {
                         <div className="flex items-center gap-1 flex-wrap">
                           <ShiftBadge shift={slot.shift} />
                           <GroupBadge group={slot.academicGroup} />
-                          {!slot.shift && !slot.academicGroup && (
-                            <span className="text-[10px] text-muted-foreground italic">All</span>
-                          )}
                         </div>
                       </TableCell>
                       {!selectedBatchId && (
@@ -547,12 +542,12 @@ export function ClassRoutineManager() {
                   Shift <span className="text-muted-foreground font-normal text-xs">(optional)</span>
                 </label>
                 <Select
-                  value={(editForm.shift ?? editingRoutine.shift) ?? "__any__"}
+                  value={('shift' in editForm ? editForm.shift : editingRoutine.shift) ?? "__any__"}
                   onValueChange={(v) => setEditForm(f => ({ ...f, shift: v === "__any__" ? null : v }))}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__any__">Any shift</SelectItem>
+                    <SelectItem value="__any__">All Shifts</SelectItem>
                     {SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -564,12 +559,12 @@ export function ClassRoutineManager() {
                   Group <span className="text-muted-foreground font-normal text-xs">(optional)</span>
                 </label>
                 <Select
-                  value={(editForm.academicGroup ?? editingRoutine.academicGroup) ?? "__any__"}
+                  value={('academicGroup' in editForm ? editForm.academicGroup : editingRoutine.academicGroup) ?? "__any__"}
                   onValueChange={(v) => setEditForm(f => ({ ...f, academicGroup: v === "__any__" ? null : v }))}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__any__">Any group</SelectItem>
+                    <SelectItem value="__any__">All Groups</SelectItem>
                     {ACADEMIC_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                   </SelectContent>
                 </Select>
