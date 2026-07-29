@@ -1360,8 +1360,20 @@ export async function registerRoutes(
 
       // Map validated payloads → InsertZktecoLog rows.
       const insertRows = validLogs.map(log => {
-        // Normalise punchTime — reject unparseable timestamps.
-        const punchDate = new Date(log.punchTime);
+        // Normalise punchTime — the ZKTeco device sends local Bangladesh time
+        // (Asia/Dhaka, UTC+6) as a bare string with no timezone suffix, e.g.
+        // "2026-07-29 08:11:00".  JavaScript's Date constructor treats such
+        // strings as UTC, which would add a spurious +6 h offset on display.
+        // Fix: if the string carries no timezone indicator, append "+06:00" so
+        // it is correctly interpreted as Dhaka local time before UTC conversion.
+        let rawTs = log.punchTime.trim();
+        const hasTzInfo = /[Zz]$/.test(rawTs) || /[+-]\d{2}:?\d{2}$/.test(rawTs);
+        if (!hasTzInfo) {
+          // Normalise space separator to "T" for ISO-8601 compliance, then tag
+          // as Asia/Dhaka so the UTC value stored in PostgreSQL is correct.
+          rawTs = rawTs.replace(" ", "T") + "+06:00";
+        }
+        const punchDate = new Date(rawTs);
         if (isNaN(punchDate.getTime())) {
           throw new Error(`Invalid punchTime value: "${log.punchTime}"`);
         }
