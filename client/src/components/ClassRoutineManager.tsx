@@ -19,12 +19,11 @@ import { CalendarDays, Pencil, Trash2, Plus, Clock } from "lucide-react";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-export const SHIFTS = ["Morning", "Day"] as const;
+export const SHIFTS = ["Morning", "Evening"] as const;
 export const ACADEMIC_GROUPS = [
   "Science",
-  "Business Studies/Commerce",
-  "Humanities/Arts",
-  "General",
+  "Commerce",
+  "Arts",
 ] as const;
 
 const DAYS_OF_WEEK = [

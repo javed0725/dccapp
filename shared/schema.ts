@@ -192,8 +192,8 @@ export const classRoutines = pgTable("class_routines", {
   subjectName: text("subject_name").notNull().default(""),
   isOffDay: boolean("is_off_day").notNull().default(false),
   // Optional: narrow this slot to a specific student shift / academic group
-  shift: text("shift"),         // "Morning" | "Day" | null (applies to all shifts)
-  academicGroup: text("academic_group"), // "Science" | "Business Studies/Commerce" | "Humanities/Arts" | "General" | null
+  shift: text("shift"),         // "Morning" | "Evening" | null (null = all shifts)
+  academicGroup: text("academic_group"), // "Science" | "Commerce" | "Arts" | null (null = all groups)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
