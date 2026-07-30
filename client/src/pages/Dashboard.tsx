@@ -1,6 +1,7 @@
+import { useState, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { useIncomes, useExpenses, useDeposits, useBatches, useStudents } from "@/hooks/use-finance";
-import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, GraduationCap, BookOpen, UserCircle2, Download } from "lucide-react";
+import { Users, History, CheckCircle2, Clock, Wallet, TrendingUp, CreditCard, GraduationCap, BookOpen, UserCircle2, Download, Phone, MessageSquare, Search, CheckCircle, XCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
@@ -10,6 +11,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -45,6 +48,9 @@ export default function Dashboard() {
     queryKey: ["/api/results"],
     enabled: isStudent,
   });
+
+  // Modal state for paid/unpaid student drill-down (Monthly Overview cards)
+  const [paymentModal, setPaymentModal] = useState<{ month: string; status: "paid" | "unpaid" } | null>(null);
 
   const isLoadingAdminData = isAdmin && (loadingTeachers || loadingExpenses || loadingDeposits);
   const isLoadingCommon = loadingIncomes || loadingBatches || loadingStudents;
@@ -360,6 +366,17 @@ export default function Dashboard() {
                 <div className="w-2 h-8 bg-emerald-500 rounded-full" />
                 <h2 className="text-2xl font-bold">Monthly Overview</h2>
               </div>
+              {/* Payment drill-down modal — shared across all months */}
+              <PaymentStatusModal
+                isOpen={paymentModal !== null}
+                onClose={() => setPaymentModal(null)}
+                month={paymentModal?.month ?? ""}
+                status={paymentModal?.status ?? "paid"}
+                incomes={incomes ?? []}
+                students={(students ?? []).filter((s: any) => s.isActive !== false)}
+                batches={batches ?? []}
+              />
+
               <Accordion type="multiple" defaultValue={defaultOpen} className="space-y-3">
                 {monthlyData.map(month => {
                   const isCurrentMonth = month.month === currentMonthName;
@@ -407,22 +424,30 @@ export default function Dashboard() {
                             <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300 uppercase tracking-wider mb-1">Expenses</p>
                             <p className="text-sm font-extrabold text-rose-600 dark:text-rose-400 w-full text-center">৳{month.totalExpense.toLocaleString()}</p>
                           </div>
-                          {/* PAID — active students who paid this month */}
-                          <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-orange-200 dark:border-orange-800/30">
+                          {/* PAID — active students who paid this month (clickable) */}
+                          <button
+                            onClick={() => setPaymentModal({ month: month.month, status: "paid" })}
+                            className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-orange-200 dark:border-orange-800/30 cursor-pointer hover:brightness-95 dark:hover:brightness-125 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 w-full"
+                          >
                             <div className="p-1.5 rounded-lg bg-orange-500/20 mb-1.5">
                               <GraduationCap className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                             </div>
                             <p className="text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider mb-1">Paid</p>
                             <p className="text-sm font-extrabold text-orange-600 dark:text-orange-400 w-full text-center">{month.paidStudentsCount}</p>
-                          </div>
-                          {/* UNPAID — active students who haven't paid this month */}
-                          <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-slate-200 dark:border-slate-700/30">
+                            <p className="text-[9px] text-orange-400 dark:text-orange-500 mt-0.5 opacity-70">tap to view</p>
+                          </button>
+                          {/* UNPAID — active students who haven't paid this month (clickable) */}
+                          <button
+                            onClick={() => setPaymentModal({ month: month.month, status: "unpaid" })}
+                            className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20 rounded-xl p-3 flex flex-col items-center justify-center text-center border border-slate-200 dark:border-slate-700/30 cursor-pointer hover:brightness-95 dark:hover:brightness-125 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 w-full"
+                          >
                             <div className="p-1.5 rounded-lg bg-slate-400/20 mb-1.5">
                               <Clock className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                             </div>
                             <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Unpaid</p>
                             <p className="text-sm font-extrabold text-slate-500 dark:text-slate-400 w-full text-center">{Math.max(0, totalStudents - month.paidStudentsCount)}</p>
-                          </div>
+                            <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 opacity-70">tap to view</p>
+                          </button>
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -508,5 +533,209 @@ function DashboardSkeleton() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10"><Skeleton className="md:col-span-2 h-48 rounded-2xl" /><Skeleton className="h-48 rounded-2xl" /></div>
       <div className="space-y-8"><Skeleton className="h-[400px] rounded-2xl w-full" /></div>
     </Layout>
+  );
+}
+
+// ── PaymentStatusModal ────────────────────────────────────────────────────────
+// Shows paid or unpaid students for a given month with search and contact links.
+interface PaymentStatusModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  month: string;          // e.g. "July"
+  status: "paid" | "unpaid";
+  incomes: any[];
+  students: any[];        // already filtered to active only
+  batches: any[];
+}
+
+function PaymentStatusModal({ isOpen, onClose, month, status, incomes, students, batches }: PaymentStatusModalProps) {
+  const [search, setSearch] = useState("");
+
+  // Build paid-student map: studentId → total amount paid this month
+  const paidMap = useMemo(() => {
+    const map = new Map<number, number>();
+    incomes
+      .filter(inc => inc.month === month)
+      .forEach(inc => {
+        map.set(inc.studentId, (map.get(inc.studentId) ?? 0) + (Number(inc.amount) || 0));
+      });
+    return map;
+  }, [incomes, month]);
+
+  // Full list for the chosen status
+  const fullList = useMemo(() => {
+    if (status === "paid") {
+      return students
+        .filter(s => paidMap.has(s.id))
+        .map(s => ({
+          id: s.id,
+          name: s.name,
+          studentCustomId: s.studentCustomId ?? "—",
+          mobileNumber: s.mobileNumber ?? "",
+          batchName: batches.find((b: any) => b.id === s.batchId)?.name ?? "—",
+          amountPaid: paidMap.get(s.id) ?? 0,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      return students
+        .filter(s => !paidMap.has(s.id))
+        .map(s => ({
+          id: s.id,
+          name: s.name,
+          studentCustomId: s.studentCustomId ?? "—",
+          mobileNumber: s.mobileNumber ?? "",
+          batchName: batches.find((b: any) => b.id === s.batchId)?.name ?? "—",
+          amountPaid: 0,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+  }, [status, students, paidMap, batches]);
+
+  // Apply search filter
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return fullList;
+    return fullList.filter(
+      s =>
+        s.name.toLowerCase().includes(q) ||
+        s.studentCustomId.toLowerCase().includes(q) ||
+        s.batchName.toLowerCase().includes(q)
+    );
+  }, [fullList, search]);
+
+  const isPaid = status === "paid";
+  const title = `${isPaid ? "Paid" : "Unpaid"} Students — ${month} ${new Date().getFullYear()}`;
+  const accentClass = isPaid
+    ? "text-orange-500 dark:text-orange-400"
+    : "text-slate-500 dark:text-slate-400";
+  const badgePaid   = "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40";
+  const badgeUnpaid = "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-800/40";
+
+  return (
+    <Dialog open={isOpen} onOpenChange={open => { if (!open) { onClose(); setSearch(""); } }}>
+      <DialogContent className="max-w-lg w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl ${isPaid ? "bg-orange-100 dark:bg-orange-900/30" : "bg-slate-100 dark:bg-slate-800"}`}>
+              {isPaid
+                ? <CheckCircle className="w-4 h-4 text-orange-500 dark:text-orange-400" />
+                : <XCircle    className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              }
+            </div>
+            <div>
+              <DialogTitle className={`text-base font-bold leading-tight ${accentClass}`}>
+                {title}
+              </DialogTitle>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {filtered.length} of {fullList.length} student{fullList.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative mt-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <Input
+              placeholder="Search by name, ID or batch…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-9 text-sm bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-1 focus-visible:ring-slate-300 dark:focus-visible:ring-slate-600 rounded-xl"
+            />
+          </div>
+        </DialogHeader>
+
+        {/* List */}
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
+          {filtered.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 dark:text-slate-500">
+              <p className="text-sm font-medium">No students found</p>
+              {search && <p className="text-xs mt-1">Try a different search term</p>}
+            </div>
+          ) : (
+            filtered.map((s, idx) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                {/* Index avatar */}
+                <div className="shrink-0 w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  {idx + 1}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">
+                    {s.name}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                      ID: {s.studentCustomId}
+                    </span>
+                    <span className="text-[10px] text-slate-300 dark:text-slate-700">·</span>
+                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">
+                      {s.batchName}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount badge */}
+                <div className="shrink-0">
+                  {isPaid ? (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold border ${badgePaid}`}>
+                      ৳{s.amountPaid.toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-bold border ${badgeUnpaid}`}>
+                      Due
+                    </span>
+                  )}
+                </div>
+
+                {/* Contact buttons */}
+                {s.mobileNumber && (
+                  <div className="shrink-0 flex items-center gap-1">
+                    <a
+                      href={`tel:${s.mobileNumber}`}
+                      title={`Call ${s.name}`}
+                      className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Phone className="w-3 h-3" />
+                    </a>
+                    <a
+                      href={`sms:${s.mobileNumber}`}
+                      title={`SMS ${s.name}`}
+                      className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-500 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer summary */}
+        {fullList.length > 0 && (
+          <div className="shrink-0 px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs text-slate-400">
+              {isPaid
+                ? `Total collected: ৳${fullList.reduce((n, s) => n + s.amountPaid, 0).toLocaleString()}`
+                : `${fullList.length} student${fullList.length !== 1 ? "s" : ""} yet to pay`
+              }
+            </span>
+            <button
+              onClick={() => { onClose(); setSearch(""); }}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
