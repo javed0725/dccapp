@@ -1,0 +1,1 @@
+- [Package installation side effects](package-installation-side-effects.md) — npm package installation may modify Replit module config and lockfile optional metadata; review and restore unrelated changes.

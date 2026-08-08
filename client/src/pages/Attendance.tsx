@@ -1,7 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { Layout } from "@/components/Layout";
 import { useStudents, useBatches } from "@/hooks/use-finance";
 import { useQuery } from "@tanstack/react-query";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { type User } from "@/lib/schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarDays, Fingerprint, Loader2, Search, X, SlidersHorizontal, BookOpen, CheckCircle2, XCircle, Moon } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { CalendarDays, Download, Fingerprint, Loader2, Search, X, SlidersHorizontal, BookOpen, CheckCircle2, XCircle, Moon } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -113,6 +116,304 @@ function fmtPunchTime(isoStr: string): string {
     hour: "2-digit", minute: "2-digit", second: "2-digit",
     hour12: true, timeZone: "Asia/Dhaka",
   });
+}
+
+function sanitizeReportPart(value: string, fallback = "Report"): string {
+  const cleaned = value
+    .normalize("NFKD")
+    .replace(/[^\w\u0980-\u09FF-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+  return cleaned || fallback;
+}
+
+function reportTimestamp(): string {
+  return new Date().toLocaleString("sv-SE", {
+    timeZone: "Asia/Dhaka",
+    hour12: false,
+  }).replace("T", " ");
+}
+
+function reportDateLabel(date: string): string {
+  return new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function SmartAttendancePrintReport({
+  data,
+  batchName,
+  startDate,
+  endDate,
+  shift,
+  group,
+  reportRef,
+}: {
+  data: MultiSmartAttendanceResponse;
+  batchName: string;
+  startDate: string;
+  endDate: string;
+  shift?: string;
+  group?: string;
+  reportRef: RefObject<HTMLDivElement>;
+}) {
+  const activeDays = data.days.filter((day) => !day.noRoutine && !day.offDay);
+  const sessions = activeDays.flatMap((day) =>
+    day.slots
+      .filter((slot) => !slot.isOffDay)
+      .map((slot) => ({ day, slot })),
+  );
+  const totalPresent = sessions.reduce((sum, { slot }) => sum + slot.presentCount, 0);
+  const totalAbsent = sessions.reduce((sum, { slot }) => sum + slot.absentCount, 0);
+  const totalRecords = totalPresent + totalAbsent;
+  const attendanceRate = totalRecords > 0 ? Math.round((totalPresent / totalRecords) * 100) : 0;
+  const subjects = Array.from(new Set(sessions.map(({ slot }) => slot.subject).filter(Boolean)));
+  const timeWindows = Array.from(new Set(
+    sessions
+      .map(({ slot }) => slot.startTime || slot.endTime ? `${slot.startTime || "—"} – ${slot.endTime || "—"}` : "")
+      .filter(Boolean),
+  ));
+
+  const cellStyle: CSSProperties = {
+    border: "1px solid #E5E7EB",
+    padding: "8px 10px",
+    fontSize: "13px",
+    lineHeight: 1.35,
+  };
+
+  return (
+    <div
+      ref={reportRef}
+      aria-hidden="true"
+      data-testid="attendance-print-report"
+      style={{
+        position: "absolute",
+        left: "-10000px",
+        top: 0,
+        width: "1000px",
+        padding: "24px",
+        background: "#FFFFFF",
+        color: "#111827",
+        fontFamily: "'Kalpurush', 'Noto Sans Bengali', 'Noto Sans Bengali UI', 'Vrinda', sans-serif",
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ textAlign: "center", borderBottom: "2px solid #E0E7FF", paddingBottom: "18px" }}>
+        <div style={{ color: "#1E40AF", fontSize: "22px", fontWeight: 800 }}>
+          Dynamic Coaching Center
+        </div>
+        <div style={{ color: "#374151", fontSize: "17px", fontWeight: 700, marginTop: "4px" }}>
+          Smart Attendance Report
+        </div>
+        <div style={{ color: "#6B7280", fontSize: "12px", marginTop: "7px" }}>
+          Generated: {reportTimestamp()}
+        </div>
+      </div>
+
+      <div style={{
+        marginTop: "18px",
+        padding: "13px 16px",
+        border: "1px solid #C7D2FE",
+        borderRadius: "8px",
+        background: "#EEF2FF",
+        fontSize: "13px",
+        lineHeight: 1.65,
+      }}>
+        <div><strong>Class / Batch:</strong> {batchName || "All Batches"}</div>
+        <div><strong>Subject:</strong> {subjects.length > 0 ? subjects.join(" · ") : "বাংলাদেশ ও বিশ্বপরিচয়"}</div>
+        <div><strong>Date Range:</strong> {startDate} {startDate !== endDate ? `→ ${endDate}` : ""}</div>
+        <div><strong>Time Window:</strong> {timeWindows.length > 0 ? timeWindows.join(" · ") : "All scheduled times"}</div>
+        {(shift || group) && (
+          <div>
+            {shift && <><strong>Shift:</strong> {shift}</>}
+            {shift && group && "  ·  "}
+            {group && <><strong>Group:</strong> {group}</>}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginTop: "18px", textAlign: "center" }}>
+        <div style={{ background: "#DCFCE7", color: "#166534", borderRadius: "8px", padding: "12px", fontWeight: 700 }}>
+          Total Present: {totalPresent}
+        </div>
+        <div style={{ background: "#FEE2E2", color: "#991B1B", borderRadius: "8px", padding: "12px", fontWeight: 700 }}>
+          Total Absent: {totalAbsent}
+        </div>
+        <div style={{ background: "#E0E7FF", color: "#3730A3", borderRadius: "8px", padding: "12px", fontWeight: 700 }}>
+          Rate: {attendanceRate}%
+        </div>
+      </div>
+
+      {sessions.map(({ day, slot }, sessionIndex) => (
+        <div key={`${day.date}-${slot.routineId}-${sessionIndex}`} style={{ marginTop: "22px" }}>
+          <div style={{ color: "#3730A3", fontSize: "14px", fontWeight: 800, marginBottom: "7px" }}>
+            {reportDateLabel(day.date)} · {day.dayOfWeek} · {slot.subject || "Class"}
+            {(slot.startTime || slot.endTime) && ` · ${slot.startTime || "—"} – ${slot.endTime || "—"}`}
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "45px" }} />
+              <col style={{ width: "130px" }} />
+              <col />
+              <col style={{ width: "145px" }} />
+              <col style={{ width: "110px" }} />
+            </colgroup>
+            <thead>
+              <tr style={{ background: "#4F46E5", color: "#FFFFFF" }}>
+                {["#", "Student ID", "Student Name", "Punch Time", "Status"].map((heading) => (
+                  <th key={heading} style={{ ...cellStyle, fontWeight: 800, textAlign: heading === "Student Name" ? "left" : "center" }}>
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {slot.students.map((student, index) => (
+                <tr key={`${student.studentCustomId}-${index}`} style={{ background: index % 2 === 1 ? "#F9FAFB" : "#FFFFFF" }}>
+                  <td style={{ ...cellStyle, textAlign: "center" }}>{index + 1}</td>
+                  <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace" }}>{student.studentCustomId}</td>
+                  <td style={{ ...cellStyle, textAlign: "left" }}>{student.name}</td>
+                  <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace" }}>
+                    {student.punchTime ? fmtPunchTime(student.punchTime) : "—"}
+                  </td>
+                  <td style={{ ...cellStyle, textAlign: "center" }}>
+                    <span style={{
+                      display: "inline-block",
+                      borderRadius: "999px",
+                      padding: "3px 9px",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      background: student.status === "Present" ? "#DCFCE7" : "#FEE2E2",
+                      color: student.status === "Present" ? "#166534" : "#991B1B",
+                    }}>
+                      {student.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SmartAttendanceExport({
+  batchId,
+  startDate,
+  endDate,
+  batchName,
+  shift,
+  group,
+}: {
+  batchId: string;
+  startDate: string;
+  endDate: string;
+  batchName: string;
+  shift?: string;
+  group?: string;
+}) {
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const { data } = useQuery<MultiSmartAttendanceResponse>({
+    queryKey: ["/api/attendance/smart", batchId, startDate, endDate, shift ?? "", group ?? ""],
+    queryFn: async () => {
+      const params = new URLSearchParams({ batchId, startDate, endDate });
+      if (shift) params.set("shift", shift);
+      if (group) params.set("group", group);
+      const res = await fetch(`/api/attendance/smart?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load smart attendance");
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
+
+  const downloadReport = async (format: "pdf" | "png") => {
+    if (!data || !reportRef.current) return;
+    setIsExporting(true);
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+      const canvas = await html2canvas(reportRef.current, {
+        backgroundColor: "#FFFFFF",
+        useCORS: true,
+        allowTaint: true,
+        scale: 2,
+        imageTimeout: 0,
+        logging: false,
+      });
+      const fileBase = `Attendance_Report_${sanitizeReportPart(batchName, "Class")}_${sanitizeReportPart(
+        Array.from(new Set(data.days.flatMap((day) => day.slots.map((slot) => slot.subject).filter(Boolean)))).join("-"),
+        "Attendance",
+      )}_${startDate}`;
+
+      if (format === "png") {
+        const link = document.createElement("a");
+        link.download = `${fileBase}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      } else {
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const margin = 8;
+        const pageWidth = 210 - margin * 2;
+        const pageHeight = 297 - margin * 2;
+        const imageHeight = (canvas.height * pageWidth) / canvas.width;
+        let remainingHeight = imageHeight;
+        let y = margin;
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, y, pageWidth, imageHeight, undefined, "FAST");
+        remainingHeight -= pageHeight;
+        while (remainingHeight > 0) {
+          y = margin - (imageHeight - remainingHeight);
+          pdf.addPage();
+          pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, y, pageWidth, imageHeight, undefined, "FAST");
+          remainingHeight -= pageHeight;
+        }
+        pdf.save(`${fileBase}.pdf`);
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={isExporting || !data}
+            data-testid="button-download-attendance-report"
+          >
+            {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            {isExporting ? "Preparing…" : "Download Report"}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => void downloadReport("pdf")} data-testid="menu-download-attendance-pdf">
+            <Download className="w-4 h-4 mr-2" /> Download as PDF
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void downloadReport("png")} data-testid="menu-download-attendance-image">
+            <Download className="w-4 h-4 mr-2" /> Download as Image (PNG)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {data && (
+        <SmartAttendancePrintReport
+          data={data}
+          batchName={batchName}
+          startDate={startDate}
+          endDate={endDate}
+          shift={shift}
+          group={group}
+          reportRef={reportRef}
+        />
+      )}
+    </>
+  );
 }
 
 // ── Slot card (shared between single-day and multi-day views) ─────────────────
@@ -928,32 +1229,42 @@ export default function Attendance() {
                     — {selectedBatchName} · {fFromDate === fToDate ? fFromDate : `${fFromDate} → ${fToDate}`}
                   </span>
                 </CardTitle>
-                {/* View mode toggle */}
-                <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-0.5 bg-slate-50">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSmartMode(true)}
-                    className={`h-7 px-3 text-xs rounded-md transition-all ${
-                      smartMode
-                        ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    <BookOpen className="w-3 h-3 mr-1" /> Subject-wise
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSmartMode(false)}
-                    className={`h-7 px-3 text-xs rounded-md transition-all ${
-                      !smartMode
-                        ? "bg-white shadow-sm text-blue-700 font-semibold border border-blue-200"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    <Fingerprint className="w-3 h-3 mr-1" /> Raw Logs
-                  </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <SmartAttendanceExport
+                    batchId={fBatchId}
+                    startDate={fFromDate}
+                    endDate={fToDate}
+                    batchName={selectedBatchName}
+                    shift={fShift || undefined}
+                    group={fGroup || undefined}
+                  />
+                  {/* View mode toggle */}
+                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSmartMode(true)}
+                      className={`h-7 px-3 text-xs rounded-md transition-all ${
+                        smartMode
+                          ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      <BookOpen className="w-3 h-3 mr-1" /> Subject-wise
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSmartMode(false)}
+                      className={`h-7 px-3 text-xs rounded-md transition-all ${
+                        !smartMode
+                          ? "bg-white shadow-sm text-blue-700 font-semibold border border-blue-200"
+                          : "text-slate-500 hover:text-slate-700"
+                      }`}
+                    >
+                      <Fingerprint className="w-3 h-3 mr-1" /> Raw Logs
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>
