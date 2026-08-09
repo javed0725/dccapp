@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { CalendarDays, Download, Fingerprint, Loader2, Search, X, SlidersHorizontal, BookOpen, CheckCircle2, XCircle, Moon } from "lucide-react";
+import { CalendarDays, CloudDownload, Download, Fingerprint, Loader2, Search, X, SlidersHorizontal, BookOpen, CheckCircle2, XCircle, Percent, Moon } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -142,6 +142,12 @@ function reportDateLabel(date: string): string {
   });
 }
 
+function reportWeekday(date: string): string {
+  return new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+}
+
 function SmartAttendancePrintReport({
   data,
   batchName,
@@ -188,15 +194,16 @@ function SmartAttendancePrintReport({
       ref={reportRef}
       aria-hidden="true"
       data-testid="attendance-print-report"
+      className="utf8-text-support"
       style={{
         position: "absolute",
         left: "-10000px",
         top: 0,
-        width: "100%",
+        width: "1000px",
         maxWidth: "1000px",
         margin: "0 auto",
         padding: "30px",
-        background: "#FFFFFF",
+        background: "#F9FAFB",
         color: "#111827",
         fontFamily: "'Kalpurush', 'Noto Sans Bengali', 'Noto Sans Bengali UI', 'Vrinda', sans-serif",
         boxSizing: "border-box",
@@ -204,10 +211,11 @@ function SmartAttendancePrintReport({
     >
       <div style={{
         width: "100%",
-        padding: "24px 26px 26px",
-        border: "1px solid #E9D5FF",
-        borderRadius: "16px",
-        background: "#F5F3FF",
+        padding: "22px 24px 24px",
+        border: "1px solid #DDD6FE",
+        borderRadius: "14px",
+        background: "linear-gradient(135deg, #EDE9FE 0%, #FFFFFF 72%)",
+        boxShadow: "0 4px 14px rgba(45, 54, 131, 0.08)",
         boxSizing: "border-box",
       }}>
         <div style={{
@@ -216,56 +224,75 @@ function SmartAttendancePrintReport({
           justifyContent: "space-between",
           gap: "20px",
         }}>
-          <div style={{ color: "#1F2937", fontSize: "22px", fontWeight: 800, lineHeight: 1.2 }}>
+          <div style={{
+            color: "#2D3683",
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontSize: "24px",
+            fontWeight: 700,
+            lineHeight: 1.2,
+          }}>
             Dynamic Coaching Center
           </div>
-          <div style={{ color: "#6B7280", fontSize: "12px", lineHeight: 1.4, textAlign: "right", whiteSpace: "nowrap" }}>
+          <div style={{
+            color: "#4B5563",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+            fontSize: "11px",
+            lineHeight: 1.4,
+            textAlign: "right",
+            whiteSpace: "nowrap",
+          }}>
             Generated: {reportTimestamp()}
           </div>
         </div>
 
-        <div style={{ textAlign: "center", marginTop: "20px" }}>
-          <div style={{ color: "#4338CA", fontSize: "19px", fontWeight: 800, lineHeight: 1.3 }}>
+        <div style={{ textAlign: "center", marginTop: "12px" }}>
+          <div style={{
+            color: "#111827",
+            fontFamily: "Arial, Helvetica, sans-serif",
+            fontSize: "16px",
+            fontWeight: 700,
+            lineHeight: 1.3,
+          }}>
             Smart Attendance Report
           </div>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "10px 14px",
-            margin: "14px auto 0",
-            padding: "16px 18px",
-            maxWidth: "720px",
-            border: "1px solid #DDD6FE",
-            borderRadius: "12px",
-            background: "#FFFFFF",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: 0,
+            margin: "12px auto 0",
+            maxWidth: "860px",
+            border: "1px solid #A1A1AA",
+            borderRadius: "10px",
+            background: "rgba(255, 255, 255, 0.82)",
             textAlign: "left",
-            fontSize: "13px",
-            lineHeight: 1.45,
+            overflow: "hidden",
+            fontSize: "12px",
+            lineHeight: 1.35,
           }}>
-            <div>
-              <span style={{ color: "#6B7280", fontWeight: 700 }}>Class / Batch: </span>
-              <span style={{ color: "#111827", fontWeight: 700 }}>{batchName || "All Batches"}</span>
+            <div style={{ padding: "9px 12px", borderRight: "1px solid #D1D5DB" }}>
+              <div style={{ color: "#374151", fontWeight: 700 }}>Class / Batch:</div>
+              <div style={{ color: "#111827", marginTop: "3px" }}>{batchName || "All Batches"}</div>
             </div>
-            <div>
-              <span style={{ color: "#6B7280", fontWeight: 700 }}>Subject: </span>
-              <span style={{ color: "#111827", fontWeight: 700 }}>
+            <div style={{ padding: "9px 12px", borderRight: "1px solid #D1D5DB" }}>
+              <div style={{ color: "#374151", fontWeight: 700 }}>Subject:</div>
+              <div className="utf8-text-support" style={{ color: "#111827", marginTop: "3px" }}>
                 {subjects.length > 0 ? subjects.join(" · ") : "বাংলাদেশ ও বিশ্বপরিচয়"}
-              </span>
+              </div>
             </div>
-            <div>
-              <span style={{ color: "#6B7280", fontWeight: 700 }}>Date Range: </span>
-              <span style={{ color: "#111827", fontWeight: 700 }}>
+            <div style={{ padding: "9px 12px", borderRight: "1px solid #D1D5DB" }}>
+              <div style={{ color: "#374151", fontWeight: 700 }}>Date Range:</div>
+              <div style={{ color: "#111827", marginTop: "3px" }}>
                 {startDate}{startDate !== endDate ? ` → ${endDate}` : ""}
-              </span>
+              </div>
             </div>
-            <div>
-              <span style={{ color: "#6B7280", fontWeight: 700 }}>Time Window: </span>
-              <span style={{ color: "#111827", fontWeight: 700 }}>
+            <div style={{ padding: "9px 12px" }}>
+              <div style={{ color: "#374151", fontWeight: 700 }}>Time Window:</div>
+              <div style={{ color: "#111827", marginTop: "3px" }}>
                 {timeWindows.length > 0 ? timeWindows.join(" · ") : "All scheduled times"}
-              </span>
+              </div>
             </div>
             {(shift || group) && (
-              <div style={{ gridColumn: "1 / -1" }}>
+              <div style={{ gridColumn: "1 / -1", padding: "7px 12px", borderTop: "1px solid #D1D5DB" }}>
                 {shift && <><span style={{ color: "#6B7280", fontWeight: 700 }}>Shift: </span>{shift}</>}
                 {shift && group && "  ·  "}
                 {group && <><span style={{ color: "#6B7280", fontWeight: 700 }}>Group: </span>{group}</>}
@@ -276,22 +303,78 @@ function SmartAttendancePrintReport({
       </div>
 
       <div style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        flexWrap: "wrap",
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
         gap: "12px",
-        marginTop: "22px",
+        marginTop: "18px",
         textAlign: "center",
       }}>
-        <div style={{ background: "#ECFDF5", color: "#047857", borderRadius: "999px", padding: "10px 18px", fontWeight: 800 }}>
-          Total Present: {totalPresent}
+        <div style={{
+          minHeight: "88px",
+          padding: "11px 13px",
+          borderRadius: "12px",
+          background: "#8DC8C7",
+          color: "#064E4E",
+          boxShadow: "0 7px 12px rgba(15, 23, 42, 0.16)",
+          boxSizing: "border-box",
+          textAlign: "left",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", lineHeight: 1.2 }}>
+            <span>Total<br />Present:</span>
+            <CheckCircle2 style={{ width: "16px", height: "16px", color: "#FFFFFF", background: "rgba(6, 78, 78, 0.25)", borderRadius: "50%", padding: "2px" }} />
+          </div>
+          <div style={{ marginTop: "5px", fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{totalPresent}</div>
         </div>
-        <div style={{ background: "#FEF2F2", color: "#B91C1C", borderRadius: "999px", padding: "10px 18px", fontWeight: 800 }}>
-          Total Absent: {totalAbsent}
+        <div style={{
+          minHeight: "88px",
+          padding: "11px 13px",
+          borderRadius: "12px",
+          background: "#D99AA0",
+          color: "#7F1D1D",
+          boxShadow: "0 7px 12px rgba(15, 23, 42, 0.16)",
+          boxSizing: "border-box",
+          textAlign: "left",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", lineHeight: 1.2 }}>
+            <span>Total<br />Absent:</span>
+            <XCircle style={{ width: "16px", height: "16px", color: "#FFFFFF", background: "rgba(127, 29, 29, 0.22)", borderRadius: "50%", padding: "2px" }} />
+          </div>
+          <div style={{ marginTop: "5px", fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{totalAbsent}</div>
         </div>
-        <div style={{ background: "#EEF2FF", color: "#4338CA", borderRadius: "999px", padding: "10px 18px", fontWeight: 800 }}>
-          Attendance Rate: {attendanceRate}%
+        <div style={{
+          minHeight: "88px",
+          padding: "11px 13px",
+          borderRadius: "12px",
+          background: "#7D80C3",
+          color: "#1E1B4B",
+          boxShadow: "0 7px 12px rgba(15, 23, 42, 0.16)",
+          boxSizing: "border-box",
+          textAlign: "left",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", lineHeight: 1.2 }}>
+            <span>Attendance<br />Rate:</span>
+            <Percent style={{ width: "16px", height: "16px", color: "#FFFFFF", background: "rgba(30, 27, 75, 0.25)", borderRadius: "50%", padding: "2px" }} />
+          </div>
+          <div style={{ marginTop: "5px", fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{attendanceRate}%</div>
+        </div>
+        <div style={{
+          minHeight: "88px",
+          padding: "11px 13px",
+          borderRadius: "12px",
+          background: "#E5E7EB",
+          color: "#111827",
+          boxShadow: "0 7px 12px rgba(15, 23, 42, 0.16)",
+          boxSizing: "border-box",
+          textAlign: "left",
+        }}>
+          <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.2 }}>{reportDateLabel(startDate)}</div>
+          <div style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.25 }}>{reportWeekday(startDate)}</div>
+          <div className="utf8-text-support" style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.25 }}>
+            {subjects[0] || "Smart Attendance"}
+          </div>
+          <div style={{ marginTop: "3px", fontSize: "10px", lineHeight: 1.2 }}>
+            {timeWindows[0] || "All scheduled times"}
+          </div>
         </div>
       </div>
 
@@ -301,6 +384,7 @@ function SmartAttendancePrintReport({
             {reportDateLabel(day.date)} · {day.dayOfWeek} · {slot.subject || "Class"}
             {(slot.startTime || slot.endTime) && ` · ${slot.startTime || "—"} – ${slot.endTime || "—"}`}
           </div>
+          <div style={{ width: "100%", overflow: "hidden", border: "1px solid #334155", borderRadius: "10px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
               <col style={{ width: "45px" }} />
@@ -312,7 +396,7 @@ function SmartAttendancePrintReport({
             <thead>
               <tr style={{ background: "#4F46E5", color: "#FFFFFF" }}>
                 {["#", "Student ID", "Student Name", "Punch Time", "Status"].map((heading) => (
-                  <th key={heading} style={{ ...cellStyle, fontWeight: 800, textAlign: heading === "Student Name" ? "left" : "center" }}>
+                  <th key={heading} style={{ ...cellStyle, borderColor: "#334155", fontSize: "14px", fontWeight: 800, textAlign: heading === "Student Name" ? "left" : "center" }}>
                     {heading}
                   </th>
                 ))}
@@ -321,13 +405,13 @@ function SmartAttendancePrintReport({
             <tbody>
               {slot.students.map((student, index) => (
                 <tr key={`${student.studentCustomId}-${index}`} style={{ background: index % 2 === 1 ? "#F9FAFB" : "#FFFFFF" }}>
-                  <td style={{ ...cellStyle, textAlign: "center" }}>{index + 1}</td>
-                  <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace", fontWeight: 700 }}>{student.studentCustomId}</td>
-                  <td style={{ ...cellStyle, textAlign: "left" }}>{student.name}</td>
-                  <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace" }}>
+                   <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center" }}>{index + 1}</td>
+                   <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontFamily: "monospace", fontWeight: 700 }}>{student.studentCustomId}</td>
+                   <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "left" }}>{student.name}</td>
+                   <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontFamily: "monospace" }}>
                     {student.punchTime ? fmtPunchTime(student.punchTime) : "—"}
                   </td>
-                  <td style={{ ...cellStyle, textAlign: "center" }}>
+                   <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center" }}>
                     <span style={{
                       display: "inline-block",
                       borderRadius: "999px",
@@ -342,8 +426,9 @@ function SmartAttendancePrintReport({
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+             </tbody>
+           </table>
+           </div>
         </div>
       ))}
     </div>
@@ -386,7 +471,7 @@ function SmartAttendanceExport({
     try {
       if (document.fonts?.ready) await document.fonts.ready;
       const canvas = await html2canvas(reportRef.current, {
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "#F9FAFB",
         useCORS: true,
         allowTaint: true,
         scale: 2,
@@ -433,20 +518,23 @@ function SmartAttendanceExport({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-xs"
+            className="relative h-9 gap-2 overflow-hidden border-indigo-200 bg-indigo-50/60 px-3 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
             disabled={isExporting || !data}
             data-testid="button-download-attendance-report"
           >
-            {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-            {isExporting ? "Preparing…" : "Download Report"}
+            {!isExporting && <span className="absolute inset-0 animate-pulse rounded-md bg-indigo-200/25" aria-hidden="true" />}
+            <span className="relative flex items-center gap-2">
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudDownload className="w-4 h-4" />}
+              {isExporting ? "Preparing…" : "Download Report"}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => void downloadReport("pdf")} data-testid="menu-download-attendance-pdf">
-            <Download className="w-4 h-4 mr-2" /> Download as PDF
+            <Download className="w-4 h-4 mr-2" /> Generate Premium PDF
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => void downloadReport("png")} data-testid="menu-download-attendance-image">
-            <Download className="w-4 h-4 mr-2" /> Download as Image (PNG)
+            <Download className="w-4 h-4 mr-2" /> Generate High-Resolution Image
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
