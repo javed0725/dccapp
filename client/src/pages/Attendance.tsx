@@ -178,7 +178,7 @@ function SmartAttendancePrintReport({
 
   const cellStyle: CSSProperties = {
     border: "1px solid #E5E7EB",
-    padding: "8px 10px",
+    padding: "10px 12px",
     fontSize: "13px",
     lineHeight: 1.35,
   };
@@ -192,63 +192,112 @@ function SmartAttendancePrintReport({
         position: "absolute",
         left: "-10000px",
         top: 0,
-        width: "1000px",
-        padding: "24px",
+        width: "100%",
+        maxWidth: "1000px",
+        margin: "0 auto",
+        padding: "30px",
         background: "#FFFFFF",
         color: "#111827",
         fontFamily: "'Kalpurush', 'Noto Sans Bengali', 'Noto Sans Bengali UI', 'Vrinda', sans-serif",
         boxSizing: "border-box",
       }}
     >
-      <div style={{ textAlign: "center", borderBottom: "2px solid #E0E7FF", paddingBottom: "18px" }}>
-        <div style={{ color: "#1E40AF", fontSize: "22px", fontWeight: 800 }}>
-          Dynamic Coaching Center
+      <div style={{
+        width: "100%",
+        padding: "24px 26px 26px",
+        border: "1px solid #E9D5FF",
+        borderRadius: "16px",
+        background: "#F5F3FF",
+        boxSizing: "border-box",
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "20px",
+        }}>
+          <div style={{ color: "#1F2937", fontSize: "22px", fontWeight: 800, lineHeight: 1.2 }}>
+            Dynamic Coaching Center
+          </div>
+          <div style={{ color: "#6B7280", fontSize: "12px", lineHeight: 1.4, textAlign: "right", whiteSpace: "nowrap" }}>
+            Generated: {reportTimestamp()}
+          </div>
         </div>
-        <div style={{ color: "#374151", fontSize: "17px", fontWeight: 700, marginTop: "4px" }}>
-          Smart Attendance Report
-        </div>
-        <div style={{ color: "#6B7280", fontSize: "12px", marginTop: "7px" }}>
-          Generated: {reportTimestamp()}
+
+        <div style={{ textAlign: "center", marginTop: "20px" }}>
+          <div style={{ color: "#4338CA", fontSize: "19px", fontWeight: 800, lineHeight: 1.3 }}>
+            Smart Attendance Report
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "10px 14px",
+            margin: "14px auto 0",
+            padding: "16px 18px",
+            maxWidth: "720px",
+            border: "1px solid #DDD6FE",
+            borderRadius: "12px",
+            background: "#FFFFFF",
+            textAlign: "left",
+            fontSize: "13px",
+            lineHeight: 1.45,
+          }}>
+            <div>
+              <span style={{ color: "#6B7280", fontWeight: 700 }}>Class / Batch: </span>
+              <span style={{ color: "#111827", fontWeight: 700 }}>{batchName || "All Batches"}</span>
+            </div>
+            <div>
+              <span style={{ color: "#6B7280", fontWeight: 700 }}>Subject: </span>
+              <span style={{ color: "#111827", fontWeight: 700 }}>
+                {subjects.length > 0 ? subjects.join(" · ") : "বাংলাদেশ ও বিশ্বপরিচয়"}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: "#6B7280", fontWeight: 700 }}>Date Range: </span>
+              <span style={{ color: "#111827", fontWeight: 700 }}>
+                {startDate}{startDate !== endDate ? ` → ${endDate}` : ""}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: "#6B7280", fontWeight: 700 }}>Time Window: </span>
+              <span style={{ color: "#111827", fontWeight: 700 }}>
+                {timeWindows.length > 0 ? timeWindows.join(" · ") : "All scheduled times"}
+              </span>
+            </div>
+            {(shift || group) && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                {shift && <><span style={{ color: "#6B7280", fontWeight: 700 }}>Shift: </span>{shift}</>}
+                {shift && group && "  ·  "}
+                {group && <><span style={{ color: "#6B7280", fontWeight: 700 }}>Group: </span>{group}</>}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div style={{
-        marginTop: "18px",
-        padding: "13px 16px",
-        border: "1px solid #C7D2FE",
-        borderRadius: "8px",
-        background: "#EEF2FF",
-        fontSize: "13px",
-        lineHeight: 1.65,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "12px",
+        marginTop: "22px",
+        textAlign: "center",
       }}>
-        <div><strong>Class / Batch:</strong> {batchName || "All Batches"}</div>
-        <div><strong>Subject:</strong> {subjects.length > 0 ? subjects.join(" · ") : "বাংলাদেশ ও বিশ্বপরিচয়"}</div>
-        <div><strong>Date Range:</strong> {startDate} {startDate !== endDate ? `→ ${endDate}` : ""}</div>
-        <div><strong>Time Window:</strong> {timeWindows.length > 0 ? timeWindows.join(" · ") : "All scheduled times"}</div>
-        {(shift || group) && (
-          <div>
-            {shift && <><strong>Shift:</strong> {shift}</>}
-            {shift && group && "  ·  "}
-            {group && <><strong>Group:</strong> {group}</>}
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginTop: "18px", textAlign: "center" }}>
-        <div style={{ background: "#DCFCE7", color: "#166534", borderRadius: "8px", padding: "12px", fontWeight: 700 }}>
+        <div style={{ background: "#ECFDF5", color: "#047857", borderRadius: "999px", padding: "10px 18px", fontWeight: 800 }}>
           Total Present: {totalPresent}
         </div>
-        <div style={{ background: "#FEE2E2", color: "#991B1B", borderRadius: "8px", padding: "12px", fontWeight: 700 }}>
+        <div style={{ background: "#FEF2F2", color: "#B91C1C", borderRadius: "999px", padding: "10px 18px", fontWeight: 800 }}>
           Total Absent: {totalAbsent}
         </div>
-        <div style={{ background: "#E0E7FF", color: "#3730A3", borderRadius: "8px", padding: "12px", fontWeight: 700 }}>
-          Rate: {attendanceRate}%
+        <div style={{ background: "#EEF2FF", color: "#4338CA", borderRadius: "999px", padding: "10px 18px", fontWeight: 800 }}>
+          Attendance Rate: {attendanceRate}%
         </div>
       </div>
 
       {sessions.map(({ day, slot }, sessionIndex) => (
         <div key={`${day.date}-${slot.routineId}-${sessionIndex}`} style={{ marginTop: "22px" }}>
-          <div style={{ color: "#3730A3", fontSize: "14px", fontWeight: 800, marginBottom: "7px" }}>
+          <div style={{ color: "#4338CA", fontSize: "14px", fontWeight: 800, marginBottom: "8px", textAlign: "center" }}>
             {reportDateLabel(day.date)} · {day.dayOfWeek} · {slot.subject || "Class"}
             {(slot.startTime || slot.endTime) && ` · ${slot.startTime || "—"} – ${slot.endTime || "—"}`}
           </div>
@@ -273,7 +322,7 @@ function SmartAttendancePrintReport({
               {slot.students.map((student, index) => (
                 <tr key={`${student.studentCustomId}-${index}`} style={{ background: index % 2 === 1 ? "#F9FAFB" : "#FFFFFF" }}>
                   <td style={{ ...cellStyle, textAlign: "center" }}>{index + 1}</td>
-                  <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace" }}>{student.studentCustomId}</td>
+                  <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace", fontWeight: 700 }}>{student.studentCustomId}</td>
                   <td style={{ ...cellStyle, textAlign: "left" }}>{student.name}</td>
                   <td style={{ ...cellStyle, textAlign: "center", fontFamily: "monospace" }}>
                     {student.punchTime ? fmtPunchTime(student.punchTime) : "—"}
@@ -282,11 +331,11 @@ function SmartAttendancePrintReport({
                     <span style={{
                       display: "inline-block",
                       borderRadius: "999px",
-                      padding: "3px 9px",
+                      padding: "4px 10px",
                       fontSize: "11px",
                       fontWeight: 800,
-                      background: student.status === "Present" ? "#DCFCE7" : "#FEE2E2",
-                      color: student.status === "Present" ? "#166534" : "#991B1B",
+                      background: student.status === "Present" ? "#D1FAE5" : "#FEE2E2",
+                      color: student.status === "Present" ? "#065F46" : "#991B1B",
                     }}>
                       {student.status}
                     </span>

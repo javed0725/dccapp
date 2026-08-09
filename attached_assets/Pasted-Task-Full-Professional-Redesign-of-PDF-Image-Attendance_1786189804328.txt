@@ -1,0 +1,38 @@
+Task: Full Professional Redesign of PDF/Image Attendance Report for a Premium Look
+
+1. Visual Style & Layout Overhaul:
+   - Apply a clean, modern, minimal corporate aesthetic with a bright, professional look.
+   - Set the entire page container to center alignment (`margin: 0 auto; max-width: 1000px; padding: 30px; background-color: #FFFFFF;`).
+   - Use dynamic white space (padding) to make the content feel balanced and easy to read.
+
+2. Professional Header Design:
+   - Create a unified, light purple-tinted header banner across the full width.
+   - Top-left: coaching name ("Dynamic Coaching Center", bold, 22px, dark gray).
+   - Top-right: generation time ("Generated: YYYY-MM-DD HH:mm:ss", smaller text, gray).
+   - In the center of the banner, create a clean info card section for:
+     * Class/Batch: Class 6
+     * Subject: গণিত ( ensure proper Unicode Bangla display)
+     * Date Range: 2026-08-08
+     * Time Window: 07:00 AM – 08:00 AM
+
+3. Redesigned Summary Badges (Centered Grid):
+   - Replace old boxes with clean, centered pill badges:
+     * "Total Present: 7" (Light green background, green text, soft edges).
+     * "Total Absent: 3" (Light red background, red text, soft edges).
+     * "Attendance Rate: 70%" (Light indigo background, indigo text, soft edges).
+
+4. Modern Table Layout & Styling:
+   - Align the table with the center of the report container. Make it full-width.
+   - Table Header: Deep indigo background (`#4F46E5`), bold white text, comfortable padding.
+   - Column Alignment: Center-align serial number (`#`), Student ID, Punch Time, and Status. Left-align Student Name with good padding.
+   - Zebra Striping: Use a very light gray (`#F9FAFB`) for alternating rows.
+   - Student ID: Keep bold. Student Name: Clear and readable.
+   - Punch Time: Clear format. Display `—` centered for empty fields.
+
+5. Status Column Badges (Modern Pilling):
+   - Use clean, color-rich pill badges for Status:
+     * "Present" (Solid light green `#D1FAE5`, dark green text `#065F46`).
+     * "Absent" (Solid light red `#FEE2E2`, dark red text `#991B1B`).
+
+6. Goal:
+   - Create a polished, corporate-quality PDF/Image report where everything is perfectly aligned, the header is professional, and the table is clear and easy to read, conveying a sense of high standard and professionalism.
