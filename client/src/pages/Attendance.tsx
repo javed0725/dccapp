@@ -148,6 +148,11 @@ function reportWeekday(date: string): string {
   });
 }
 
+function reportShortDate(date: string): string {
+  const [year, month, day] = date.split("-");
+  return `${day}-${month}-${year.slice(-2)}`;
+}
+
 function SmartAttendancePrintReport({
   data,
   batchName,
@@ -181,11 +186,20 @@ function SmartAttendancePrintReport({
       .map(({ slot }) => slot.startTime || slot.endTime ? `${slot.startTime || "—"} – ${slot.endTime || "—"}` : "")
       .filter(Boolean),
   ));
+  const isMultiDay = startDate !== endDate;
+  const consolidatedRows = sessions.flatMap(({ day, slot }) =>
+    slot.students.map((student, index) => ({
+      key: `${day.date}-${slot.routineId}-${student.studentCustomId}-${index}`,
+      day,
+      slot,
+      student,
+    })),
+  );
 
   const cellStyle: CSSProperties = {
     border: "1px solid #E5E7EB",
     padding: "10px 12px",
-    fontSize: "13px",
+    fontSize: "14px",
     lineHeight: 1.35,
   };
 
@@ -266,28 +280,28 @@ function SmartAttendancePrintReport({
             background: "rgba(255, 255, 255, 0.82)",
             textAlign: "left",
             overflow: "hidden",
-            fontSize: "12px",
+            fontSize: "13px",
             lineHeight: 1.35,
           }}>
             <div style={{ padding: "9px 12px", borderRight: "1px solid #D1D5DB" }}>
               <div style={{ color: "#374151", fontWeight: 700 }}>Class / Batch:</div>
-              <div style={{ color: "#111827", marginTop: "3px" }}>{batchName || "All Batches"}</div>
+              <div style={{ color: "#111827", marginTop: "3px", fontWeight: 800 }}>{batchName || "All Batches"}</div>
             </div>
             <div style={{ padding: "9px 12px", borderRight: "1px solid #D1D5DB" }}>
               <div style={{ color: "#374151", fontWeight: 700 }}>Subject:</div>
-              <div className="utf8-text-support" style={{ color: "#111827", marginTop: "3px" }}>
+              <div className="utf8-text-support" style={{ color: "#111827", marginTop: "3px", fontWeight: 800 }}>
                 {subjects.length > 0 ? subjects.join(" · ") : "বাংলাদেশ ও বিশ্বপরিচয়"}
               </div>
             </div>
             <div style={{ padding: "9px 12px", borderRight: "1px solid #D1D5DB" }}>
               <div style={{ color: "#374151", fontWeight: 700 }}>Date Range:</div>
-              <div style={{ color: "#111827", marginTop: "3px" }}>
+              <div style={{ color: "#111827", marginTop: "3px", fontWeight: 800 }}>
                 {startDate}{startDate !== endDate ? ` → ${endDate}` : ""}
               </div>
             </div>
             <div style={{ padding: "9px 12px" }}>
               <div style={{ color: "#374151", fontWeight: 700 }}>Time Window:</div>
-              <div style={{ color: "#111827", marginTop: "3px" }}>
+              <div style={{ color: "#111827", marginTop: "3px", fontWeight: 800 }}>
                 {timeWindows.length > 0 ? timeWindows.join(" · ") : "All scheduled times"}
               </div>
             </div>
@@ -310,7 +324,7 @@ function SmartAttendancePrintReport({
         textAlign: "center",
       }}>
         <div style={{
-          minHeight: "88px",
+          minHeight: isMultiDay ? "104px" : "88px",
           padding: "11px 13px",
           borderRadius: "12px",
           background: "#8DC8C7",
@@ -323,10 +337,10 @@ function SmartAttendancePrintReport({
             <span>Total<br />Present:</span>
             <CheckCircle2 style={{ width: "16px", height: "16px", color: "#FFFFFF", background: "rgba(6, 78, 78, 0.25)", borderRadius: "50%", padding: "2px" }} />
           </div>
-          <div style={{ marginTop: "5px", fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{totalPresent}</div>
+          <div style={{ marginTop: "5px", fontSize: isMultiDay ? "29px" : "26px", fontWeight: 800, lineHeight: 1 }}>{totalPresent}</div>
         </div>
         <div style={{
-          minHeight: "88px",
+          minHeight: isMultiDay ? "104px" : "88px",
           padding: "11px 13px",
           borderRadius: "12px",
           background: "#D99AA0",
@@ -339,10 +353,10 @@ function SmartAttendancePrintReport({
             <span>Total<br />Absent:</span>
             <XCircle style={{ width: "16px", height: "16px", color: "#FFFFFF", background: "rgba(127, 29, 29, 0.22)", borderRadius: "50%", padding: "2px" }} />
           </div>
-          <div style={{ marginTop: "5px", fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{totalAbsent}</div>
+          <div style={{ marginTop: "5px", fontSize: isMultiDay ? "29px" : "26px", fontWeight: 800, lineHeight: 1 }}>{totalAbsent}</div>
         </div>
         <div style={{
-          minHeight: "88px",
+          minHeight: isMultiDay ? "104px" : "88px",
           padding: "11px 13px",
           borderRadius: "12px",
           background: "#7D80C3",
@@ -355,10 +369,10 @@ function SmartAttendancePrintReport({
             <span>Attendance<br />Rate:</span>
             <Percent style={{ width: "16px", height: "16px", color: "#FFFFFF", background: "rgba(30, 27, 75, 0.25)", borderRadius: "50%", padding: "2px" }} />
           </div>
-          <div style={{ marginTop: "5px", fontSize: "26px", fontWeight: 800, lineHeight: 1 }}>{attendanceRate}%</div>
+          <div style={{ marginTop: "5px", fontSize: isMultiDay ? "29px" : "26px", fontWeight: 800, lineHeight: 1 }}>{attendanceRate}%</div>
         </div>
         <div style={{
-          minHeight: "88px",
+          minHeight: isMultiDay ? "104px" : "88px",
           padding: "11px 13px",
           borderRadius: "12px",
           background: "#E5E7EB",
@@ -367,8 +381,12 @@ function SmartAttendancePrintReport({
           boxSizing: "border-box",
           textAlign: "left",
         }}>
-          <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.2 }}>{reportDateLabel(startDate)}</div>
-          <div style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.25 }}>{reportWeekday(startDate)}</div>
+          <div style={{ fontSize: "15px", fontWeight: 800, lineHeight: 1.2 }}>
+            {isMultiDay ? `${reportShortDate(startDate)} – ${reportShortDate(endDate)}` : reportDateLabel(startDate)}
+          </div>
+          <div style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.25, fontWeight: 700 }}>
+            {isMultiDay ? `${activeDays.length} class days` : reportWeekday(startDate)}
+          </div>
           <div className="utf8-text-support" style={{ marginTop: "3px", fontSize: "12px", lineHeight: 1.25 }}>
             {subjects[0] || "Smart Attendance"}
           </div>
@@ -378,7 +396,96 @@ function SmartAttendancePrintReport({
         </div>
       </div>
 
-      {sessions.map(({ day, slot }, sessionIndex) => (
+      {isMultiDay ? (
+        <div style={{ marginTop: "24px" }}>
+          <div style={{
+            color: "#2D3683",
+            fontSize: "16px",
+            fontWeight: 800,
+            marginBottom: "9px",
+            textAlign: "center",
+          }}>
+            Consolidated Attendance · {reportShortDate(startDate)} – {reportShortDate(endDate)}
+          </div>
+          <div style={{ width: "100%", overflow: "hidden", border: "1px solid #334155", borderRadius: "10px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "45px" }} />
+                <col style={{ width: "110px" }} />
+                <col style={{ width: "190px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "75px" }} />
+                <col style={{ width: "160px" }} />
+                <col style={{ width: "125px" }} />
+                <col style={{ width: "125px" }} />
+              </colgroup>
+              <thead>
+                <tr style={{ background: "#4F46E5", color: "#FFFFFF" }}>
+                  {["#", "Student ID", "Student Name", "Date", "Day", "Subject", "Status", "Punch Time"].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        ...cellStyle,
+                        borderColor: "#334155",
+                        fontSize: "14px",
+                        fontWeight: 800,
+                        textAlign: heading === "Student Name" ? "left" : "center",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {consolidatedRows.map(({ key, day, slot, student }, index) => (
+                  <tr key={key} style={{ background: index % 2 === 1 ? "#F9FAFB" : "#FFFFFF" }}>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center" }}>{index + 1}</td>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif", fontWeight: 800 }}>
+                      {student.studentCustomId}
+                    </td>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "left", fontWeight: 600 }}>
+                      {student.name}
+                    </td>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>
+                      {reportShortDate(day.date)}
+                    </td>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontWeight: 600 }}>
+                      {day.dayOfWeek.slice(0, 3)}
+                    </td>
+                    <td className="utf8-text-support" style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontWeight: 600 }}>
+                      {slot.subject || "—"}
+                    </td>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center" }}>
+                      <span style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "4px",
+                        borderRadius: "999px",
+                        padding: "5px 8px",
+                        fontSize: "12px",
+                        fontWeight: 800,
+                        whiteSpace: "nowrap",
+                        background: student.status === "Present" ? "#14B8A6" : "#E11D48",
+                        color: "#FFFFFF",
+                      }}>
+                        {student.status === "Present"
+                          ? <CheckCircle2 style={{ width: "13px", height: "13px" }} />
+                          : <XCircle style={{ width: "13px", height: "13px" }} />}
+                        [{student.status}]
+                      </span>
+                    </td>
+                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center", fontFamily: "Arial, Helvetica, sans-serif", whiteSpace: "nowrap" }}>
+                      {student.punchTime ? fmtPunchTime(student.punchTime) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : sessions.map(({ day, slot }, sessionIndex) => (
         <div key={`${day.date}-${slot.routineId}-${sessionIndex}`} style={{ marginTop: "22px" }}>
           <div style={{ color: "#4338CA", fontSize: "14px", fontWeight: 800, marginBottom: "8px", textAlign: "center" }}>
             {reportDateLabel(day.date)} · {day.dayOfWeek} · {slot.subject || "Class"}
@@ -413,15 +520,22 @@ function SmartAttendancePrintReport({
                   </td>
                    <td style={{ ...cellStyle, borderColor: "#64748B", textAlign: "center" }}>
                     <span style={{
-                      display: "inline-block",
+                       display: "inline-flex",
+                       alignItems: "center",
+                       justifyContent: "center",
+                       gap: "4px",
                       borderRadius: "999px",
-                      padding: "4px 10px",
-                      fontSize: "11px",
+                       padding: "5px 9px",
+                       fontSize: "12px",
                       fontWeight: 800,
-                      background: student.status === "Present" ? "#D1FAE5" : "#FEE2E2",
-                      color: student.status === "Present" ? "#065F46" : "#991B1B",
+                       whiteSpace: "nowrap",
+                       background: student.status === "Present" ? "#14B8A6" : "#E11D48",
+                       color: "#FFFFFF",
                     }}>
-                      {student.status}
+                       {student.status === "Present"
+                         ? <CheckCircle2 style={{ width: "13px", height: "13px" }} />
+                         : <XCircle style={{ width: "13px", height: "13px" }} />}
+                       [{student.status}]
                     </span>
                   </td>
                 </tr>
@@ -430,7 +544,7 @@ function SmartAttendancePrintReport({
            </table>
            </div>
         </div>
-      ))}
+       ))}
     </div>
   );
 }
