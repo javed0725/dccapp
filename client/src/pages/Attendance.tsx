@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useRef, type CSSProperties, type RefObject } from "react";
+import { useState, useMemo, useEffect, type CSSProperties, type RefObject } from "react";
 import { Layout } from "@/components/Layout";
 import { useStudents, useBatches } from "@/hooks/use-finance";
 import { useQuery } from "@tanstack/react-query";
-import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { type User } from "@/lib/schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -564,7 +564,6 @@ function SmartAttendanceExport({
   shift?: string;
   group?: string;
 }) {
-  const reportRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const { data } = useQuery<MultiSmartAttendanceResponse>({
     queryKey: ["/api/attendance/smart", batchId, startDate, endDate, shift ?? "", group ?? ""],
@@ -579,47 +578,114 @@ function SmartAttendanceExport({
     staleTime: 30_000,
   });
 
-  const downloadReport = async (format: "pdf" | "png") => {
-    if (!data || !reportRef.current) return;
+  const downloadReport = async () => {
+    if (!data) return;
     setIsExporting(true);
     try {
-      if (document.fonts?.ready) await document.fonts.ready;
-      const canvas = await html2canvas(reportRef.current, {
-        backgroundColor: "#F9FAFB",
-        useCORS: true,
-        allowTaint: true,
-        scale: 2,
-        imageTimeout: 0,
-        logging: false,
-      });
       const fileBase = `Attendance_Report_${sanitizeReportPart(batchName, "Class")}_${sanitizeReportPart(
         Array.from(new Set(data.days.flatMap((day) => day.slots.map((slot) => slot.subject).filter(Boolean)))).join("-"),
         "Attendance",
       )}_${startDate}`;
 
-      if (format === "png") {
-        const link = document.createElement("a");
-        link.download = `${fileBase}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-      } else {
-        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        const margin = 8;
-        const pageWidth = 210 - margin * 2;
-        const pageHeight = 297 - margin * 2;
-        const imageHeight = (canvas.height * pageWidth) / canvas.width;
-        let remainingHeight = imageHeight;
-        let y = margin;
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, y, pageWidth, imageHeight, undefined, "FAST");
-        remainingHeight -= pageHeight;
-        while (remainingHeight > 0) {
-          y = margin - (imageHeight - remainingHeight);
-          pdf.addPage();
-          pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, y, pageWidth, imageHeight, undefined, "FAST");
-          remainingHeight -= pageHeight;
-        }
-        pdf.save(`${fileBase}.pdf`);
-      }
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const rows = data.days
+        .filter((day) => !day.noRoutine && !day.offDay)
+        .flatMap((day) =>
+          day.slots
+            .filter((slot) => !slot.isOffDay)
+            .flatMap((slot) =>
+              slot.students.map((student) => [
+                student.studentCustomId,
+                student.name,
+                reportShortDate(day.date),
+                day.dayOfWeek,
+                slot.subject || "—",
+                student.status.toUpperCase(),
+                student.punchTime ? fmtPunchTime(student.punchTime) : "—",
+              ]),
+            ),
+        );
+
+      const margin = 10;
+      pdf.setProperties({
+        title: "Smart Attendance Report",
+        subject: `${batchName} attendance`,
+        author: "Dynamic Coaching Center",
+      });
+
+      // Minimal centered A4 header.
+      pdf.setTextColor(17, 24, 39);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.text("Dynamic Coaching Center", 105, margin + 2, { align: "center" });
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.text(
+        `Smart Attendance Report | Date Range: ${startDate} - ${endDate}`,
+        105,
+        margin + 8,
+        { align: "center" },
+      );
+      pdf.text(`Class: ${batchName || "All Batches"}`, 105, margin + 13, { align: "center" });
+
+      autoTable(pdf, {
+        startY: margin + 18,
+        margin: { top: margin, right: margin, bottom: margin, left: margin },
+        head: [["#", "Student ID", "Student Name", "Date", "Day", "Subject", "Status", "Punch Time"]],
+        body: rows.length
+          ? rows.map((row, index) => [String(index + 1), ...row])
+          : [["—", "—", "No attendance records", "—", "—", "—", "—", "—"]],
+        theme: "grid",
+        tableWidth: "auto",
+        rowPageBreak: "avoid",
+        styles: {
+          font: "helvetica",
+          fontSize: 7.2,
+          cellPadding: 1.4,
+          minCellHeight: 5.5,
+          lineColor: [210, 214, 220],
+          lineWidth: 0.15,
+          textColor: [17, 24, 39],
+          overflow: "linebreak",
+          valign: "middle",
+        },
+        headStyles: {
+          fillColor: [245, 246, 248],
+          textColor: [17, 24, 39],
+          fontStyle: "bold",
+          halign: "center",
+          lineColor: [156, 163, 175],
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 251],
+        },
+        columnStyles: {
+          0: { cellWidth: 8, halign: "center" },
+          1: { cellWidth: 20, halign: "center" },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 20, halign: "center" },
+          4: { cellWidth: 17, halign: "center" },
+          5: { cellWidth: 37 },
+          6: { cellWidth: 22, halign: "center" },
+          7: { cellWidth: 26, halign: "center" },
+        },
+        didParseCell: (hookData) => {
+          if (hookData.section === "body" && hookData.column.index === 6) {
+            const status = String(hookData.cell.raw || "").toUpperCase();
+            hookData.cell.styles.fontStyle = "bold";
+            hookData.cell.styles.textColor = status === "PRESENT" ? [22, 101, 52] : [185, 28, 28];
+            hookData.cell.styles.halign = "center";
+          }
+        },
+        didDrawPage: (hookData) => {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7);
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(`Page ${hookData.pageNumber}`, 200, 291, { align: "right" });
+        },
+      });
+
+      pdf.save(`${fileBase}.pdf`);
     } finally {
       setIsExporting(false);
     }
@@ -644,25 +710,11 @@ function SmartAttendanceExport({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => void downloadReport("pdf")} data-testid="menu-download-attendance-pdf">
-            <Download className="w-4 h-4 mr-2" /> Generate Premium PDF
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void downloadReport("png")} data-testid="menu-download-attendance-image">
-            <Download className="w-4 h-4 mr-2" /> Generate High-Resolution Image
+          <DropdownMenuItem onClick={() => void downloadReport()} data-testid="menu-download-attendance-pdf">
+            <Download className="w-4 h-4 mr-2" /> Download A4 PDF
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {data && (
-        <SmartAttendancePrintReport
-          data={data}
-          batchName={batchName}
-          startDate={startDate}
-          endDate={endDate}
-          shift={shift}
-          group={group}
-          reportRef={reportRef}
-        />
-      )}
     </>
   );
 }
