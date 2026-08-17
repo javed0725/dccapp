@@ -970,9 +970,11 @@ export async function registerRoutes(
           };
         }
 
-        // slot's own shift/group takes priority; fall back to query param
-        const effectiveShift = routine.shift ?? queryShift ?? null;
-        const effectiveGroup = routine.academicGroup ?? queryGroup ?? null;
+        // A null/empty slot scope means "All": it matches every student in
+        // the batch, even when the Attendance page has a shift/group filter.
+        // Query filters only hide contradictory scoped slots above.
+        const effectiveShift = routine.shift || null;
+        const effectiveGroup = routine.academicGroup || null;
 
         const slotStudents = allBatchStudents.filter((s: any) => {
           if (effectiveShift && s.shift !== effectiveShift) return false;
