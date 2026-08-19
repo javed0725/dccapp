@@ -9,6 +9,7 @@ import { z } from "zod";
 import { setupAuth } from "./auth/auth";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
+import { renderAttendancePdf } from "./attendance-pdf";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -1026,6 +1027,54 @@ export async function registerRoutes(
     });
 
     res.json({ startDate, endDate, batchId, days });
+  });
+
+  // Server-side PDF export keeps Bengali text in Unicode and lets Chromium's
+  // HarfBuzz shaping engine render kar-chihna and conjuncts correctly.
+  app.post("/api/attendance/smart/pdf", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+
+    try {
+      const payload = z.object({
+        batchName: z.string().optional().default("All Batches"),
+        data: z.object({
+          startDate: z.string(),
+          endDate: z.string(),
+          days: z.array(z.unknown()),
+        }),
+      }).parse(req.body);
+
+      const pdf = await renderAttendancePdf(
+        payload.data as Parameters<typeof renderAttendancePdf>[0],
+        payload.batchName,
+      );
+      const safeBatchName = payload.batchName
+        .normalize("NFC")
+        .replace(/[^\w-]+/g, "_")
+        .replace(/^_+|_+$/g, "") || "All_Batches";
+
+      res.status(200).setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="Attendance_Report_${safeBatchName}_${payload.data.startDate}.pdf"`,
+      );
+      res.setHeader("Content-Length", String(pdf.length));
+      res.setHeader("Content-Transfer-Encoding", "binary");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdf);
+    } catch (err: any) {
+      console.error("[Attendance PDF] Failed to render:", err);
+      if (err instanceof Error && err.stack) {
+        console.error("[Attendance PDF] Stack:", err.stack);
+      }
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid attendance report data" });
+      }
+      if (!res.headersSent) {
+        return res.status(500).json({ message: "Failed to generate attendance PDF" });
+      }
+      return res.end();
+    }
   });
 
   // Bulk delete an entire exam (all student results matching batch + exam, optional subject)
