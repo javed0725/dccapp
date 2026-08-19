@@ -1,8 +1,15 @@
 import { access, readFile } from "fs/promises";
-import { existsSync } from "fs";
-import { execFileSync } from "child_process";
 import path from "path";
-import puppeteer from "puppeteer";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pdfMake = require("pdfmake") as {
+  virtualfs: {
+    writeFileSync: (fileName: string, content: string, options?: { encoding?: string } | string) => void;
+  };
+  setFonts: (fonts: Record<string, unknown>) => void;
+  createPdf: (definition: Record<string, unknown>) => { getBuffer: () => Promise<Buffer> };
+};
 
 type SmartStudent = {
   studentCustomId?: string | number | null;
@@ -34,14 +41,6 @@ let fontDataPromise: Promise<{ regular: string; bold: string }> | undefined;
 
 const normalizeText = (value: unknown, fallback = "") =>
   String(value ?? fallback).normalize("NFC");
-
-const escapeHtml = (value: unknown, fallback = "") =>
-  normalizeText(value, fallback)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 async function readFont(fileName: string): Promise<string> {
   const candidates = [
@@ -83,10 +82,24 @@ function dhakaTime(value: unknown): string {
 
 function shortDate(value: unknown): string {
   const parts = normalizeText(value).split("-");
-  return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0].slice(-2)}` : normalizeText(value);
+  return parts.length === 3
+    ? `${parts[2]}-${parts[1]}-${parts[0].slice(-2)}`
+    : normalizeText(value);
 }
 
-function reportRows(data: AttendancePdfData): string {
+type PdfCell = {
+  text: string;
+  style?: string;
+  color?: string;
+  bold?: boolean;
+  alignment?: "left" | "center" | "right";
+};
+
+function cell(value: unknown, fallback = "—", alignment: PdfCell["alignment"] = "left"): PdfCell {
+  return { text: normalizeText(value, fallback), alignment };
+}
+
+function reportRows(data: AttendancePdfData): PdfCell[][] {
   const rows = data.days
     .filter((day) => !day.noRoutine && !day.offDay)
     .flatMap((day) =>
@@ -106,132 +119,106 @@ function reportRows(data: AttendancePdfData): string {
     );
 
   if (!rows.length) {
-    return `<tr><td colspan="8" class="empty">No attendance records</td></tr>`;
+    return [[{ text: "No attendance records", colSpan: 8, alignment: "center" } as PdfCell]];
   }
 
-  return rows
-    .map(
-      (row, index) => `
-        <tr>
-          <td class="center">${index + 1}</td>
-          <td class="center">${escapeHtml(row.id, "—")}</td>
-          <td>${escapeHtml(row.name, "—")}</td>
-          <td class="center">${escapeHtml(row.date)}</td>
-          <td class="center">${escapeHtml(row.weekday, "—")}</td>
-          <td>${escapeHtml(row.subject)}</td>
-          <td class="center ${row.status === "PRESENT" ? "present" : "absent"}">${escapeHtml(row.status)}</td>
-          <td class="center">${escapeHtml(row.punch)}</td>
-        </tr>`,
-    )
-    .join("");
+  return rows.map((row, index) => [
+    cell(index + 1, "—", "center"),
+    cell(row.id, "—", "center"),
+    cell(row.name),
+    cell(row.date, "—", "center"),
+    cell(row.weekday, "—", "center"),
+    cell(row.subject),
+    {
+      ...cell(row.status, "ABSENT", "center"),
+      color: row.status === "PRESENT" ? "#166534" : "#991b1b",
+      bold: true,
+    },
+    cell(row.punch, "—", "center"),
+  ]);
 }
 
-function buildHtml(data: AttendancePdfData, batchName: string, fonts: { regular: string; bold: string }) {
-  return `<!doctype html>
-<html lang="bn">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <style>
-      @font-face {
-        font-family: "Noto Sans Bengali";
-        src: url("data:font/ttf;base64,${fonts.regular}") format("truetype");
-        font-weight: 400;
-        font-style: normal;
-        font-display: block;
-      }
-      @font-face {
-        font-family: "Noto Sans Bengali";
-        src: url("data:font/ttf;base64,${fonts.bold}") format("truetype");
-        font-weight: 700;
-        font-style: normal;
-        font-display: block;
-      }
-
-      @page { size: A4 portrait; margin: 10mm; }
-      * {
-        box-sizing: border-box;
-        font-family: "Noto Sans Bengali", sans-serif !important;
-        font-feature-settings: "kern", "liga", "clig", "calt";
-        font-kerning: normal;
-        font-variant-ligatures: common-ligatures;
-        text-rendering: optimizeLegibility;
-      }
-      html, body {
-        margin: 0;
-        padding: 0;
-        color: #111827;
-        background: #fff;
-        font-size: 9px;
-        line-height: 1.35;
-        -webkit-font-smoothing: antialiased;
-      }
-      h1 { margin: 0 0 3px; text-align: center; font-size: 18px; font-weight: 700; }
-      h2 { margin: 0 0 12px; text-align: center; font-size: 10px; font-weight: 400; }
-      .meta { text-align: center; margin-bottom: 12px; }
-      .meta span { font-weight: 700; }
-      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td {
-        border: 1px solid #d1d5db;
-        padding: 4px 5px;
-        vertical-align: middle;
-        overflow-wrap: anywhere;
-        word-break: normal;
-      }
-      th { background: #f3f4f6; font-size: 8px; font-weight: 700; text-align: center; }
-      td { font-size: 8px; }
-      .center { text-align: center; }
-      .present { color: #166534; font-weight: 700; }
-      .absent { color: #991b1b; font-weight: 700; }
-      .empty { padding: 18px; text-align: center; }
-      .footer { margin-top: 8px; color: #6b7280; text-align: right; font-size: 8px; }
-    </style>
-  </head>
-  <body>
-    <h1>Dynamic Coaching Center</h1>
-    <h2>Smart Attendance Report</h2>
-    <div class="meta">
-      <p><span>Date Range:</span> ${escapeHtml(data.startDate)} - ${escapeHtml(data.endDate)}</p>
-      <p><span>Class:</span> ${escapeHtml(batchName, "All Batches")}</p>
-    </div>
-    <table>
-      <colgroup>
-        <col style="width: 5%" /><col style="width: 11%" /><col style="width: 22%" />
-        <col style="width: 11%" /><col style="width: 11%" /><col style="width: 19%" />
-        <col style="width: 11%" /><col style="width: 10%" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th>#</th><th>Student ID</th><th>Student Name</th><th>Date</th>
-          <th>Day</th><th>Subject</th><th>Status</th><th>Punch Time</th>
-        </tr>
-      </thead>
-      <tbody>${reportRows(data)}</tbody>
-    </table>
-    <p class="footer">Generated by Dynamic Coaching Center</p>
-  </body>
-</html>`;
+function configureFonts(fonts: { regular: string; bold: string }) {
+  // pdfmake's virtual file system accepts the Base64 font payload directly.
+  // The document definition then references only these in-memory font files.
+  pdfMake.virtualfs.writeFileSync("NotoSansBengali-Regular.ttf", fonts.regular, "base64");
+  pdfMake.virtualfs.writeFileSync("NotoSansBengali-Bold.ttf", fonts.bold, "base64");
+  pdfMake.setFonts({
+    "Noto Sans Bengali": {
+      normal: "NotoSansBengali-Regular.ttf",
+      bold: "NotoSansBengali-Bold.ttf",
+    },
+  });
 }
 
-function chromiumExecutable(): string {
-  const candidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH?.trim(),
-    (() => {
-      try {
-        return execFileSync(
-          "sh",
-          ["-lc", "command -v chromium || command -v chromium-browser || command -v google-chrome || true"],
-          { encoding: "utf8" },
-        ).trim();
-      } catch {
-        return "";
-      }
-    })(),
-    puppeteer.executablePath(),
+function buildDocument(
+  data: AttendancePdfData,
+  batchName: string,
+): Record<string, unknown> {
+  const header: PdfCell[] = [
+    { text: "#", alignment: "center", bold: true },
+    { text: "Student ID", alignment: "center", bold: true },
+    { text: "Student Name", alignment: "center", bold: true },
+    { text: "Date", alignment: "center", bold: true },
+    { text: "Day", alignment: "center", bold: true },
+    { text: "Subject", alignment: "center", bold: true },
+    { text: "Status", alignment: "center", bold: true },
+    { text: "Punch Time", alignment: "center", bold: true },
   ];
-  const executable = candidates.find((candidate) => candidate && existsSync(candidate));
-  if (!executable) throw new Error("Chromium executable not found");
-  return executable;
+
+  return {
+    info: {
+      title: "Smart Attendance Report",
+      subject: "Attendance report",
+      author: "Dynamic Coaching Center",
+      creator: "Dynamic Coaching Center",
+      producer: "pdfmake",
+    },
+    language: "bn-BD",
+    pageSize: "A4",
+    pageMargins: [28, 28, 28, 28],
+    defaultStyle: {
+      font: "Noto Sans Bengali",
+      fontSize: 8,
+      color: "#111827",
+    },
+    styles: {
+      title: { fontSize: 18, bold: true, alignment: "center", margin: [0, 0, 0, 3] },
+      subtitle: { fontSize: 10, alignment: "center", margin: [0, 0, 0, 10] },
+      meta: { fontSize: 9, alignment: "center", margin: [0, 0, 0, 10] },
+      footer: { fontSize: 8, color: "#6b7280", alignment: "right", margin: [0, 8, 0, 0] },
+    },
+    content: [
+      { text: "Dynamic Coaching Center", style: "title" },
+      { text: "Smart Attendance Report", style: "subtitle" },
+      {
+        text: [
+          { text: "Date Range: ", bold: true },
+          `${normalizeText(data.startDate)} - ${normalizeText(data.endDate)}   `,
+          { text: "Class: ", bold: true },
+          normalizeText(batchName, "All Batches"),
+        ],
+        style: "meta",
+      },
+      {
+        table: {
+          headerRows: 1,
+          widths: ["5%", "11%", "22%", "11%", "11%", "19%", "11%", "10%"],
+          body: [header, ...reportRows(data)],
+        },
+        layout: {
+          fillColor: (rowIndex: number) => (rowIndex === 0 ? "#f3f4f6" : undefined),
+          hLineColor: () => "#d1d5db",
+          vLineColor: () => "#d1d5db",
+          paddingLeft: () => 4,
+          paddingRight: () => 4,
+          paddingTop: () => 4,
+          paddingBottom: () => 4,
+        },
+      },
+      { text: "Generated by Dynamic Coaching Center", style: "footer" },
+    ],
+  };
 }
 
 export async function renderAttendancePdf(
@@ -239,57 +226,6 @@ export async function renderAttendancePdf(
   batchName: string,
 ): Promise<Buffer> {
   const fonts = await getFontData();
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: chromiumExecutable(),
-    timeout: 30_000,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--no-first-run",
-      "--no-zygote",
-      "--font-render-hinting=medium",
-      "--enable-font-antialiasing",
-      "--disable-gpu",
-      "--lang=bn-BD",
-      "--force-color-profile=srgb",
-    ],
-  });
-
-  let page: Awaited<ReturnType<typeof browser.newPage>> | undefined;
-  let stage = "creating page";
-  try {
-    page = await browser.newPage();
-    stage = "setting UTF-8 HTML content";
-    page.setDefaultNavigationTimeout(30_000);
-    page.setDefaultTimeout(30_000);
-    await page.setContent(buildHtml(data, batchName, fonts), {
-      waitUntil: "domcontentloaded",
-      timeout: 30_000,
-    });
-    stage = "loading embedded Bengali fonts";
-    await page.evaluate(async () => {
-      await document.fonts.ready;
-      if (!document.fonts.check('16px "Noto Sans Bengali"')) {
-        throw new Error("Embedded Noto Sans Bengali font failed to load");
-      }
-    });
-    stage = "generating PDF";
-    return Buffer.from(
-      await page.pdf({
-        format: "A4",
-        printBackground: true,
-        preferCSSPageSize: true,
-        displayHeaderFooter: false,
-        timeout: 0,
-      }),
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Attendance PDF ${stage} failed: ${message}`, { cause: error });
-  } finally {
-    await page?.close().catch(() => undefined);
-    await browser.close().catch(() => undefined);
-  }
+  configureFonts(fonts);
+  return pdfMake.createPdf(buildDocument(data, batchName)).getBuffer();
 }
