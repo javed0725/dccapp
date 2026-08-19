@@ -2,7 +2,7 @@ import { access, readFile } from "fs/promises";
 import path from "path";
 import { createRequire } from "module";
 
-const require = createRequire(import.meta.url);
+const require = createRequire(path.resolve(process.cwd(), "package.json"));
 const pdfMake = require("pdfmake") as {
   virtualfs: {
     writeFileSync: (fileName: string, content: string, options?: { encoding?: string } | string) => void;
@@ -93,6 +93,7 @@ type PdfCell = {
   color?: string;
   bold?: boolean;
   alignment?: "left" | "center" | "right";
+  colSpan?: number;
 };
 
 function cell(value: unknown, fallback = "—", alignment: PdfCell["alignment"] = "left"): PdfCell {
@@ -119,7 +120,7 @@ function reportRows(data: AttendancePdfData): PdfCell[][] {
     );
 
   if (!rows.length) {
-    return [[{ text: "No attendance records", colSpan: 8, alignment: "center" } as PdfCell]];
+    return [[{ text: "No attendance records", colSpan: 8, alignment: "center" }]];
   }
 
   return rows.map((row, index) => [
