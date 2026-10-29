@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, json, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, json, decimal, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -74,6 +74,54 @@ export const results = pgTable("results", {
   modelTestGroupId: text("model_test_group_id"),
   date: timestamp("date").defaultNow().notNull(),
 });
+
+export type OmrSetCode = "ক" | "খ" | "গ" | "ঘ";
+export type OmrAnswer = "A" | "B" | "C" | "D";
+export type OmrAnswerKeys = Record<OmrSetCode, OmrAnswer[]>;
+export type OmrResponseStatus = "valid" | "blank" | "multiple" | "ambiguous";
+export type OmrResponse = {
+  question: number;
+  selected: OmrAnswer | null;
+  status: OmrResponseStatus;
+};
+
+export const omrConfigs = pgTable("omr_configs", {
+  id: serial("id").primaryKey(),
+  batchId: integer("batch_id").references(() => batches.id).notNull(),
+  examName: text("exam_name").notNull(),
+  subject: text("subject").notNull(),
+  questionCount: integer("question_count").notNull(),
+  answerKeys: json("answer_keys").notNull().$type<OmrAnswerKeys>(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  ownerExamUnique: uniqueIndex("omr_configs_owner_exam_unique").on(
+    table.createdByUserId,
+    table.batchId,
+    table.examName,
+    table.subject,
+  ),
+}));
+
+export const omrScanResults = pgTable("omr_scan_results", {
+  id: serial("id").primaryKey(),
+  resultId: integer("result_id").references(() => results.id).notNull(),
+  configId: integer("config_id").references(() => omrConfigs.id).notNull(),
+  studentId: integer("student_id").references(() => students.id).notNull(),
+  rollNumber: text("roll_number").notNull().default(""),
+  setCode: text("set_code").notNull(),
+  correctAnswers: integer("correct_answers").notNull(),
+  wrongAnswers: integer("wrong_answers").notNull(),
+  unattempted: integer("unattempted").notNull(),
+  responses: json("responses").notNull().$type<OmrResponse[]>(),
+  scannedByUserId: integer("scanned_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  configStudentUnique: uniqueIndex("omr_scan_config_student_unique").on(
+    table.configId,
+    table.studentId,
+  ),
+}));
 
 export const modelTestDrafts = pgTable("model_test_drafts", {
   id: serial("id").primaryKey(),

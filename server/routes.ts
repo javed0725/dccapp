@@ -10,6 +10,7 @@ import { setupAuth } from "./auth/auth";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf";
+import { registerOmrRoutes } from "./omr-routes";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -66,6 +67,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupAuth(app);
+  registerOmrRoutes(app);
 
   // Health-check — useful for diagnosing Vercel cold starts and DB connectivity
   app.get("/api/health", async (_req, res) => {
