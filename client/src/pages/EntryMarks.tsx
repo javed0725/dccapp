@@ -63,7 +63,7 @@ type Subject = { name: string; totalMarks: string; allGroups?: boolean };
 type DraftSubject = ModelTestSubject;
 type DraftSubjectSelection = { subjectId: string };
 type SubjectMasterOption = {
-  subjectId: number;
+  id: number;
   name: string;
   mcqEnabled: boolean;
   cqEnabled: boolean;
@@ -350,7 +350,7 @@ export default function EntryMarks() {
       .filter((group): group is string => !!group)
   )).sort((a, b) => a.localeCompare(b));
   const draftHasSubjectNeedingGroup = draftSubjects.some(({ subjectId }) => {
-    const selected = subjectMasterList.find((subject) => subject.subjectId === Number(subjectId));
+    const selected = subjectMasterList.find((subject) => subject.id === Number(subjectId));
     return !!selected && !selected.allGroups;
   });
 
@@ -451,14 +451,14 @@ export default function EntryMarks() {
     const valid = draftSubjects
       .map((selection) => ({
         selection,
-        subject: subjectMasterList.find((item) => item.subjectId === Number(selection.subjectId)),
+        subject: subjectMasterList.find((item) => item.id === Number(selection.subjectId)),
       }))
       .filter((item): item is { selection: DraftSubjectSelection; subject: SubjectMasterOption } => !!item.subject);
     if (valid.length === 0) {
       toast({ variant: "destructive", title: "Select at least one predefined subject" });
       return;
     }
-    if (new Set(valid.map(({ subject }) => subject.subjectId)).size !== valid.length) {
+    if (new Set(valid.map(({ subject }) => subject.id)).size !== valid.length) {
       toast({ variant: "destructive", title: "Select each subject only once" });
       return;
     }
@@ -470,7 +470,7 @@ export default function EntryMarks() {
       examName: draftExamName.trim(),
       batchId: Number(draftBatchId),
       subjects: valid.map(({ selection, subject }) => ({
-        subjectId: subject.subjectId,
+        subjectId: subject.id,
         academicGroup: subject.allGroups ? null : draftAcademicGroup || null,
       })),
     });
@@ -1039,7 +1039,7 @@ export default function EntryMarks() {
                       </div>
                       <div className="space-y-2">
                         {draftSubjects.map((subj, idx) => {
-                          const selected = subjectMasterList.find((option) => option.subjectId === Number(subj.subjectId));
+                          const selected = subjectMasterList.find((option) => option.id === Number(subj.subjectId));
                           const rule = selected ? getSubjectMarkingRule(selected.name, selected) : null;
                           return (
                             <div key={idx} className="flex flex-wrap gap-2 items-center">
@@ -1050,12 +1050,12 @@ export default function EntryMarks() {
                                 <SelectContent>
                                   {subjectMasterList.map((option) => {
                                     const usedElsewhere = draftSubjects.some((item, itemIndex) =>
-                                      itemIndex !== idx && item.subjectId === String(option.subjectId)
+                                      itemIndex !== idx && item.subjectId === String(option.id)
                                     );
                                     return (
                                       <SelectItem
-                                        key={option.subjectId}
-                                        value={String(option.subjectId)}
+                                        key={option.id}
+                                        value={String(option.id)}
                                         disabled={usedElsewhere}
                                       >
                                         {option.name}
