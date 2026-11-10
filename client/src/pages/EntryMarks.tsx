@@ -348,7 +348,9 @@ export default function EntryMarks() {
   const [draftBatchId, setDraftBatchId] = useState("");
   const [draftAcademicGroup, setDraftAcademicGroup] = useState("");
   const [draftSubjects, setDraftSubjects] = useState<DraftSubjectSelection[]>([{ subjectId: "" }]);
+  const [openCreateSubjectIndex, setOpenCreateSubjectIndex] = useState<number | null>(null);
   const [editingDraft, setEditingDraft] = useState<DraftEditState | null>(null);
+  const [editAddSubjectPickerOpen, setEditAddSubjectPickerOpen] = useState(false);
   const { data: subjectMasterList = [] } = useQuery<SubjectMasterOption[]>({
     queryKey: ["/api/subject-master-list"],
     enabled: !!user && (user.role === "admin" || !!user.isAuthority),
@@ -539,6 +541,7 @@ export default function EntryMarks() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const openDraftEditor = (draft: any) => {
+    setEditAddSubjectPickerOpen(false);
     setEditingDraft({
       groupId: draft.groupId,
       examName: draft.examName,
@@ -1163,6 +1166,7 @@ export default function EntryMarks() {
                             setDraftBatchId(value);
                             setDraftAcademicGroup("");
                             setDraftSubjects([{ subjectId: "" }]);
+                            setOpenCreateSubjectIndex(null);
                           }}>
                           <SelectTrigger><SelectValue placeholder="Select Class / Batch" /></SelectTrigger>
                           <SelectContent>{batches?.map((b) => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}</SelectContent>
@@ -1192,7 +1196,17 @@ export default function EntryMarks() {
                           const rule = selected ? getSubjectMarkingRule(selected.name, selected) : null;
                           return (
                             <div key={idx} className="flex flex-wrap gap-2 items-center">
-                              <Select value={subj.subjectId} onValueChange={(value) => updateDraftSubject(idx, value)}>
+                              <Select
+                                value={subj.subjectId}
+                                open={openCreateSubjectIndex === idx}
+                                onOpenChange={(open) => setOpenCreateSubjectIndex((current) =>
+                                  open ? idx : current === idx ? null : current
+                                )}
+                                onValueChange={(value) => {
+                                  updateDraftSubject(idx, value);
+                                  setOpenCreateSubjectIndex(null);
+                                }}
+                              >
                                 <SelectTrigger className="min-w-[220px] flex-1">
                                   <SelectValue placeholder="Choose a predefined subject" />
                                 </SelectTrigger>
@@ -1805,7 +1819,12 @@ export default function EntryMarks() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingDraft} onOpenChange={(open) => !open && setEditingDraft(null)}>
+      <Dialog open={!!editingDraft} onOpenChange={(open) => {
+        if (!open) {
+          setEditAddSubjectPickerOpen(false);
+          setEditingDraft(null);
+        }
+      }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
           <DialogHeader>
             <DialogTitle>Edit Model Test Draft</DialogTitle>
@@ -1837,7 +1856,15 @@ export default function EntryMarks() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <Label>Subjects</Label>
-                  <Select value="" onValueChange={addSubjectToEditedDraft}>
+                  <Select
+                    value=""
+                    open={editAddSubjectPickerOpen}
+                    onOpenChange={setEditAddSubjectPickerOpen}
+                    onValueChange={(subjectId) => {
+                      addSubjectToEditedDraft(subjectId);
+                      setEditAddSubjectPickerOpen(false);
+                    }}
+                  >
                     <SelectTrigger className="w-auto min-w-[190px]">
                       <SelectValue placeholder="Add a subject..." />
                     </SelectTrigger>
