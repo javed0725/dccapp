@@ -21,6 +21,7 @@ function logAuthError(event: string, error: unknown, req?: Request) {
   const details = error && typeof error === "object"
     ? error as { code?: unknown }
     : {};
+  console.error(err);
   console.error(JSON.stringify({
     level: "error",
     component: "auth",

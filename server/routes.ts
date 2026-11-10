@@ -119,6 +119,7 @@ export async function registerRoutes(
         ...healthDetails,
       });
     } catch (err: any) {
+      console.error("[Health] Database probe failed:", err);
       console.error(JSON.stringify({
         level: "error",
         component: "health",
