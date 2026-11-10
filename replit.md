@@ -64,6 +64,12 @@ The `shared/` directory contains code used by both frontend and backend:
 - Production: Vite builds static assets to `dist/public`, esbuild bundles server to `dist/index.cjs`
 - Server dependencies are selectively bundled to optimize cold start times
 
+### Running an Imported Copy
+- Install the dependencies in `package-lock.json` before starting the app.
+- Configure `SESSION_SECRET` and a PostgreSQL connection using one of the database variables supported by `server/db.ts`.
+- For an empty development database, run `npm run db:push` to create the application's tables, then start or restart the **Start application** workflow (`npm run dev`, port 5000).
+- `npm run build` builds successfully. The imported source currently has unrelated TypeScript errors reported by `npm run check`; these do not prevent the development server or production build from running.
+
 ## External Dependencies
 
 ### Database
