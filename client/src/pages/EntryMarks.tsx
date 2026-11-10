@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
 import OMRScanner from "@/components/OMRScanner";
-import { getSubjectMarkingRule, isCommonCoreSubject, type MarkComponent } from "@shared/marking";
+import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
   if (obtained === -1) return { grade: "ABS", gp: 0.0 };
@@ -60,7 +60,19 @@ function WhatsAppBtn({ url }: { url: string }) {
 }
 
 type Subject = { name: string; totalMarks: string; allGroups?: boolean };
-type DraftSubject = { name: string; totalMarks: number; academicGroup?: string | null; allGroups?: boolean };
+type DraftSubject = ModelTestSubject;
+type DraftSubjectSelection = { subjectId: string };
+type SubjectMasterOption = {
+  subjectId: number;
+  name: string;
+  mcqEnabled: boolean;
+  cqEnabled: boolean;
+  practicalEnabled: boolean;
+  mcqMax: number;
+  cqMax: number;
+  practicalMax: number;
+  allGroups: boolean;
+};
 
 function getDraftStudentsForSubject(students: any[] | undefined, batchId: number, subject: DraftSubject) {
   const targetGroup = subject.allGroups ? "" : subject.academicGroup?.trim().toLowerCase() || "";
@@ -326,13 +338,21 @@ export default function EntryMarks() {
   const [draftExamName, setDraftExamName] = useState("");
   const [draftBatchId, setDraftBatchId] = useState("");
   const [draftAcademicGroup, setDraftAcademicGroup] = useState("");
-  const [draftSubjects, setDraftSubjects] = useState<Subject[]>([{ name: "", totalMarks: "100" }]);
+  const [draftSubjects, setDraftSubjects] = useState<DraftSubjectSelection[]>([{ subjectId: "" }]);
+  const { data: subjectMasterList = [] } = useQuery<SubjectMasterOption[]>({
+    queryKey: ["/api/subject-master-list"],
+    enabled: !!user && (user.role === "admin" || !!user.isAuthority),
+  });
   const draftAvailableGroups = Array.from(new Set(
     (students || [])
       .filter((student) => student.batchId === Number(draftBatchId))
       .map((student) => student.academicGroup?.trim())
       .filter((group): group is string => !!group)
   )).sort((a, b) => a.localeCompare(b));
+  const draftHasSubjectNeedingGroup = draftSubjects.some(({ subjectId }) => {
+    const selected = subjectMasterList.find((subject) => subject.subjectId === Number(subjectId));
+    return !!selected && !selected.allGroups;
+  });
 
   // --- Teacher: Mark entry via draft state ---
   const [selectedDraftGroupId, setSelectedDraftGroupId] = useState("");
@@ -349,13 +369,10 @@ export default function EntryMarks() {
       return next;
     });
 
-  const addDraftSubject = () => setDraftSubjects((p) => [...p, { name: "", totalMarks: "100" }]);
+  const addDraftSubject = () => setDraftSubjects((p) => [...p, { subjectId: "" }]);
   const removeDraftSubject = (i: number) => setDraftSubjects((p) => p.filter((_, j) => j !== i));
-  const updateDraftSubject = (i: number, field: "name" | "totalMarks", value: string) =>
-    setDraftSubjects((p) => p.map((s, j) => {
-      if (j !== i) return s;
-      return { ...s, [field]: value, ...(field === "name" && !isCommonCoreSubject(value) ? { allGroups: false } : {}) };
-    }));
+  const updateDraftSubject = (i: number, subjectId: string) =>
+    setDraftSubjects((p) => p.map((s, j) => j === i ? { subjectId } : s));
 
   const { data: modelTestDrafts, refetch: refetchDrafts } = useQuery<any[]>({
     queryKey: ["/api/model-test-drafts"],
@@ -372,7 +389,7 @@ export default function EntryMarks() {
       setDraftExamName("");
       setDraftBatchId("");
       setDraftAcademicGroup("");
-      setDraftSubjects([{ name: "", totalMarks: "100" }]);
+      setDraftSubjects([{ subjectId: "" }]);
       toast({ title: "Draft created!", description: "Teachers can now enter marks." });
     },
     onError: () => toast({ variant: "destructive", title: "Failed to create draft" }),
@@ -431,23 +448,30 @@ export default function EntryMarks() {
       toast({ variant: "destructive", title: "Fill in Exam Name and Batch" });
       return;
     }
-    if (draftAvailableGroups.length > 0 && !draftAcademicGroup) {
-      toast({ variant: "destructive", title: "Select a group for this class" });
+    const valid = draftSubjects
+      .map((selection) => ({
+        selection,
+        subject: subjectMasterList.find((item) => item.subjectId === Number(selection.subjectId)),
+      }))
+      .filter((item): item is { selection: DraftSubjectSelection; subject: SubjectMasterOption } => !!item.subject);
+    if (valid.length === 0) {
+      toast({ variant: "destructive", title: "Select at least one predefined subject" });
       return;
     }
-    const valid = draftSubjects.filter((s) => s.name.trim() && s.totalMarks);
-    if (valid.length === 0) {
-      toast({ variant: "destructive", title: "Add at least one subject" });
+    if (new Set(valid.map(({ subject }) => subject.subjectId)).size !== valid.length) {
+      toast({ variant: "destructive", title: "Select each subject only once" });
+      return;
+    }
+    if (draftAvailableGroups.length > 0 && valid.some(({ subject }) => !subject.allGroups) && !draftAcademicGroup) {
+      toast({ variant: "destructive", title: "Select a group for this class" });
       return;
     }
     createDraftMutation.mutate({
       examName: draftExamName.trim(),
       batchId: Number(draftBatchId),
-      subjects: valid.map((s) => ({
-        name: s.name.trim(),
-        totalMarks: Number(s.totalMarks),
-        academicGroup: s.allGroups ? null : draftAcademicGroup || null,
-        allGroups: s.allGroups ?? false,
+      subjects: valid.map(({ selection, subject }) => ({
+        subjectId: subject.subjectId,
+        academicGroup: subject.allGroups ? null : draftAcademicGroup || null,
       })),
     });
   };
@@ -457,7 +481,7 @@ export default function EntryMarks() {
     if (!draft || !teacherSubjectName) return;
     const subj = (draft.subjects as DraftSubject[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
-    const markingRule = getSubjectMarkingRule(teacherSubjectName);
+    const markingRule = getSubjectMarkingRule(teacherSubjectName, subj);
     const draftBatchStudents = getDraftStudentsForSubject(students, draft.batchId, subj);
     // Include every active student. Existing rows without component data are
     // retained unchanged until a teacher enters the new breakdown for them.
@@ -1005,7 +1029,7 @@ export default function EntryMarks() {
                             {draftAvailableGroups.map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">Select the group for this draft. Common subjects can be shared with every group below.</p>
+                        <p className="text-xs text-muted-foreground">Group-specific subjects use this group. Subjects marked All Groups include every group.</p>
                       </div>
                     )}
                     <div className="space-y-2">
@@ -1014,31 +1038,52 @@ export default function EntryMarks() {
                         <Button variant="outline" size="sm" onClick={addDraftSubject}><Plus className="w-3 h-3 mr-1" /> Add Subject</Button>
                       </div>
                       <div className="space-y-2">
-                        {draftSubjects.map((subj, idx) => (
-                          <div key={idx} className="flex flex-wrap gap-2 items-center">
-                            <Input placeholder="Subject name (e.g. Physics)" value={subj.name} onChange={(e) => updateDraftSubject(idx, "name", e.target.value)} className="flex-1" />
-                            <Input type="number" placeholder="Total" value={subj.totalMarks} onChange={(e) => updateDraftSubject(idx, "totalMarks", e.target.value)} className="w-24" />
-                            {isCommonCoreSubject(subj.name) && (
-                              <label className="flex items-center gap-2 text-xs font-medium text-slate-600 whitespace-nowrap">
-                                <Checkbox
-                                  checked={subj.allGroups ?? false}
-                                  onCheckedChange={(checked) => setDraftSubjects((previous) =>
-                                    previous.map((item, index) => index === idx ? { ...item, allGroups: !!checked } : item)
-                                  )}
-                                />
-                                All groups
-                              </label>
-                            )}
-                            {draftSubjects.length > 1 && (
-                              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeDraftSubject(idx)}>
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
+                        {draftSubjects.map((subj, idx) => {
+                          const selected = subjectMasterList.find((option) => option.subjectId === Number(subj.subjectId));
+                          const rule = selected ? getSubjectMarkingRule(selected.name, selected) : null;
+                          return (
+                            <div key={idx} className="flex flex-wrap gap-2 items-center">
+                              <Select value={subj.subjectId} onValueChange={(value) => updateDraftSubject(idx, value)}>
+                                <SelectTrigger className="min-w-[220px] flex-1">
+                                  <SelectValue placeholder="Choose a predefined subject" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {subjectMasterList.map((option) => {
+                                    const usedElsewhere = draftSubjects.some((item, itemIndex) =>
+                                      itemIndex !== idx && item.subjectId === String(option.subjectId)
+                                    );
+                                    return (
+                                      <SelectItem
+                                        key={option.subjectId}
+                                        value={String(option.subjectId)}
+                                        disabled={usedElsewhere}
+                                      >
+                                        {option.name}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                              {selected && (
+                                <span className="text-xs text-muted-foreground">
+                                  {rule?.fields.map((field) => `${field.label} /${field.max}`).join(" · ")}
+                                  {" · "}{selected.allGroups ? "All Groups" : "Selected group"}
+                                </span>
+                              )}
+                              {draftSubjects.length > 1 && (
+                                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeDraftSubject(idx)}>
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {subjectMasterList.length === 0 && (
+                          <p className="text-sm text-muted-foreground">Add subjects in Manage → Subject Master List first.</p>
+                        )}
                       </div>
                     </div>
-                    <Button onClick={handleCreateDraft} disabled={createDraftMutation.isPending || (draftAvailableGroups.length > 0 && !draftAcademicGroup)} className="gap-2">
+                    <Button onClick={handleCreateDraft} disabled={createDraftMutation.isPending || (draftAvailableGroups.length > 0 && draftHasSubjectNeedingGroup && !draftAcademicGroup)} className="gap-2">
                       <Send className="w-4 h-4" />
                       {createDraftMutation.isPending ? "Creating..." : "Create Draft"}
                     </Button>
@@ -1305,7 +1350,7 @@ export default function EntryMarks() {
                         const draftBatchStudents = subj
                           ? getDraftStudentsForSubject(students, draft.batchId, subj)
                           : [];
-                        const markingRule = getSubjectMarkingRule(teacherSubjectName);
+                        const markingRule = getSubjectMarkingRule(teacherSubjectName, subj);
                         const existingSubjectResults = draftGroupResults.filter((r: any) => r.subject === teacherSubjectName);
 
                         return (

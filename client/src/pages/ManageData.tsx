@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Users, Layers, ShieldCheck, Key, UserX, UserCheck, ChevronDown, ChevronRight, Pencil, Phone, UserPlus, Upload, ImageOff, Loader2, CalendarDays } from "lucide-react";
+import { Plus, Trash2, Users, Layers, ShieldCheck, Key, UserX, UserCheck, ChevronDown, ChevronRight, Pencil, Phone, UserPlus, Upload, ImageOff, Loader2, CalendarDays, BookOpen } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -19,6 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ClassRoutineManager } from "@/components/ClassRoutineManager";
+import { SubjectMasterManager } from "@/components/SubjectMasterManager";
 
 const studentFormSchema = insertStudentSchema.extend({
   batchId: z.coerce.number().min(1, "Select a batch"),
@@ -157,6 +158,9 @@ export default function ManageData() {
           </TabsTrigger>
           <TabsTrigger value="teachers" className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4" /> Teacher Management
+          </TabsTrigger>
+          <TabsTrigger value="subjects" className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4" /> Subject Master List
           </TabsTrigger>
           <TabsTrigger value="routine" className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4" /> Class Shift & Routine
@@ -790,6 +794,10 @@ export default function ManageData() {
 
         <TabsContent value="routine">
           <ClassRoutineManager />
+        </TabsContent>
+
+        <TabsContent value="subjects">
+          <SubjectMasterManager />
         </TabsContent>
       </Tabs>
     </Layout>

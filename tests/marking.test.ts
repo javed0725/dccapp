@@ -32,6 +32,67 @@ test("other subjects use MCQ 30 and CQ 70", () => {
   );
 });
 
+test("configured draft subjects use selected components and saved maxima", () => {
+  const custom = {
+    mcqEnabled: true,
+    cqEnabled: false,
+    practicalEnabled: true,
+    mcqMax: 60,
+    cqMax: 0,
+    practicalMax: 40,
+  };
+  assert.deepEqual(
+    getSubjectMarkingRule("Custom Science", custom).fields.map(({ key, max }) => [key, max]),
+    [["mcq", 60], ["practical", 40]],
+  );
+  assert.deepEqual(
+    getSubjectMarkingRule("Physics", {
+      mcqEnabled: false,
+      cqEnabled: false,
+      practicalEnabled: false,
+      mcqMax: 0,
+      cqMax: 0,
+      practicalMax: 0,
+    }).fields,
+    [{ key: "total", label: "Total Marks", max: 100 }],
+  );
+});
+
+test("validates configured component totals and individual limits", () => {
+  const config = {
+    mcqEnabled: true,
+    cqEnabled: false,
+    practicalEnabled: true,
+    mcqMax: 60,
+    cqMax: 0,
+    practicalMax: 40,
+  };
+  assert.equal(validateSubjectMarksEntry({
+    subject: "Custom Science",
+    totalMarks: 100,
+    obtainedMarks: 90,
+    mcqMarks: 55,
+    cqMarks: null,
+    practicalMarks: 35,
+  }, undefined, config), null);
+  assert.equal(validateSubjectMarksEntry({
+    subject: "Custom Science",
+    totalMarks: 100,
+    obtainedMarks: 90,
+    mcqMarks: 61,
+    cqMarks: null,
+    practicalMarks: 29,
+  }, undefined, config), "MCQ Marks must be between 0 and 60");
+  assert.equal(validateSubjectMarksEntry({
+    subject: "Custom Science",
+    totalMarks: 100,
+    obtainedMarks: 91,
+    mcqMarks: 55,
+    cqMarks: null,
+    practicalMarks: 35,
+  }, undefined, config), "Total marks must equal the sum of components");
+});
+
 test("accepts valid component totals and rejects mismatched totals", () => {
   const valid = {
     subject: "Physics",
@@ -80,7 +141,7 @@ test("rejects incomplete components and English entries with a breakdown", () =>
     mcqMarks: 20,
     cqMarks: null,
     practicalMarks: null,
-  }), "English results use total marks only");
+  }), "This subject uses total marks only");
   assert.equal(validateSubjectMarksEntry({
     subject: "Bangla",
     totalMarks: 100,

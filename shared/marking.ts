@@ -3,12 +3,14 @@ export type SubjectMarkingRule = {
   fields: { key: MarkComponent; label: string; max: number }[];
   total: number;
 };
-export type ModelTestSubject = {
-  name: string;
-  totalMarks: number;
-  academicGroup?: string | null;
-  allGroups?: boolean;
-};
+import type { ModelTestSubject } from "./schema";
+
+export type { ModelTestSubject } from "./schema";
+
+export type SubjectMarkingConfig = Pick<
+  ModelTestSubject,
+  "mcqEnabled" | "cqEnabled" | "practicalEnabled" | "mcqMax" | "cqMax" | "practicalMax"
+>;
 
 export function isCommonCoreSubject(subject: string): boolean {
   const normalized = subject.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
@@ -25,8 +27,23 @@ export type SubjectMarksEntry = {
 };
 
 const scienceSubjects = new Set(["physics", "chemistry", "biology", "higher math", "higher mathematics"]);
-export function getSubjectMarkingRule(subject: string): SubjectMarkingRule {
+export function getSubjectMarkingRule(subject: string, config?: SubjectMarkingConfig): SubjectMarkingRule {
   const normalized = subject.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
+  if (config && (
+    config.mcqEnabled !== undefined
+    || config.cqEnabled !== undefined
+    || config.practicalEnabled !== undefined
+  )) {
+    const fields: SubjectMarkingRule["fields"] = [];
+    if (config.mcqEnabled) fields.push({ key: "mcq", label: "MCQ Marks", max: config.mcqMax ?? 0 });
+    if (config.cqEnabled) fields.push({ key: "cq", label: "CQ Marks", max: config.cqMax ?? 0 });
+    if (config.practicalEnabled) fields.push({ key: "practical", label: "Practical Marks", max: config.practicalMax ?? 0 });
+    return {
+      fields: fields.length ? fields : [{ key: "total", label: "Total Marks", max: 100 }],
+      total: 100,
+    };
+  }
+
   if (scienceSubjects.has(normalized)) {
     return {
       fields: [
@@ -57,6 +74,7 @@ export function getSubjectMarkingRule(subject: string): SubjectMarkingRule {
 export function validateSubjectMarksEntry(
   entry: SubjectMarksEntry,
   unchangedLegacyResult?: Pick<SubjectMarksEntry, "totalMarks" | "obtainedMarks" | "mcqMarks" | "cqMarks" | "practicalMarks">,
+  config?: SubjectMarkingConfig,
 ): string | null {
   if (entry.totalMarks !== 100 || !Number.isInteger(entry.obtainedMarks) || entry.obtainedMarks < -1 || entry.obtainedMarks > 100) {
     return "Marks must be recorded out of 100";
@@ -67,10 +85,10 @@ export function validateSubjectMarksEntry(
     return hasAnyComponent ? "Absent results cannot include component marks" : null;
   }
 
-  const rule = getSubjectMarkingRule(entry.subject);
-  const isEnglish = rule.fields[0]?.key === "total";
-  if (isEnglish) {
-    return hasAnyComponent ? "English results use total marks only" : null;
+  const rule = getSubjectMarkingRule(entry.subject, config);
+  const isTotalOnly = rule.fields[0]?.key === "total";
+  if (isTotalOnly) {
+    return hasAnyComponent ? "This subject uses total marks only" : null;
   }
 
   const fields = rule.fields.filter((field) => field.key !== "total");

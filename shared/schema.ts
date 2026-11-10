@@ -20,6 +20,19 @@ export const batches = pgTable("batches", {
   name: text("name").notNull().unique(),
 });
 
+export const subjectMasterList = pgTable("subject_master_list", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  mcqEnabled: boolean("mcq_enabled").notNull().default(false),
+  cqEnabled: boolean("cq_enabled").notNull().default(false),
+  practicalEnabled: boolean("practical_enabled").notNull().default(false),
+  mcqMax: integer("mcq_max").notNull().default(0),
+  cqMax: integer("cq_max").notNull().default(0),
+  practicalMax: integer("practical_max").notNull().default(0),
+  allGroups: boolean("all_groups").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const students = pgTable("students", {
   id: serial("id").primaryKey(),
   studentCustomId: text("student_custom_id").unique(),
@@ -129,6 +142,13 @@ export const omrScanResults = pgTable("omr_scan_results", {
 export type ModelTestSubject = {
   name: string;
   totalMarks: number;
+  subjectId?: number;
+  mcqEnabled?: boolean;
+  cqEnabled?: boolean;
+  practicalEnabled?: boolean;
+  mcqMax?: number;
+  cqMax?: number;
+  practicalMax?: number;
   academicGroup?: string | null;
   allGroups?: boolean;
 };
@@ -224,6 +244,7 @@ export const insertResultSchema = createInsertSchema(results).omit({
 
 export type User = typeof users.$inferSelect;
 export type Batch = typeof batches.$inferSelect;
+export type SubjectMaster = typeof subjectMasterList.$inferSelect;
 export type Student = typeof students.$inferSelect;
 export type Income = typeof incomes.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;

@@ -11,7 +11,7 @@ import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf";
 import { registerOmrRoutes } from "./omr-routes";
-import { isCommonCoreSubject, validateSubjectMarksEntry } from "@shared/marking";
+import { validateSubjectMarksEntry } from "@shared/marking";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -29,6 +29,37 @@ const ADMIN_ONLY_MESSAGE =
   "Only the Authority account can perform this action.";
 const ROLE_FORBIDDEN_MESSAGE =
   "You don't have permission to perform this action.";
+
+const subjectMasterPayloadSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  mcqEnabled: z.boolean(),
+  cqEnabled: z.boolean(),
+  practicalEnabled: z.boolean(),
+  mcqMax: z.coerce.number().int().min(0).max(100),
+  cqMax: z.coerce.number().int().min(0).max(100),
+  practicalMax: z.coerce.number().int().min(0).max(100),
+  allGroups: z.boolean(),
+}).superRefine((subject, ctx) => {
+  const selected = [
+    subject.mcqEnabled ? subject.mcqMax : 0,
+    subject.cqEnabled ? subject.cqMax : 0,
+    subject.practicalEnabled ? subject.practicalMax : 0,
+  ];
+  const selectedCount = [
+    subject.mcqEnabled,
+    subject.cqEnabled,
+    subject.practicalEnabled,
+  ].filter(Boolean).length;
+  if (selectedCount > 0 && selected.some((maximum, index) => {
+    const enabled = [subject.mcqEnabled, subject.cqEnabled, subject.practicalEnabled][index];
+    return enabled && maximum <= 0;
+  })) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Every selected component needs a maximum greater than zero" });
+  }
+  if (selectedCount > 0 && selected.reduce((sum, maximum) => sum + maximum, 0) !== 100) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selected component maximums must add up to 100" });
+  }
+});
 
 function requireAuth(req: any, res: any): boolean {
   if (!req.isAuthenticated()) {
@@ -160,6 +191,70 @@ export async function registerRoutes(
         res.status(500).json({ message: "Internal server error" });
       }
     }
+  });
+
+  app.get("/api/subject-master-list", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    res.json(await storage.getSubjectMasterList());
+  });
+
+  app.post("/api/subject-master-list", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const parsed = subjectMasterPayloadSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid subject settings" });
+    const payload = parsed.data;
+    const normalizedName = payload.name.trim().toLocaleLowerCase();
+    const existing = await storage.getSubjectMasterList();
+    if (existing.some((subject) => subject.name.trim().toLocaleLowerCase() === normalizedName)) {
+      return res.status(409).json({ message: "A subject with this name already exists" });
+    }
+    try {
+      const created = await storage.createSubjectMaster({
+        ...payload,
+        mcqMax: payload.mcqEnabled ? payload.mcqMax : 0,
+        cqMax: payload.cqEnabled ? payload.cqMax : 0,
+        practicalMax: payload.practicalEnabled ? payload.practicalMax : 0,
+      });
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (error?.code === "23505") return res.status(409).json({ message: "A subject with this name already exists" });
+      res.status(500).json({ message: "Failed to create subject" });
+    }
+  });
+
+  app.patch("/api/subject-master-list/:id", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: "Invalid subject id" });
+    const parsed = subjectMasterPayloadSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid subject settings" });
+    const payload = parsed.data;
+    const normalizedName = payload.name.trim().toLocaleLowerCase();
+    const existing = await storage.getSubjectMasterList();
+    if (existing.some((subject) => subject.id !== id && subject.name.trim().toLocaleLowerCase() === normalizedName)) {
+      return res.status(409).json({ message: "A subject with this name already exists" });
+    }
+    try {
+      const updated = await storage.updateSubjectMaster(id, {
+        ...payload,
+        mcqMax: payload.mcqEnabled ? payload.mcqMax : 0,
+        cqMax: payload.cqEnabled ? payload.cqMax : 0,
+        practicalMax: payload.practicalEnabled ? payload.practicalMax : 0,
+      });
+      if (!updated) return res.status(404).json({ message: "Subject not found" });
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.code === "23505") return res.status(409).json({ message: "A subject with this name already exists" });
+      res.status(500).json({ message: "Failed to update subject" });
+    }
+  });
+
+  app.delete("/api/subject-master-list/:id", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: "Invalid subject id" });
+    await storage.deleteSubjectMaster(id);
+    res.sendStatus(204);
   });
 
   app.get(api.batches.list.path, async (req, res) => {
@@ -1120,27 +1215,40 @@ export async function registerRoutes(
         examName: z.string().trim().min(1),
         batchId: z.coerce.number().int().positive(),
         subjects: z.array(z.object({
-          name: z.string().trim().min(1),
-          totalMarks: z.coerce.number().int().positive(),
+          subjectId: z.coerce.number().int().positive(),
           academicGroup: z.string().nullable().optional(),
-          allGroups: z.boolean().optional().default(false),
         })).min(1),
       }).parse(req.body);
 
-      const classStudents = (await storage.getStudents()).filter((student) => student.batchId === payload.batchId);
+      const selectedIds = payload.subjects.map((subject) => subject.subjectId);
+      if (new Set(selectedIds).size !== selectedIds.length) {
+        return res.status(400).json({ message: "Select each subject only once" });
+      }
+
+      const allMasterSubjects = await storage.getSubjectMasterList();
+      const selectedSubjects = payload.subjects.map((selection) =>
+        allMasterSubjects.find((subject) => subject.id === selection.subjectId)
+      );
+      if (selectedSubjects.some((subject) => !subject)) {
+        return res.status(400).json({ message: "One or more selected subjects are no longer available" });
+      }
+
+      const classStudents = (await storage.getStudents()).filter((student) =>
+        student.batchId === payload.batchId && student.isActive !== false
+      );
       const availableGroups = new Set(
         classStudents.map((student) => student.academicGroup?.trim()).filter((group): group is string => !!group)
       );
 
-      for (const subject of payload.subjects) {
-        if (subject.allGroups && !isCommonCoreSubject(subject.name)) {
-          return res.status(400).json({ message: `${subject.name} cannot be assigned to all groups` });
+      for (let index = 0; index < payload.subjects.length; index += 1) {
+        const selection = payload.subjects[index];
+        const masterSubject = selectedSubjects[index]!;
+        if (masterSubject.allGroups) continue;
+        if (selection.academicGroup && !availableGroups.has(selection.academicGroup.trim())) {
+          return res.status(400).json({ message: `Unknown group for ${masterSubject.name}` });
         }
-        if (subject.academicGroup && !availableGroups.has(subject.academicGroup.trim())) {
-          return res.status(400).json({ message: `Unknown group for ${subject.name}` });
-        }
-        if (availableGroups.size > 0 && !subject.allGroups && !subject.academicGroup?.trim()) {
-          return res.status(400).json({ message: `Select a group for ${subject.name}` });
+        if (availableGroups.size > 0 && !selection.academicGroup?.trim()) {
+          return res.status(400).json({ message: `Select a group for ${masterSubject.name}` });
         }
       }
 
@@ -1150,10 +1258,22 @@ export async function registerRoutes(
         groupId,
         examName: payload.examName,
         batchId: payload.batchId,
-        subjects: payload.subjects.map((subject) => ({
-          ...subject,
-          academicGroup: subject.allGroups ? null : subject.academicGroup?.trim() || null,
-        })),
+        subjects: payload.subjects.map((selection, index) => {
+          const subject = selectedSubjects[index]!;
+          return {
+            subjectId: subject.id,
+            name: subject.name,
+            totalMarks: 100,
+            mcqEnabled: subject.mcqEnabled,
+            cqEnabled: subject.cqEnabled,
+            practicalEnabled: subject.practicalEnabled,
+            mcqMax: subject.mcqMax,
+            cqMax: subject.cqMax,
+            practicalMax: subject.practicalMax,
+            academicGroup: subject.allGroups ? null : selection.academicGroup?.trim() || null,
+            allGroups: subject.allGroups,
+          };
+        }),
       });
       res.status(201).json(draft);
     } catch (err) {
@@ -1199,9 +1319,9 @@ export async function registerRoutes(
         subject: z.string().min(1),
         totalMarks: z.literal(100),
         obtainedMarks: z.number().int().min(-1).max(100),
-        mcqMarks: z.number().int().min(0).max(30).nullable(),
-        cqMarks: z.number().int().min(0).max(70).nullable(),
-        practicalMarks: z.number().int().min(0).max(25).nullable(),
+        mcqMarks: z.number().int().min(0).max(100).nullable(),
+        cqMarks: z.number().int().min(0).max(100).nullable(),
+        practicalMarks: z.number().int().min(0).max(100).nullable(),
       })).min(1);
       const entries = entriesSchema.parse(req.body?.entries);
       if (entries.length === 0) {
@@ -1236,7 +1356,7 @@ export async function registerRoutes(
         const existing = existingGroupResults.find((result) =>
           result.studentId === entry.studentId && result.subject === entry.subject
         );
-        const validationMessage = validateSubjectMarksEntry(entry, existing);
+        const validationMessage = validateSubjectMarksEntry(entry, existing, draftSubject);
         if (validationMessage) {
           return res.status(400).json({ message: validationMessage });
         }

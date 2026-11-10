@@ -1,11 +1,12 @@
 import { db } from "./db";
 import { 
-  incomes, expenses, deposits, batches, students, users, results, modelTestDrafts, notifications, siteSettings,
+  incomes, expenses, deposits, batches, subjectMasterList, students, users, results, modelTestDrafts, notifications, siteSettings,
   collectionTracking, attendance, zktecoLogs, classRoutines,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Deposit, type InsertDeposit,
   type Batch, type InsertBatch,
+  type SubjectMaster,
   type Student, type InsertStudent,
   type User, type InsertUser,
   type Result, type InsertResult,
@@ -34,6 +35,11 @@ export interface IStorage {
   getBatches(): Promise<Batch[]>;
   createBatch(batch: InsertBatch): Promise<Batch>;
   deleteBatch(id: number): Promise<void>;
+  getSubjectMasterList(): Promise<SubjectMaster[]>;
+  getSubjectMaster(id: number): Promise<SubjectMaster | undefined>;
+  createSubjectMaster(data: Omit<SubjectMaster, "id" | "createdAt">): Promise<SubjectMaster>;
+  updateSubjectMaster(id: number, data: Omit<SubjectMaster, "id" | "createdAt">): Promise<SubjectMaster | undefined>;
+  deleteSubjectMaster(id: number): Promise<void>;
   getStudent(id: number): Promise<Student | undefined>;
   getStudents(): Promise<any[]>;
   createStudent(student: InsertStudent): Promise<Student>;
@@ -179,6 +185,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBatch(id: number): Promise<void> {
     await db.delete(batches).where(eq(batches.id, id));
+  }
+
+  async getSubjectMasterList(): Promise<SubjectMaster[]> {
+    return db.select().from(subjectMasterList).orderBy(asc(subjectMasterList.name));
+  }
+
+  async getSubjectMaster(id: number): Promise<SubjectMaster | undefined> {
+    const [subject] = await db.select().from(subjectMasterList).where(eq(subjectMasterList.id, id));
+    return subject;
+  }
+
+  async createSubjectMaster(data: Omit<SubjectMaster, "id" | "createdAt">): Promise<SubjectMaster> {
+    const [subject] = await db.insert(subjectMasterList).values(data).returning();
+    return subject;
+  }
+
+  async updateSubjectMaster(
+    id: number,
+    data: Omit<SubjectMaster, "id" | "createdAt">,
+  ): Promise<SubjectMaster | undefined> {
+    const [subject] = await db.update(subjectMasterList)
+      .set(data)
+      .where(eq(subjectMasterList.id, id))
+      .returning();
+    return subject;
+  }
+
+  async deleteSubjectMaster(id: number): Promise<void> {
+    await db.delete(subjectMasterList).where(eq(subjectMasterList.id, id));
   }
 
   async getUsers(): Promise<User[]> {
