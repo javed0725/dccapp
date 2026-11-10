@@ -11,7 +11,7 @@ import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf";
 import { registerOmrRoutes } from "./omr-routes";
-import { getSubjectMarkingRule } from "@shared/marking";
+import { validateSubjectMarksEntry } from "@shared/marking";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -1178,48 +1178,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "entries array is required" });
       }
 
+      const existingGroupResults = await storage.getModelTestResults(groupId, null);
       for (const entry of entries) {
-        const rule = getSubjectMarkingRule(entry.subject);
-        const values = {
-          mcq: entry.mcqMarks,
-          cq: entry.cqMarks,
-          practical: entry.practicalMarks,
-          total: entry.obtainedMarks === -1 ? null : entry.obtainedMarks,
-        };
-        const componentFields = rule.fields.filter((field) => field.key !== "total");
-        const suppliedValues = componentFields.map((field) => values[field.key]);
-
-        if (entry.obtainedMarks === -1) {
-          if (entry.mcqMarks !== null || entry.cqMarks !== null || entry.practicalMarks !== null) {
-            return res.status(400).json({ message: "Absent results cannot include component marks" });
-          }
-          continue;
-        }
-
-        if (rule.fields[0]?.key === "total") {
-          if (entry.mcqMarks !== null || entry.cqMarks !== null || entry.practicalMarks !== null) {
-            return res.status(400).json({ message: "English paper results use total marks only" });
-          }
-          continue;
-        }
-
-        const hasAnyComponent = suppliedValues.some((value) => value !== null);
-        const hasAllComponents = suppliedValues.every((value) => value !== null);
-        if (hasAnyComponent && !hasAllComponents) {
-          return res.status(400).json({ message: "Enter every mark component for a student" });
-        }
-
-        if (hasAllComponents) {
-          for (const field of componentFields) {
-            const value = values[field.key];
-            if (value !== null && value > field.max) {
-              return res.status(400).json({ message: `${field.label} cannot exceed ${field.max}` });
-            }
-          }
-          const sum = suppliedValues.reduce((total, value) => total + (value ?? 0), 0);
-          if (sum !== entry.obtainedMarks) {
-            return res.status(400).json({ message: "Total marks must equal the sum of components" });
-          }
+        const existing = existingGroupResults.find((result) =>
+          result.studentId === entry.studentId && result.subject === entry.subject
+        );
+        const validationMessage = validateSubjectMarksEntry(entry, existing);
+        if (validationMessage) {
+          return res.status(400).json({ message: validationMessage });
         }
       }
 
@@ -1240,7 +1206,9 @@ export async function registerRoutes(
       res.json({ saved: entries.length });
     } catch (err) {
       console.error("Error saving model test marks:", err);
-      res.status(500).json({ message: "Failed to save marks" });
+      res.status(err instanceof z.ZodError ? 400 : 500).json({
+        message: err instanceof z.ZodError ? "Invalid marks data" : "Failed to save marks",
+      });
     }
   });
 

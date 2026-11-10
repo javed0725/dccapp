@@ -4,14 +4,16 @@ export type SubjectMarkingRule = {
   total: number;
 };
 
-const scienceSubjects = new Set(["physics", "chemistry", "biology", "higher math", "higher mathematics"]);
-const englishPaperSubjects = new Set([
-  "english 1st paper",
-  "english first paper",
-  "english 2nd paper",
-  "english second paper",
-]);
+export type SubjectMarksEntry = {
+  subject: string;
+  totalMarks: number;
+  obtainedMarks: number;
+  mcqMarks: number | null;
+  cqMarks: number | null;
+  practicalMarks: number | null;
+};
 
+const scienceSubjects = new Set(["physics", "chemistry", "biology", "higher math", "higher mathematics"]);
 export function getSubjectMarkingRule(subject: string): SubjectMarkingRule {
   const normalized = subject.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
   if (scienceSubjects.has(normalized)) {
@@ -25,7 +27,7 @@ export function getSubjectMarkingRule(subject: string): SubjectMarkingRule {
     };
   }
 
-  if (englishPaperSubjects.has(normalized)) {
+  if (normalized.includes("english")) {
     return {
       fields: [{ key: "total", label: "Total Marks", max: 100 }],
       total: 100,
@@ -39,4 +41,64 @@ export function getSubjectMarkingRule(subject: string): SubjectMarkingRule {
     ],
     total: 100,
   };
+}
+
+export function validateSubjectMarksEntry(
+  entry: SubjectMarksEntry,
+  unchangedLegacyResult?: Pick<SubjectMarksEntry, "totalMarks" | "obtainedMarks" | "mcqMarks" | "cqMarks" | "practicalMarks">,
+): string | null {
+  if (entry.totalMarks !== 100 || !Number.isInteger(entry.obtainedMarks) || entry.obtainedMarks < -1 || entry.obtainedMarks > 100) {
+    return "Marks must be recorded out of 100";
+  }
+
+  const hasAnyComponent = entry.mcqMarks !== null || entry.cqMarks !== null || entry.practicalMarks !== null;
+  if (entry.obtainedMarks === -1) {
+    return hasAnyComponent ? "Absent results cannot include component marks" : null;
+  }
+
+  const rule = getSubjectMarkingRule(entry.subject);
+  const isEnglish = rule.fields[0]?.key === "total";
+  if (isEnglish) {
+    return hasAnyComponent ? "English results use total marks only" : null;
+  }
+
+  const fields = rule.fields.filter((field) => field.key !== "total");
+  const supportedKeys = new Set(fields.map((field) => field.key));
+  if ((!supportedKeys.has("mcq") && entry.mcqMarks !== null)
+    || (!supportedKeys.has("cq") && entry.cqMarks !== null)
+    || (!supportedKeys.has("practical") && entry.practicalMarks !== null)) {
+    return "This subject does not accept that mark component";
+  }
+
+  const values: Record<string, number | null> = {
+    mcq: entry.mcqMarks,
+    cq: entry.cqMarks,
+    practical: entry.practicalMarks,
+  };
+  const supplied = fields.map((field) => values[field.key]);
+  const allNull = supplied.every((value) => value === null);
+
+  if (allNull) {
+    const unchanged = unchangedLegacyResult
+      && unchangedLegacyResult.totalMarks === entry.totalMarks
+      && unchangedLegacyResult.obtainedMarks === entry.obtainedMarks
+      && unchangedLegacyResult.mcqMarks === null
+      && unchangedLegacyResult.cqMarks === null
+      && unchangedLegacyResult.practicalMarks === null;
+    return unchanged ? null : "Enter each mark component before saving";
+  }
+
+  if (supplied.some((value) => value === null)) {
+    return "Enter every mark component for a student";
+  }
+
+  for (const field of fields) {
+    const value = values[field.key];
+    if (value === null || !Number.isInteger(value) || value < 0 || value > field.max) {
+      return `${field.label} must be between 0 and ${field.max}`;
+    }
+  }
+
+  const sum = supplied.reduce<number>((total, value) => total + (value ?? 0), 0);
+  return sum === entry.obtainedMarks ? null : "Total marks must equal the sum of components";
 }

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
+import { getSubjectMarkingRule } from "@shared/marking";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
   if (obtained === -1) return { grade: "ABS", gp: 0.0 };
@@ -173,12 +174,13 @@ export default function Marksheet() {
         {/* ── Marks Table ── */}
         <div className="px-6 sm:px-8 py-5">
           <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
-            <table className="w-full min-w-[480px] text-sm border-collapse">
+            <table className="w-full min-w-[640px] text-sm border-collapse">
               <thead>
                 <tr className="bg-[#3498db] text-white">
                   <th className="text-left py-3 px-4 font-bold text-[11px] uppercase tracking-wider">Subject</th>
                   <th className="text-center py-3 px-3 font-bold text-[11px] uppercase tracking-wider">Full Marks</th>
                   <th className="text-center py-3 px-3 font-bold text-[11px] uppercase tracking-wider">Obtained</th>
+                  <th className="text-left py-3 px-3 font-bold text-[11px] uppercase tracking-wider">Marks Breakdown</th>
                   <th className="text-center py-3 px-3 font-bold text-[11px] uppercase tracking-wider">%</th>
                   <th className="text-center py-3 px-3 font-bold text-[11px] uppercase tracking-wider">Grade Point</th>
                   <th className="text-center py-3 px-3 font-bold text-[11px] uppercase tracking-wider">Grade</th>
@@ -193,6 +195,19 @@ export default function Marksheet() {
                       <td className="py-3.5 px-3 text-center text-slate-500 font-medium">{r.totalMarks}</td>
                       <td className={`py-3.5 px-3 text-center font-black text-base ${r.isAbsent ? "text-red-600" : "text-[#2c3e50]"}`}>
                         {r.isAbsent ? "Absent" : r.obtainedMarks}
+                      </td>
+                      <td className="py-3.5 px-3 text-slate-600 text-xs">
+                        {r.isAbsent
+                          ? "—"
+                          : getSubjectMarkingRule(r.subject).fields[0]?.key === "total"
+                            ? `Total: ${r.obtainedMarks}/100`
+                            : r.mcqMarks != null || r.cqMarks != null || r.practicalMarks != null
+                              ? [
+                                  r.mcqMarks != null && `MCQ ${r.mcqMarks}`,
+                                  r.cqMarks != null && `CQ ${r.cqMarks}`,
+                                  r.practicalMarks != null && `Practical ${r.practicalMarks}`,
+                                ].filter(Boolean).join(" · ")
+                              : "Breakdown unavailable"}
                       </td>
                       <td className="py-3.5 px-3 text-center text-slate-400 font-medium text-xs">
                         {r.isAbsent ? "—" : `${pct}%`}
