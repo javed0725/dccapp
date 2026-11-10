@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, databaseUrlEnvironmentKey, hasDatabaseUrl } from "./db";
 import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
 import { students, incomes as incomesTable, users, type ModelTestSubject } from "@shared/schema";
 import type { Express } from "express";
@@ -97,25 +97,40 @@ export async function registerRoutes(
 
   // Health-check — useful for diagnosing Vercel cold starts and DB connectivity
   app.get("/api/health", async (_req, res) => {
-    const dbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
     const sessionSecret = process.env.SESSION_SECRET;
+    const healthDetails = {
+      hasDbUrl: hasDatabaseUrl,
+      databaseUrlKey: databaseUrlEnvironmentKey,
+      hasSessionSecret: !!sessionSecret,
+      nodeEnv: process.env.NODE_ENV,
+    };
+    if (!hasDatabaseUrl) {
+      return res.status(503).json({
+        status: "error",
+        db: "not_configured",
+        ...healthDetails,
+      });
+    }
     try {
       await db.execute(sql`SELECT 1`);
       res.json({
         status: "ok",
         db: "connected",
-        hasDbUrl: !!dbUrl,
-        hasSessionSecret: !!sessionSecret,
-        nodeEnv: process.env.NODE_ENV,
+        ...healthDetails,
       });
     } catch (err: any) {
+      console.error(JSON.stringify({
+        level: "error",
+        component: "health",
+        event: "database_probe_failed",
+        code: err?.code ?? null,
+        message: err?.message ?? "Unknown database error",
+      }));
       res.status(500).json({
         status: "error",
         db: "unreachable",
-        error: err.message,
-        hasDbUrl: !!dbUrl,
-        hasSessionSecret: !!sessionSecret,
-        nodeEnv: process.env.NODE_ENV,
+        error: "Database connection failed",
+        ...healthDetails,
       });
     }
   });

@@ -4,19 +4,29 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-// Prefer CUSTOM_DATABASE_URL (user-provided), then EXTERNAL_DATABASE_URL,
-// then NEON_DATABASE_URL, then fall back to the runtime-managed Replit DATABASE_URL.
-const rawConnectionString =
-  process.env.CUSTOM_DATABASE_URL ||
-  process.env.EXTERNAL_DATABASE_URL ||
-  process.env.NEON_DATABASE_URL ||
-  process.env.DATABASE_URL;
+const databaseUrlEnvironmentKeys = [
+  "CUSTOM_DATABASE_URL",
+  "EXTERNAL_DATABASE_URL",
+  "NEON_DATABASE_URL",
+  "DATABASE_URL",
+] as const;
+
+export const databaseUrlEnvironmentKey = databaseUrlEnvironmentKeys.find(
+  (key) => Boolean(process.env[key]),
+) ?? null;
+
+const rawConnectionString = databaseUrlEnvironmentKey
+  ? process.env[databaseUrlEnvironmentKey]
+  : undefined;
+export const hasDatabaseUrl = Boolean(rawConnectionString);
 
 if (!rawConnectionString) {
-  console.warn(
-    "[DB] WARNING: No database URL found. " +
-      "Set EXTERNAL_DATABASE_URL in your environment variables."
-  );
+  console.warn(JSON.stringify({
+    level: "warn",
+    component: "database",
+    event: "connection_url_missing",
+    acceptedEnvironmentKeys: databaseUrlEnvironmentKeys,
+  }));
 }
 
 // Strip parameters unsupported by node-postgres (e.g. channel_binding)
@@ -35,15 +45,23 @@ const connectionString = rawConnectionString
   ? sanitizeConnectionString(rawConnectionString)
   : undefined;
 
-let _pool: pg.Pool | null = null;
+type GlobalWithDatabasePool = typeof globalThis & {
+  __dynamicCoachingPgPool?: pg.Pool;
+};
+const globalWithPool = globalThis as GlobalWithDatabasePool;
+const isServerless = process.env.VERCEL === "1"
+  || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
 function getPool(): pg.Pool {
-  if (!_pool) {
-    _pool = new Pool({
+  if (!globalWithPool.__dynamicCoachingPgPool) {
+    const pool = new Pool({
       connectionString: connectionString ?? "",
       ssl: { rejectUnauthorized: false },
-      max: 5,
-      connectionTimeoutMillis: 15_000,  // 15 s — handles cold-start DB wakeup
+      // Reuse one client per warm serverless instance; use a larger pool for
+      // the long-running Replit server.
+      max: isServerless ? 1 : 5,
+      allowExitOnIdle: isServerless,
+      connectionTimeoutMillis: isServerless ? 10_000 : 15_000,
       idleTimeoutMillis: 30_000,
       statement_timeout: 20_000,        // kill runaway queries after 20 s
       // TCP keep-alive: prevents silent connection drops on long-idle ISP links
@@ -52,11 +70,19 @@ function getPool(): pg.Pool {
       keepAliveInitialDelayMillis: 10_000,
     });
 
-    _pool.on("error", (err) => {
-      console.error("[DB] Pool error:", err.message);
+    pool.on("error", (err) => {
+      const databaseError = err as Error & { code?: string };
+      console.error(JSON.stringify({
+        level: "error",
+        component: "database",
+        event: "idle_client_error",
+        code: databaseError.code ?? null,
+        message: databaseError.message,
+      }));
     });
+    globalWithPool.__dynamicCoachingPgPool = pool;
   }
-  return _pool;
+  return globalWithPool.__dynamicCoachingPgPool;
 }
 
 export const pool = getPool();

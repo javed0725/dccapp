@@ -1,6 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { type Express } from "express";
+import { type Express, type Request } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
@@ -15,6 +15,25 @@ declare global {
 }
 
 type PublicUser = Omit<SelectUser, "password">;
+
+function logAuthError(event: string, error: unknown, req?: Request) {
+  const err = error instanceof Error ? error : new Error(String(error));
+  const details = error && typeof error === "object"
+    ? error as { code?: unknown }
+    : {};
+  console.error(JSON.stringify({
+    level: "error",
+    component: "auth",
+    event,
+    requestId: req?.get("x-vercel-id") || req?.get("x-request-id") || null,
+    error: {
+      name: err.name,
+      code: typeof details.code === "string" ? details.code : null,
+      message: err.message,
+      stack: err.stack,
+    },
+  }));
+}
 
 function toPublicUser(user: SelectUser): PublicUser {
   const { password: _password, ...publicUser } = user;
@@ -31,15 +50,23 @@ export function setupAuth(app: Express) {
   // work; the only downside is they're less cryptographically random.
   // ACTION REQUIRED: set SESSION_SECRET in your Vercel project environment variables.
   const envSecret = process.env.SESSION_SECRET;
+  const databaseUrl = process.env.CUSTOM_DATABASE_URL
+    || process.env.EXTERNAL_DATABASE_URL
+    || process.env.NEON_DATABASE_URL
+    || process.env.DATABASE_URL
+    || "";
   const fallbackSecret =
-    (process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || "").slice(-40) ||
+    databaseUrl.slice(-40) ||
     "dcc-fallback-please-set-SESSION-SECRET-in-vercel";
 
   if (!envSecret) {
-    console.warn(
-      "[Auth] SESSION_SECRET is not set. Using a fallback derived from DATABASE_URL. " +
-      "Please add SESSION_SECRET to your Vercel environment variables for production security."
-    );
+    console.warn(JSON.stringify({
+      level: "warn",
+      component: "auth",
+      event: "session_secret_missing",
+      environmentKey: "SESSION_SECRET",
+      message: "Set SESSION_SECRET in the Vercel project environment for stable, secure sessions.",
+    }));
   }
 
   const sessionSecret = envSecret || fallbackSecret;
@@ -55,7 +82,10 @@ export function setupAuth(app: Express) {
     });
     console.log("[Auth] PostgreSQL session store initialised.");
   } catch (storeErr) {
-    console.error("[Auth] PgStore init failed — falling back to MemoryStore:", storeErr);
+    logAuthError("session_store_initialization_failed", storeErr);
+    if (process.env.VERCEL === "1") {
+      throw storeErr;
+    }
     store = undefined; // express-session uses MemoryStore when store is omitted
   }
 
@@ -142,32 +172,41 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate(
-      "local",
-      (err: any, user: Express.User | false, info: { message: string } | undefined) => {
-        if (err) {
-          console.error("[Auth] Login error:", err);
-          return res
-            .status(500)
-            .json({ message: "A server error occurred. Please try again." });
-        }
-        if (!user) {
-          return res
-            .status(401)
-            .json({ message: info?.message ?? "Invalid username or password" });
-        }
-        req.login(user, (loginErr) => {
-          if (loginErr) {
-            console.error("[Auth] Session save error:", loginErr);
-            return res
-              .status(500)
-              .json({ message: "Login succeeded but session could not be saved." });
-          }
-          return res.json(toPublicUser(user));
+  app.post("/api/login", async (req, res, next) => {
+    try {
+      const { user, info } = await new Promise<{
+        user: Express.User | false;
+        info?: { message?: string };
+      }>((resolve, reject) => {
+        passport.authenticate(
+          "local",
+          (authErr: unknown, authenticatedUser: Express.User | false, authInfo?: { message?: string }) => {
+            if (authErr) {
+              reject(authErr);
+              return;
+            }
+            resolve({ user: authenticatedUser || false, info: authInfo });
+          },
+        )(req, res, next);
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          message: info?.message ?? "Invalid username or password",
         });
       }
-    )(req, res, next);
+
+      await new Promise<void>((resolve, reject) => {
+        req.login(user, (loginErr) => loginErr ? reject(loginErr) : resolve());
+      });
+      return res.json(toPublicUser(user));
+    } catch (error) {
+      logAuthError("login_failed", error, req);
+      if (res.headersSent) return next(error);
+      return res.status(500).json({
+        message: "A server error occurred. Please try again.",
+      });
+    }
   });
 
   app.post("/api/register", async (req, res) => {
