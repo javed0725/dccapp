@@ -15,6 +15,13 @@
       "when": 1777828480801,
       "tag": "0001_outgoing_tarot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794331023122,
+      "tag": "0002_add_result_mark_components",
+      "breakpoints": true
     }
   ]
 }

@@ -371,7 +371,17 @@ export class DatabaseStorage implements IStorage {
 
   async saveModelTestSubjectMarks(
     groupId: string,
-    entries: { studentId: number; batchId: number; examName: string; subject: string; totalMarks: number; obtainedMarks: number }[]
+    entries: {
+      studentId: number;
+      batchId: number;
+      examName: string;
+      subject: string;
+      totalMarks: number;
+      obtainedMarks: number;
+      mcqMarks: number | null;
+      cqMarks: number | null;
+      practicalMarks: number | null;
+    }[]
   ): Promise<void> {
     const { and } = await import("drizzle-orm");
     if (entries.length === 0) return;
@@ -387,6 +397,9 @@ export class DatabaseStorage implements IStorage {
         subject: e.subject,
         totalMarks: e.totalMarks,
         obtainedMarks: e.obtainedMarks,
+        mcqMarks: e.mcqMarks,
+        cqMarks: e.cqMarks,
+        practicalMarks: e.practicalMarks,
         isModelTest: true,
         modelTestGroupId: groupId,
       }))

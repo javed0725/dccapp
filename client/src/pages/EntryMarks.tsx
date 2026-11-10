@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
 import OMRScanner from "@/components/OMRScanner";
+import { getSubjectMarkingRule, type MarkComponent } from "@shared/marking";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
   if (obtained === -1) return { grade: "ABS", gp: 0.0 };
@@ -312,7 +313,7 @@ export default function EntryMarks() {
   // --- Teacher: Mark entry via draft state ---
   const [selectedDraftGroupId, setSelectedDraftGroupId] = useState("");
   const [teacherSubjectName, setTeacherSubjectName] = useState("");
-  const [teacherMarks, setTeacherMarks] = useState<Record<number, string>>({});
+  const [teacherMarks, setTeacherMarks] = useState<Record<number, Partial<Record<MarkComponent, string>>>>({});
   const [absentStudents, setAbsentStudents] = useState<Record<number, boolean>>({});
 
   // --- Admin: Collapsible draft cards ---
@@ -419,19 +420,70 @@ export default function EntryMarks() {
     if (!draft || !teacherSubjectName) return;
     const subj = (draft.subjects as { name: string; totalMarks: number }[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
+    const markingRule = getSubjectMarkingRule(teacherSubjectName);
     const draftBatchStudents = (students?.filter((s) => s.batchId === draft.batchId && s.isActive !== false) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
-    // Include EVERY active student. Empty inputs and absent-checked students both
-    // record as Absent (-1) so no one is silently skipped.
+    // Include every active student. Existing rows without component data are
+    // retained unchanged until a teacher enters the new breakdown for them.
     const entries = draftBatchStudents.map((student) => {
-      const raw = teacherMarks[student.id];
-      const isAbsent = absentStudents[student.id] || raw === undefined || raw === "";
+      const existing = results?.find((r: any) =>
+        r.modelTestGroupId === draft.groupId && r.subject === teacherSubjectName && r.studentId === student.id
+      );
+      const editedMarks = teacherMarks[student.id] ?? {};
+      const getValue = (key: MarkComponent): string => {
+        if (editedMarks[key] !== undefined) return editedMarks[key]!;
+        if (key === "total") {
+          return existing?.obtainedMarks >= 0 ? String(existing.obtainedMarks) : "";
+        }
+        const column = key === "mcq" ? "mcqMarks" : key === "cq" ? "cqMarks" : "practicalMarks";
+        return existing?.[column] != null ? String(existing[column]) : "";
+      };
+      const fieldValues = markingRule.fields.map((field) => getValue(field.key));
+      const hasEnteredMark = fieldValues.some((value) => value !== "");
+      const isAbsent = absentStudents[student.id] ?? (existing ? existing.obtainedMarks === -1 : !hasEnteredMark);
+
+      if (!isAbsent && !hasEnteredMark && existing && existing.obtainedMarks >= 0) {
+        return {
+          studentId: student.id,
+          batchId: draft.batchId,
+          examName: draft.examName,
+          subject: teacherSubjectName,
+          totalMarks: 100,
+          obtainedMarks: existing.obtainedMarks,
+          mcqMarks: existing.mcqMarks ?? null,
+          cqMarks: existing.cqMarks ?? null,
+          practicalMarks: existing.practicalMarks ?? null,
+        };
+      }
+
+      const parts = {
+        mcqMarks: null as number | null,
+        cqMarks: null as number | null,
+        practicalMarks: null as number | null,
+      };
+      let obtainedMarks = -1;
+      if (!isAbsent) {
+        const totalField = markingRule.fields.find((field) => field.key === "total");
+        if (totalField) {
+          obtainedMarks = Number(getValue("total"));
+        } else {
+          const valueFor = (key: "mcq" | "cq" | "practical") => {
+            const field = markingRule.fields.find((item) => item.key === key);
+            return field ? Number(getValue(key) || 0) : null;
+          };
+          parts.mcqMarks = valueFor("mcq");
+          parts.cqMarks = valueFor("cq");
+          parts.practicalMarks = valueFor("practical");
+          obtainedMarks = (parts.mcqMarks ?? 0) + (parts.cqMarks ?? 0) + (parts.practicalMarks ?? 0);
+        }
+      }
       return {
         studentId: student.id,
         batchId: draft.batchId,
         examName: draft.examName,
         subject: teacherSubjectName,
-        totalMarks: subj.totalMarks,
-        obtainedMarks: isAbsent ? -1 : Number(raw),
+        totalMarks: 100,
+        obtainedMarks,
+        ...parts,
       };
     });
     if (entries.length === 0) {
@@ -1188,6 +1240,7 @@ export default function EntryMarks() {
                       {/* Step 3: Enter Marks */}
                       {teacherSubjectName && (() => {
                         const subj = draftSubjectList.find((s) => s.name === teacherSubjectName);
+                        const markingRule = getSubjectMarkingRule(teacherSubjectName);
                         const existingSubjectResults = draftGroupResults.filter((r: any) => r.subject === teacherSubjectName);
 
                         return (
@@ -1196,7 +1249,7 @@ export default function EntryMarks() {
                               <div>
                                 <CardTitle className="text-base">Step 3 — Enter Marks: {teacherSubjectName}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                  Total: {subj?.totalMarks} marks · {draft.batch?.name} · {draftBatchStudents.length} students
+                                  Total: 100 marks · {draft.batch?.name} · {draftBatchStudents.length} students
                                 </p>
                               </div>
                               <Button
@@ -1223,7 +1276,12 @@ export default function EntryMarks() {
                                 <TableHeader>
                                   <TableRow>
                                     <TableHead className="min-w-[140px]">Student</TableHead>
-                                    <TableHead className="min-w-[140px]">Marks (/{subj?.totalMarks})</TableHead>
+                                    {markingRule.fields.map((field) => (
+                                      <TableHead key={field.key} className="min-w-[130px]">
+                                        {field.label} (/{field.max})
+                                      </TableHead>
+                                    ))}
+                                    <TableHead className="min-w-[120px] text-center">Calculated Total (/100)</TableHead>
                                     <TableHead className="min-w-[90px] text-center">Absent</TableHead>
                                     <TableHead>Status</TableHead>
                                   </TableRow>
@@ -1232,33 +1290,57 @@ export default function EntryMarks() {
                                   {draftBatchStudents.map((student) => {
                                     const existing = existingSubjectResults.find((r: any) => r.studentId === student.id);
                                     const isAbsent = absentStudents[student.id] ?? (existing?.obtainedMarks === -1);
-                                    const rawDisplay = teacherMarks[student.id] !== undefined
-                                      ? teacherMarks[student.id]
-                                      : existing && existing.obtainedMarks !== -1 ? String(existing.obtainedMarks) : "";
+                                    const editedMarks = teacherMarks[student.id] ?? {};
+                                    const getValue = (key: MarkComponent): string => {
+                                      if (editedMarks[key] !== undefined) return editedMarks[key]!;
+                                      if (key === "total") return existing && existing.obtainedMarks >= 0 ? String(existing.obtainedMarks) : "";
+                                      const column = key === "mcq" ? "mcqMarks" : key === "cq" ? "cqMarks" : "practicalMarks";
+                                      return existing?.[column] != null ? String(existing[column]) : "";
+                                    };
+                                    const enteredValues = markingRule.fields.map((field) => getValue(field.key));
+                                    const currentTotal = markingRule.fields[0]?.key === "total"
+                                      ? (enteredValues[0] === "" ? 0 : Number(enteredValues[0]))
+                                      : (enteredValues.some((value) => value !== "")
+                                          ? enteredValues.reduce((sum, value) => sum + (value === "" ? 0 : Number(value)), 0)
+                                          : (existing?.obtainedMarks >= 0 ? existing.obtainedMarks : 0));
                                     return (
                                       <TableRow key={student.id} className={isAbsent ? "bg-red-50/60" : ""}>
                                         <TableCell className={`font-medium ${isAbsent ? "text-red-600" : ""}`}>
                                           {student.name}
                                           {isAbsent && <span className="ml-2 text-xs font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">ABS</span>}
                                         </TableCell>
-                                        <TableCell>
-                                          <Input
-                                            type="text"
-                                            placeholder={isAbsent ? "Absent" : "Marks or A"}
-                                            value={isAbsent ? "" : rawDisplay}
-                                            disabled={isAbsent}
-                                            onChange={(e) => {
-                                              const val = e.target.value;
-                                              if (val.toUpperCase() === "A") {
-                                                setAbsentStudents((p) => ({ ...p, [student.id]: true }));
-                                                setTeacherMarks((p) => { const n = { ...p }; delete n[student.id]; return n; });
-                                              } else {
-                                                setTeacherMarks((p) => ({ ...p, [student.id]: val }));
-                                                setAbsentStudents((p) => ({ ...p, [student.id]: false }));
-                                              }
-                                            }}
-                                            className={`w-28 ${isAbsent ? "opacity-40" : ""}`}
-                                          />
+                                        {markingRule.fields.map((field) => (
+                                          <TableCell key={field.key}>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              max={field.max}
+                                              step={1}
+                                              inputMode="numeric"
+                                              aria-label={`${field.label} for ${student.name}`}
+                                              placeholder={isAbsent ? "Absent" : `0–${field.max}`}
+                                              value={isAbsent ? "" : getValue(field.key)}
+                                              disabled={isAbsent}
+                                              onChange={(e) => {
+                                                const raw = e.target.value;
+                                                const numeric = Number(raw);
+                                                const value = raw === ""
+                                                  ? ""
+                                                  : Number.isFinite(numeric)
+                                                    ? String(Math.max(0, Math.min(field.max, Math.trunc(numeric))))
+                                                    : "";
+                                                setTeacherMarks((previous) => ({
+                                                  ...previous,
+                                                  [student.id]: { ...(previous[student.id] ?? {}), [field.key]: value },
+                                                }));
+                                                setAbsentStudents((previous) => ({ ...previous, [student.id]: false }));
+                                              }}
+                                              className={`w-28 ${isAbsent ? "opacity-40" : ""}`}
+                                            />
+                                          </TableCell>
+                                        ))}
+                                        <TableCell className="text-center font-semibold tabular-nums">
+                                          {isAbsent ? "—" : currentTotal}
                                         </TableCell>
                                         <TableCell className="text-center">
                                           <Checkbox

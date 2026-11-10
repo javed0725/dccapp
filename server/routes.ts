@@ -11,6 +11,7 @@ import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf";
 import { registerOmrRoutes } from "./omr-routes";
+import { getSubjectMarkingRule } from "@shared/marking";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -1161,12 +1162,67 @@ export async function registerRoutes(
     if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     try {
       const { groupId } = req.params;
-      const { entries } = req.body as {
-        entries: { studentId: number; batchId: number; examName: string; subject: string; totalMarks: number; obtainedMarks: number }[];
-      };
-      if (!Array.isArray(entries) || entries.length === 0) {
+      const entriesSchema = z.array(z.object({
+        studentId: z.number().int().positive(),
+        batchId: z.number().int().positive(),
+        examName: z.string().min(1),
+        subject: z.string().min(1),
+        totalMarks: z.literal(100),
+        obtainedMarks: z.number().int().min(-1).max(100),
+        mcqMarks: z.number().int().min(0).max(30).nullable(),
+        cqMarks: z.number().int().min(0).max(70).nullable(),
+        practicalMarks: z.number().int().min(0).max(25).nullable(),
+      })).min(1);
+      const entries = entriesSchema.parse(req.body?.entries);
+      if (entries.length === 0) {
         return res.status(400).json({ message: "entries array is required" });
       }
+
+      for (const entry of entries) {
+        const rule = getSubjectMarkingRule(entry.subject);
+        const values = {
+          mcq: entry.mcqMarks,
+          cq: entry.cqMarks,
+          practical: entry.practicalMarks,
+          total: entry.obtainedMarks === -1 ? null : entry.obtainedMarks,
+        };
+        const componentFields = rule.fields.filter((field) => field.key !== "total");
+        const suppliedValues = componentFields.map((field) => values[field.key]);
+
+        if (entry.obtainedMarks === -1) {
+          if (entry.mcqMarks !== null || entry.cqMarks !== null || entry.practicalMarks !== null) {
+            return res.status(400).json({ message: "Absent results cannot include component marks" });
+          }
+          continue;
+        }
+
+        if (rule.fields[0]?.key === "total") {
+          if (entry.mcqMarks !== null || entry.cqMarks !== null || entry.practicalMarks !== null) {
+            return res.status(400).json({ message: "English paper results use total marks only" });
+          }
+          continue;
+        }
+
+        const hasAnyComponent = suppliedValues.some((value) => value !== null);
+        const hasAllComponents = suppliedValues.every((value) => value !== null);
+        if (hasAnyComponent && !hasAllComponents) {
+          return res.status(400).json({ message: "Enter every mark component for a student" });
+        }
+
+        if (hasAllComponents) {
+          for (const field of componentFields) {
+            const value = values[field.key];
+            if (value !== null && value > field.max) {
+              return res.status(400).json({ message: `${field.label} cannot exceed ${field.max}` });
+            }
+          }
+          const sum = suppliedValues.reduce((total, value) => total + (value ?? 0), 0);
+          if (sum !== entry.obtainedMarks) {
+            return res.status(400).json({ message: "Total marks must equal the sum of components" });
+          }
+        }
+      }
+
       await storage.saveModelTestSubjectMarks(groupId, entries);
 
       // Notification trigger: model test marks
