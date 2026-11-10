@@ -88,6 +88,7 @@ export interface IStorage {
   getModelTestDrafts(): Promise<any[]>;
   getModelTestDraftByGroupId(groupId: string): Promise<ModelTestDraft | undefined>;
   createModelTestDraft(data: { groupId: string; examName: string; batchId: number; subjects: ModelTestSubject[] }): Promise<ModelTestDraft>;
+  updateModelTestDraft(groupId: string, data: { examName: string; subjects: ModelTestSubject[]; status?: string }): Promise<ModelTestDraft | undefined>;
   publishModelTestDraft(groupId: string): Promise<ModelTestDraft>;
   deleteModelTestDraft(groupId: string): Promise<void>;
   getPublishedModelTestGroupIds(): Promise<string[]>;
@@ -465,6 +466,41 @@ export class DatabaseStorage implements IStorage {
       status: "draft",
     }).returning();
     return draft;
+  }
+
+  async updateModelTestDraft(
+    groupId: string,
+    data: { examName: string; subjects: ModelTestSubject[]; status?: string },
+  ): Promise<ModelTestDraft | undefined> {
+    return db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(modelTestDrafts)
+        .where(eq(modelTestDrafts.groupId, groupId));
+      if (!existing) return undefined;
+
+      const retainedNames = new Set(data.subjects.map((subject) => subject.name));
+      const removedNames = existing.subjects
+        .map((subject) => subject.name)
+        .filter((name) => !retainedNames.has(name));
+      if (removedNames.length) {
+        await tx.delete(results).where(and(
+          eq(results.modelTestGroupId, groupId),
+          inArray(results.subject, removedNames),
+        ));
+      }
+      await tx.update(results)
+        .set({ examName: data.examName })
+        .where(eq(results.modelTestGroupId, groupId));
+
+      const [updated] = await tx.update(modelTestDrafts)
+        .set({
+          examName: data.examName,
+          subjects: data.subjects,
+          ...(data.status ? { status: data.status } : {}),
+        })
+        .where(eq(modelTestDrafts.groupId, groupId))
+        .returning();
+      return updated;
+    });
   }
 
   async publishModelTestDraft(groupId: string): Promise<ModelTestDraft> {

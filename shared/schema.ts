@@ -1,5 +1,6 @@
 import { pgTable, text, serial, integer, timestamp, boolean, json, decimal, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 
 export const users = pgTable("users", {
@@ -22,7 +23,9 @@ export const batches = pgTable("batches", {
 
 export const subjectMasterList = pgTable("subject_master_list", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull(),
+  batchId: integer("batch_id").references(() => batches.id),
+  totalMarks: integer("total_marks").notNull().default(100),
   mcqEnabled: boolean("mcq_enabled").notNull().default(false),
   cqEnabled: boolean("cq_enabled").notNull().default(false),
   practicalEnabled: boolean("practical_enabled").notNull().default(false),
@@ -31,7 +34,12 @@ export const subjectMasterList = pgTable("subject_master_list", {
   practicalMax: integer("practical_max").notNull().default(0),
   allGroups: boolean("all_groups").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  nameScopeUnique: uniqueIndex("subject_master_list_name_scope_unique").on(
+    sql`lower(${table.name})`,
+    sql`coalesce(${table.batchId}, 0)`,
+  ),
+}));
 
 export const students = pgTable("students", {
   id: serial("id").primaryKey(),

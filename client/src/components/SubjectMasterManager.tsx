@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { useBatches } from "@/hooks/use-finance";
 
 type SubjectMaster = {
   id: number;
   name: string;
+  batchId: number | null;
+  totalMarks: number;
   mcqEnabled: boolean;
   cqEnabled: boolean;
   practicalEnabled: boolean;
@@ -23,6 +27,8 @@ type SubjectMaster = {
 
 type SubjectForm = {
   name: string;
+  batchId: string;
+  totalMarks: string;
   mcqEnabled: boolean;
   cqEnabled: boolean;
   practicalEnabled: boolean;
@@ -34,6 +40,8 @@ type SubjectForm = {
 
 const blankForm: SubjectForm = {
   name: "",
+  batchId: "all",
+  totalMarks: "100",
   mcqEnabled: false,
   cqEnabled: false,
   practicalEnabled: false,
@@ -51,6 +59,7 @@ const componentFields = [
 
 export function SubjectMasterManager() {
   const { toast } = useToast();
+  const { data: batches = [] } = useBatches();
   const [form, setForm] = useState<SubjectForm>(blankForm);
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -101,8 +110,9 @@ export function SubjectMasterManager() {
     );
     const count = nextEnabled.filter(Boolean).length;
     const activeIndexes = nextEnabled.map((active, fieldIndex) => active ? fieldIndex : -1).filter((fieldIndex) => fieldIndex >= 0);
-    const share = count ? Math.floor(100 / count) : 0;
-    let remainder = count ? 100 - share * count : 0;
+    const total = Number(form.totalMarks) || 0;
+    const share = count ? Math.floor(total / count) : 0;
+    let remainder = count ? total - share * count : 0;
     const next = { ...form };
     componentFields.forEach((field, fieldIndex) => {
       next[field.enabledKey] = nextEnabled[fieldIndex];
@@ -119,6 +129,8 @@ export function SubjectMasterManager() {
     setEditingId(subject.id);
     setForm({
       name: subject.name,
+      batchId: subject.batchId === null ? "all" : String(subject.batchId),
+      totalMarks: String(subject.totalMarks),
       mcqEnabled: subject.mcqEnabled,
       cqEnabled: subject.cqEnabled,
       practicalEnabled: subject.practicalEnabled,
@@ -130,18 +142,25 @@ export function SubjectMasterManager() {
   }
 
   function submitForm() {
+    const totalMarks = Number(form.totalMarks);
     const enabled = componentFields.filter((field) => form[field.enabledKey]);
     const parsedLimits = enabled.map((field) => Number(form[field.maxKey]));
     if (!form.name.trim()) {
       toast({ variant: "destructive", title: "Enter a subject name" });
       return;
     }
-    if (enabled.length && (parsedLimits.some((limit) => !Number.isInteger(limit) || limit <= 0) || parsedLimits.reduce((sum, limit) => sum + limit, 0) !== 100)) {
-      toast({ variant: "destructive", title: "Component limits must add up to 100" });
+    if (!Number.isInteger(totalMarks) || totalMarks < 1 || totalMarks > 1000) {
+      toast({ variant: "destructive", title: "Total Marks must be between 1 and 1000" });
+      return;
+    }
+    if (enabled.length && (parsedLimits.some((limit) => !Number.isInteger(limit) || limit <= 0 || limit > totalMarks) || parsedLimits.reduce((sum, limit) => sum + limit, 0) !== totalMarks)) {
+      toast({ variant: "destructive", title: "Component limits must add up to Total Marks" });
       return;
     }
     saveSubject.mutate({
       name: form.name.trim(),
+      batchId: form.batchId === "all" ? null : Number(form.batchId),
+      totalMarks,
       mcqEnabled: form.mcqEnabled,
       cqEnabled: form.cqEnabled,
       practicalEnabled: form.practicalEnabled,
@@ -153,9 +172,24 @@ export function SubjectMasterManager() {
   }
 
   const selectedCount = componentFields.filter((field) => form[field.enabledKey]).length;
+  const totalMarks = Number(form.totalMarks) || 0;
   const componentTotal = componentFields.reduce((sum, field) =>
     sum + (form[field.enabledKey] ? Number(form[field.maxKey] || 0) : 0), 0
   );
+
+  function updateTotalMarks(value: string) {
+    const total = Number(value);
+    const enabled = componentFields.filter((field) => form[field.enabledKey]);
+    const next = { ...form, totalMarks: value };
+    if (enabled.length && Number.isInteger(total) && total > 0) {
+      const share = Math.floor(total / enabled.length);
+      let remainder = total - share * enabled.length;
+      enabled.forEach((field, index) => {
+        next[field.maxKey] = String(share + (index === enabled.length - 1 ? remainder : 0));
+      });
+    }
+    setForm(next);
+  }
 
   return (
     <div className="space-y-6">
@@ -163,7 +197,7 @@ export function SubjectMasterManager() {
         <CardHeader>
           <CardTitle>{editingId ? "Edit Pre-defined Subject" : "Add Pre-defined Subject"}</CardTitle>
           <CardDescription>
-            Set which mark fields teachers see. If no components are selected, marks use one total field out of 100.
+            Set which mark fields teachers see for a class. If no components are selected, teachers enter one total mark.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -176,6 +210,33 @@ export function SubjectMasterManager() {
                 maxLength={100}
                 placeholder="e.g. Physics"
                 onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Class / Batch</label>
+              <Select
+                value={form.batchId}
+                onValueChange={(batchId) => setForm((previous) => ({ ...previous, batchId }))}
+              >
+                <SelectTrigger><SelectValue placeholder="All classes" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All classes</SelectItem>
+                  {batches.map((batch) => (
+                    <SelectItem key={batch.id} value={String(batch.id)}>{batch.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="subject-total-marks">Total Marks</label>
+              <Input
+                id="subject-total-marks"
+                type="number"
+                min={1}
+                max={1000}
+                step={1}
+                value={form.totalMarks}
+                onChange={(event) => updateTotalMarks(event.target.value)}
               />
             </div>
             {componentFields.map((field, index) => (
@@ -194,7 +255,7 @@ export function SubjectMasterManager() {
                       id={`subject-${field.maxKey}`}
                       type="number"
                       min={1}
-                      max={100}
+                      max={totalMarks || 1000}
                       step={1}
                       value={form[field.maxKey]}
                       onChange={(event) => setForm((previous) => ({ ...previous, [field.maxKey]: event.target.value }))}
@@ -215,7 +276,7 @@ export function SubjectMasterManager() {
                 All Groups (compulsory subject)
               </label>
               <p className="text-xs text-muted-foreground">
-                {selectedCount ? `Selected maximums: ${componentTotal}/100` : "No components selected: Total Marks /100"}
+                {selectedCount ? `Selected maximums: ${componentTotal}/${totalMarks}` : `No components selected: Total Marks /${totalMarks}`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -243,6 +304,8 @@ export function SubjectMasterManager() {
             <TableHeader>
               <TableRow>
                 <TableHead>Subject</TableHead>
+                <TableHead>Class / Batch</TableHead>
+                <TableHead>Total Marks</TableHead>
                 <TableHead>Mark fields</TableHead>
                 <TableHead>Groups</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -253,10 +316,15 @@ export function SubjectMasterManager() {
                 const fields = componentFields
                   .filter((field) => subject[field.enabledKey])
                   .map((field) => `${field.label} /${subject[field.maxKey]}`);
+                const batchName = subject.batchId === null
+                  ? "All classes"
+                  : batches.find((batch) => batch.id === subject.batchId)?.name ?? "Unknown class";
                 return (
                   <TableRow key={subject.id}>
                     <TableCell className="font-medium">{subject.name}</TableCell>
-                    <TableCell>{fields.length ? fields.join(" · ") : "Total /100"}</TableCell>
+                    <TableCell>{batchName}</TableCell>
+                    <TableCell>{subject.totalMarks}</TableCell>
+                    <TableCell>{fields.length ? fields.join(" · ") : `Total /${subject.totalMarks}`}</TableCell>
                     <TableCell>{subject.allGroups ? "All Groups" : "Selected group"}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button variant="ghost" size="icon" aria-label={`Edit ${subject.name}`} onClick={() => startEditing(subject)}>
@@ -280,7 +348,7 @@ export function SubjectMasterManager() {
                 );
               })}
               {!isLoading && subjects.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No predefined subjects yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No predefined subjects yet.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

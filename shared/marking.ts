@@ -7,10 +7,10 @@ import type { ModelTestSubject } from "./schema";
 
 export type { ModelTestSubject } from "./schema";
 
-export type SubjectMarkingConfig = Pick<
+export type SubjectMarkingConfig = Partial<Pick<
   ModelTestSubject,
-  "mcqEnabled" | "cqEnabled" | "practicalEnabled" | "mcqMax" | "cqMax" | "practicalMax"
->;
+  "totalMarks" | "mcqEnabled" | "cqEnabled" | "practicalEnabled" | "mcqMax" | "cqMax" | "practicalMax"
+>>;
 
 export function isCommonCoreSubject(subject: string): boolean {
   const normalized = subject.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
@@ -35,12 +35,13 @@ export function getSubjectMarkingRule(subject: string, config?: SubjectMarkingCo
     || config.practicalEnabled !== undefined
   )) {
     const fields: SubjectMarkingRule["fields"] = [];
+    const total = config.totalMarks ?? 100;
     if (config.mcqEnabled) fields.push({ key: "mcq", label: "MCQ Marks", max: config.mcqMax ?? 0 });
     if (config.cqEnabled) fields.push({ key: "cq", label: "CQ Marks", max: config.cqMax ?? 0 });
     if (config.practicalEnabled) fields.push({ key: "practical", label: "Practical Marks", max: config.practicalMax ?? 0 });
     return {
-      fields: fields.length ? fields : [{ key: "total", label: "Total Marks", max: 100 }],
-      total: 100,
+      fields: fields.length ? fields : [{ key: "total", label: "Total Marks", max: total }],
+      total,
     };
   }
 
@@ -76,8 +77,14 @@ export function validateSubjectMarksEntry(
   unchangedLegacyResult?: Pick<SubjectMarksEntry, "totalMarks" | "obtainedMarks" | "mcqMarks" | "cqMarks" | "practicalMarks">,
   config?: SubjectMarkingConfig,
 ): string | null {
-  if (entry.totalMarks !== 100 || !Number.isInteger(entry.obtainedMarks) || entry.obtainedMarks < -1 || entry.obtainedMarks > 100) {
-    return "Marks must be recorded out of 100";
+  if (!Number.isInteger(entry.totalMarks) || entry.totalMarks < 1
+    || !Number.isInteger(entry.obtainedMarks) || entry.obtainedMarks < -1) {
+    return "Marks must use a valid total";
+  }
+
+  const rule = getSubjectMarkingRule(entry.subject, config);
+  if (entry.totalMarks !== rule.total || (entry.obtainedMarks >= 0 && entry.obtainedMarks > rule.total)) {
+    return `Marks must be recorded out of ${rule.total}`;
   }
 
   const hasAnyComponent = entry.mcqMarks !== null || entry.cqMarks !== null || entry.practicalMarks !== null;
@@ -85,7 +92,6 @@ export function validateSubjectMarksEntry(
     return hasAnyComponent ? "Absent results cannot include component marks" : null;
   }
 
-  const rule = getSubjectMarkingRule(entry.subject, config);
   const isTotalOnly = rule.fields[0]?.key === "total";
   if (isTotalOnly) {
     return hasAnyComponent ? "This subject uses total marks only" : null;

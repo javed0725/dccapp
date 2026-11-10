@@ -58,6 +58,27 @@ test("configured draft subjects use selected components and saved maxima", () =>
   );
 });
 
+test("supports class-specific total-only marks out of 50", () => {
+  const config = {
+    totalMarks: 50,
+    mcqEnabled: false,
+    cqEnabled: false,
+    practicalEnabled: false,
+  };
+  assert.deepEqual(getSubjectMarkingRule("English 2nd", config), {
+    fields: [{ key: "total", label: "Total Marks", max: 50 }],
+    total: 50,
+  });
+  assert.equal(validateSubjectMarksEntry({
+    subject: "English 2nd",
+    totalMarks: 50,
+    obtainedMarks: 48,
+    mcqMarks: null,
+    cqMarks: null,
+    practicalMarks: null,
+  }, undefined, config), null);
+});
+
 test("validates configured component totals and individual limits", () => {
   const config = {
     mcqEnabled: true,
@@ -91,6 +112,34 @@ test("validates configured component totals and individual limits", () => {
     cqMarks: null,
     practicalMarks: 35,
   }, undefined, config), "Total marks must equal the sum of components");
+});
+
+test("validates component totals against a custom class-specific total", () => {
+  const config = {
+    totalMarks: 50,
+    mcqEnabled: true,
+    cqEnabled: true,
+    practicalEnabled: false,
+    mcqMax: 15,
+    cqMax: 35,
+    practicalMax: 0,
+  };
+  assert.equal(validateSubjectMarksEntry({
+    subject: "Bangla",
+    totalMarks: 50,
+    obtainedMarks: 47,
+    mcqMarks: 14,
+    cqMarks: 33,
+    practicalMarks: null,
+  }, undefined, config), null);
+  assert.equal(validateSubjectMarksEntry({
+    subject: "Bangla",
+    totalMarks: 50,
+    obtainedMarks: 51,
+    mcqMarks: 15,
+    cqMarks: 36,
+    practicalMarks: null,
+  }, undefined, config), "Marks must be recorded out of 50");
 });
 
 test("accepts valid component totals and rejects mismatched totals", () => {

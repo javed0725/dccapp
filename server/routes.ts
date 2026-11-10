@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
-import { students, incomes as incomesTable, users } from "@shared/schema";
+import { students, incomes as incomesTable, users, type ModelTestSubject } from "@shared/schema";
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
@@ -32,32 +32,26 @@ const ROLE_FORBIDDEN_MESSAGE =
 
 const subjectMasterPayloadSchema = z.object({
   name: z.string().trim().min(1).max(100),
+  batchId: z.union([z.coerce.number().int().positive(), z.null()]),
+  totalMarks: z.coerce.number().int().min(1).max(1000),
   mcqEnabled: z.boolean(),
   cqEnabled: z.boolean(),
   practicalEnabled: z.boolean(),
-  mcqMax: z.coerce.number().int().min(0).max(100),
-  cqMax: z.coerce.number().int().min(0).max(100),
-  practicalMax: z.coerce.number().int().min(0).max(100),
+  mcqMax: z.coerce.number().int().min(0).max(1000),
+  cqMax: z.coerce.number().int().min(0).max(1000),
+  practicalMax: z.coerce.number().int().min(0).max(1000),
   allGroups: z.boolean(),
 }).superRefine((subject, ctx) => {
   const selected = [
-    subject.mcqEnabled ? subject.mcqMax : 0,
-    subject.cqEnabled ? subject.cqMax : 0,
-    subject.practicalEnabled ? subject.practicalMax : 0,
-  ];
-  const selectedCount = [
-    subject.mcqEnabled,
-    subject.cqEnabled,
-    subject.practicalEnabled,
-  ].filter(Boolean).length;
-  if (selectedCount > 0 && selected.some((maximum, index) => {
-    const enabled = [subject.mcqEnabled, subject.cqEnabled, subject.practicalEnabled][index];
-    return enabled && maximum <= 0;
-  })) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Every selected component needs a maximum greater than zero" });
+    { enabled: subject.mcqEnabled, maximum: subject.mcqMax },
+    { enabled: subject.cqEnabled, maximum: subject.cqMax },
+    { enabled: subject.practicalEnabled, maximum: subject.practicalMax },
+  ].filter((component) => component.enabled);
+  if (selected.some(({ maximum }) => maximum <= 0 || maximum > subject.totalMarks)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selected component maximums must be positive and within Total Marks" });
   }
-  if (selectedCount > 0 && selected.reduce((sum, maximum) => sum + maximum, 0) !== 100) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selected component maximums must add up to 100" });
+  if (selected.length > 0 && selected.reduce((sum, { maximum }) => sum + maximum, 0) !== subject.totalMarks) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Selected component maximums must add up to Total Marks" });
   }
 });
 
@@ -203,10 +197,13 @@ export async function registerRoutes(
     const parsed = subjectMasterPayloadSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid subject settings" });
     const payload = parsed.data;
+    if (payload.batchId !== null && !(await storage.getBatches()).some((batch) => batch.id === payload.batchId)) {
+      return res.status(400).json({ message: "Select a valid class" });
+    }
     const normalizedName = payload.name.trim().toLocaleLowerCase();
     const existing = await storage.getSubjectMasterList();
-    if (existing.some((subject) => subject.name.trim().toLocaleLowerCase() === normalizedName)) {
-      return res.status(409).json({ message: "A subject with this name already exists" });
+    if (existing.some((subject) => subject.batchId === payload.batchId && subject.name.trim().toLocaleLowerCase() === normalizedName)) {
+      return res.status(409).json({ message: "A subject with this name already exists for that class" });
     }
     try {
       const created = await storage.createSubjectMaster({
@@ -229,10 +226,17 @@ export async function registerRoutes(
     const parsed = subjectMasterPayloadSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid subject settings" });
     const payload = parsed.data;
+    if (payload.batchId !== null && !(await storage.getBatches()).some((batch) => batch.id === payload.batchId)) {
+      return res.status(400).json({ message: "Select a valid class" });
+    }
     const normalizedName = payload.name.trim().toLocaleLowerCase();
     const existing = await storage.getSubjectMasterList();
-    if (existing.some((subject) => subject.id !== id && subject.name.trim().toLocaleLowerCase() === normalizedName)) {
-      return res.status(409).json({ message: "A subject with this name already exists" });
+    if (existing.some((subject) =>
+      subject.id !== id
+      && subject.batchId === payload.batchId
+      && subject.name.trim().toLocaleLowerCase() === normalizedName
+    )) {
+      return res.status(409).json({ message: "A subject with this name already exists for that class" });
     }
     try {
       const updated = await storage.updateSubjectMaster(id, {
@@ -1232,6 +1236,13 @@ export async function registerRoutes(
       if (selectedSubjects.some((subject) => !subject)) {
         return res.status(400).json({ message: "One or more selected subjects are no longer available" });
       }
+      if (selectedSubjects.some((subject) => subject!.batchId !== null && subject!.batchId !== payload.batchId)) {
+        return res.status(400).json({ message: "A selected subject is not configured for this class" });
+      }
+      const normalizedNames = selectedSubjects.map((subject) => subject!.name.trim().toLocaleLowerCase());
+      if (new Set(normalizedNames).size !== normalizedNames.length) {
+        return res.status(400).json({ message: "Select each subject only once" });
+      }
 
       const classStudents = (await storage.getStudents()).filter((student) =>
         student.batchId === payload.batchId && student.isActive !== false
@@ -1263,7 +1274,7 @@ export async function registerRoutes(
           return {
             subjectId: subject.id,
             name: subject.name,
-            totalMarks: 100,
+            totalMarks: subject.totalMarks,
             mcqEnabled: subject.mcqEnabled,
             cqEnabled: subject.cqEnabled,
             practicalEnabled: subject.practicalEnabled,
@@ -1281,6 +1292,110 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Provide a name, class, and at least one valid subject" });
       }
       res.status(500).json({ message: "Failed to create draft" });
+    }
+  });
+
+  app.patch("/api/model-test-drafts/:groupId", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const payload = z.object({
+        examName: z.string().trim().min(1).max(150),
+        subjects: z.array(z.object({
+          subjectId: z.coerce.number().int().positive().optional(),
+          name: z.string().trim().min(1),
+          academicGroup: z.string().trim().nullable().optional(),
+        })).min(1),
+      }).parse(req.body);
+      const draft = await storage.getModelTestDraftByGroupId(req.params.groupId);
+      if (!draft) return res.status(404).json({ message: "Model test draft not found" });
+
+      const normalizedNames = payload.subjects.map((subject) => subject.name.trim().toLocaleLowerCase());
+      if (new Set(normalizedNames).size !== normalizedNames.length) {
+        return res.status(400).json({ message: "A subject can only be added once to a draft" });
+      }
+
+      const [allMasterSubjects, allStudents, existingResults] = await Promise.all([
+        storage.getSubjectMasterList(),
+        storage.getStudents(),
+        storage.getModelTestResults(req.params.groupId, null),
+      ]);
+      const classStudents = allStudents.filter((student) =>
+        student.batchId === draft.batchId && student.isActive !== false
+      );
+      const availableGroups = new Set(
+        classStudents.map((student) => student.academicGroup?.trim()).filter((group): group is string => !!group)
+      );
+      const nextSubjects: ModelTestSubject[] = [];
+
+      for (const selection of payload.subjects) {
+        const oldSubject = draft.subjects.find((subject) =>
+          (selection.subjectId !== undefined && subject.subjectId === selection.subjectId)
+          || subject.name.trim().toLocaleLowerCase() === selection.name.trim().toLocaleLowerCase()
+        );
+        let subject: ModelTestSubject;
+
+        if (oldSubject) {
+          const nextGroup = oldSubject.allGroups ? null : selection.academicGroup?.trim() || null;
+          const subjectResults = existingResults.filter((result) => result.subject === oldSubject.name);
+          if (subjectResults.length && (oldSubject.academicGroup ?? null) !== nextGroup) {
+            return res.status(400).json({ message: `Cannot change the group for ${oldSubject.name} after marks have been entered` });
+          }
+          subject = {
+            ...oldSubject,
+            academicGroup: nextGroup,
+          };
+        } else {
+          if (selection.subjectId === undefined) {
+            return res.status(400).json({ message: `Select a predefined configuration for ${selection.name}` });
+          }
+          const masterSubject = allMasterSubjects.find((candidate) => candidate.id === selection.subjectId);
+          if (!masterSubject
+            || (masterSubject.batchId !== null && masterSubject.batchId !== draft.batchId)
+            || masterSubject.name.trim().toLocaleLowerCase() !== selection.name.trim().toLocaleLowerCase()) {
+            return res.status(400).json({ message: `${selection.name} is not configured for this class` });
+          }
+          subject = {
+            subjectId: masterSubject.id,
+            name: masterSubject.name,
+            totalMarks: masterSubject.totalMarks,
+            mcqEnabled: masterSubject.mcqEnabled,
+            cqEnabled: masterSubject.cqEnabled,
+            practicalEnabled: masterSubject.practicalEnabled,
+            mcqMax: masterSubject.mcqMax,
+            cqMax: masterSubject.cqMax,
+            practicalMax: masterSubject.practicalMax,
+            academicGroup: masterSubject.allGroups ? null : selection.academicGroup?.trim() || null,
+            allGroups: masterSubject.allGroups,
+          };
+        }
+
+        if (!subject.allGroups) {
+          if (subject.academicGroup && !availableGroups.has(subject.academicGroup)) {
+            return res.status(400).json({ message: `Unknown group for ${subject.name}` });
+          }
+          if (availableGroups.size > 0 && !subject.academicGroup) {
+            return res.status(400).json({ message: `Select a group for ${subject.name}` });
+          }
+        }
+        nextSubjects.push(subject);
+      }
+
+      const previousNames = new Set(draft.subjects.map((subject) => subject.name));
+      const subjectsChanged = draft.subjects.length !== nextSubjects.length
+        || nextSubjects.some((subject) => !previousNames.has(subject.name));
+      const updated = await storage.updateModelTestDraft(req.params.groupId, {
+        examName: payload.examName,
+        subjects: nextSubjects,
+        status: draft.status === "published" && subjectsChanged ? "draft" : draft.status,
+      });
+      if (!updated) return res.status(404).json({ message: "Model test draft not found" });
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.issues[0]?.message || "Invalid draft settings" });
+      }
+      console.error("Error updating model test draft:", err);
+      res.status(500).json({ message: "Failed to update model test draft" });
     }
   });
 
@@ -1317,11 +1432,11 @@ export async function registerRoutes(
         batchId: z.number().int().positive(),
         examName: z.string().min(1),
         subject: z.string().min(1),
-        totalMarks: z.literal(100),
-        obtainedMarks: z.number().int().min(-1).max(100),
-        mcqMarks: z.number().int().min(0).max(100).nullable(),
-        cqMarks: z.number().int().min(0).max(100).nullable(),
-        practicalMarks: z.number().int().min(0).max(100).nullable(),
+        totalMarks: z.number().int().min(1).max(1000),
+        obtainedMarks: z.number().int().min(-1).max(1000),
+        mcqMarks: z.number().int().min(0).max(1000).nullable(),
+        cqMarks: z.number().int().min(0).max(1000).nullable(),
+        practicalMarks: z.number().int().min(0).max(1000).nullable(),
       })).min(1);
       const entries = entriesSchema.parse(req.body?.entries);
       if (entries.length === 0) {

@@ -62,9 +62,18 @@ function WhatsAppBtn({ url }: { url: string }) {
 type Subject = { name: string; totalMarks: string; allGroups?: boolean };
 type DraftSubject = ModelTestSubject;
 type DraftSubjectSelection = { subjectId: string };
+type DraftEditState = {
+  groupId: string;
+  examName: string;
+  batchId: number;
+  status: string;
+  subjects: DraftSubject[];
+};
 type SubjectMasterOption = {
   id: number;
   name: string;
+  batchId: number | null;
+  totalMarks: number;
   mcqEnabled: boolean;
   cqEnabled: boolean;
   practicalEnabled: boolean;
@@ -339,10 +348,22 @@ export default function EntryMarks() {
   const [draftBatchId, setDraftBatchId] = useState("");
   const [draftAcademicGroup, setDraftAcademicGroup] = useState("");
   const [draftSubjects, setDraftSubjects] = useState<DraftSubjectSelection[]>([{ subjectId: "" }]);
+  const [editingDraft, setEditingDraft] = useState<DraftEditState | null>(null);
   const { data: subjectMasterList = [] } = useQuery<SubjectMasterOption[]>({
     queryKey: ["/api/subject-master-list"],
     enabled: !!user && (user.role === "admin" || !!user.isAuthority),
   });
+  const eligibleMasterSubjects = subjectMasterList.filter((subject) =>
+    subject.batchId === null || subject.batchId === Number(draftBatchId)
+  );
+  const classSpecificSubjectNames = new Set(
+    eligibleMasterSubjects
+      .filter((subject) => subject.batchId === Number(draftBatchId))
+      .map((subject) => subject.name.trim().toLowerCase())
+  );
+  const availableMasterSubjects = eligibleMasterSubjects
+    .filter((subject) => subject.batchId !== null || !classSpecificSubjectNames.has(subject.name.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const draftAvailableGroups = Array.from(new Set(
     (students || [])
       .filter((student) => student.batchId === Number(draftBatchId))
@@ -350,7 +371,7 @@ export default function EntryMarks() {
       .filter((group): group is string => !!group)
   )).sort((a, b) => a.localeCompare(b));
   const draftHasSubjectNeedingGroup = draftSubjects.some(({ subjectId }) => {
-    const selected = subjectMasterList.find((subject) => subject.id === Number(subjectId));
+    const selected = availableMasterSubjects.find((subject) => subject.id === Number(subjectId));
     return !!selected && !selected.allGroups;
   });
 
@@ -419,6 +440,27 @@ export default function EntryMarks() {
     onError: () => toast({ variant: "destructive", title: "Failed to delete draft" }),
   });
 
+  const updateDraftMutation = useMutation({
+    mutationFn: async ({ groupId, data }: {
+      groupId: string;
+      data: { examName: string; subjects: Array<{ subjectId?: number; name: string; academicGroup: string | null }> };
+    }) => {
+      const response = await apiRequest("PATCH", `/api/model-test-drafts/${groupId}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/model-test-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/results"] });
+      setEditingDraft(null);
+      toast({ title: "Draft updated", description: "The saved marks and subject settings were kept where possible." });
+    },
+    onError: (error: any) => toast({
+      variant: "destructive",
+      title: "Could not update draft",
+      description: error.message,
+    }),
+  });
+
   const saveModelTestMarksMutation = useMutation({
     mutationFn: async ({ groupId, entries }: { groupId: string; entries: any[] }) => {
       const res = await apiRequest("POST", `/api/model-test-drafts/${groupId}/marks`, { entries });
@@ -451,7 +493,7 @@ export default function EntryMarks() {
     const valid = draftSubjects
       .map((selection) => ({
         selection,
-        subject: subjectMasterList.find((item) => item.id === Number(selection.subjectId)),
+        subject: availableMasterSubjects.find((item) => item.id === Number(selection.subjectId)),
       }))
       .filter((item): item is { selection: DraftSubjectSelection; subject: SubjectMasterOption } => !!item.subject);
     if (valid.length === 0) {
@@ -473,6 +515,109 @@ export default function EntryMarks() {
         subjectId: subject.id,
         academicGroup: subject.allGroups ? null : draftAcademicGroup || null,
       })),
+    });
+  };
+
+  const editDraftAvailableGroups = editingDraft
+    ? Array.from(new Set(
+      (students || [])
+        .filter((student) => student.batchId === editingDraft.batchId && student.isActive !== false)
+        .map((student) => student.academicGroup?.trim())
+        .filter((group): group is string => !!group)
+    )).sort((a, b) => a.localeCompare(b))
+    : [];
+  const editEligibleMasterSubjects = editingDraft
+    ? subjectMasterList.filter((subject) => subject.batchId === null || subject.batchId === editingDraft.batchId)
+    : [];
+  const editClassSpecificNames = new Set(
+    editEligibleMasterSubjects
+      .filter((subject) => subject.batchId === editingDraft?.batchId)
+      .map((subject) => subject.name.trim().toLowerCase())
+  );
+  const editAvailableMasterSubjects = editEligibleMasterSubjects
+    .filter((subject) => subject.batchId !== null || !editClassSpecificNames.has(subject.name.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const openDraftEditor = (draft: any) => {
+    setEditingDraft({
+      groupId: draft.groupId,
+      examName: draft.examName,
+      batchId: draft.batchId,
+      status: draft.status,
+      subjects: (draft.subjects as DraftSubject[]).map((subject) => ({ ...subject })),
+    });
+  };
+
+  const addSubjectToEditedDraft = (subjectId: string) => {
+    if (!editingDraft) return;
+    const masterSubject = editAvailableMasterSubjects.find((subject) => subject.id === Number(subjectId));
+    if (!masterSubject) return;
+    const nextGroup = editingDraft.subjects.find((subject) => !subject.allGroups)?.academicGroup
+      ?? editDraftAvailableGroups[0]
+      ?? null;
+    setEditingDraft((previous) => previous ? {
+      ...previous,
+      subjects: [...previous.subjects, {
+        subjectId: masterSubject.id,
+        name: masterSubject.name,
+        totalMarks: masterSubject.totalMarks,
+        mcqEnabled: masterSubject.mcqEnabled,
+        cqEnabled: masterSubject.cqEnabled,
+        practicalEnabled: masterSubject.practicalEnabled,
+        mcqMax: masterSubject.mcqMax,
+        cqMax: masterSubject.cqMax,
+        practicalMax: masterSubject.practicalMax,
+        academicGroup: masterSubject.allGroups ? null : nextGroup,
+        allGroups: masterSubject.allGroups,
+      }],
+    } : null);
+  };
+
+  const handleUpdateDraft = () => {
+    if (!editingDraft) return;
+    if (!editingDraft.examName.trim()) {
+      toast({ variant: "destructive", title: "Enter an exam name" });
+      return;
+    }
+    if (editingDraft.subjects.length === 0) {
+      toast({ variant: "destructive", title: "Keep at least one subject in the draft" });
+      return;
+    }
+
+    const draftResults = modelTestResults.filter((result: any) => result.modelTestGroupId === editingDraft.groupId);
+    const retainedNames = new Set(editingDraft.subjects.map((subject) => subject.name));
+    const removedSubjects = (modelTestDrafts?.find((draft) => draft.groupId === editingDraft.groupId)?.subjects as DraftSubject[] || [])
+      .filter((subject) => !retainedNames.has(subject.name));
+    const removedWithMarks = removedSubjects.map((subject) => ({
+      subject,
+      count: draftResults.filter((result: any) => result.subject === subject.name).length,
+    })).filter(({ count }) => count > 0);
+    const originalNames = new Set(
+      (modelTestDrafts?.find((draft) => draft.groupId === editingDraft.groupId)?.subjects as DraftSubject[] || [])
+        .map((subject) => subject.name)
+    );
+    const hasSubjectChanges = editingDraft.subjects.length !== originalNames.size
+      || editingDraft.subjects.some((subject) => !originalNames.has(subject.name));
+    const warnings: string[] = [];
+    if (removedWithMarks.length) {
+      const totalRows = removedWithMarks.reduce((sum, entry) => sum + entry.count, 0);
+      warnings.push(`Removing ${removedWithMarks.map(({ subject }) => subject.name).join(", ")} will permanently delete ${totalRows} saved mark record${totalRows === 1 ? "" : "s"}.`);
+    }
+    if (editingDraft.status === "published" && hasSubjectChanges) {
+      warnings.push("Because this test is published, changing its subjects will return it to Draft and hide its results until it is published again.");
+    }
+    if (warnings.length && !confirm(`${warnings.join("\n\n")}\n\nSave these changes?`)) return;
+
+    updateDraftMutation.mutate({
+      groupId: editingDraft.groupId,
+      data: {
+        examName: editingDraft.examName.trim(),
+        subjects: editingDraft.subjects.map((subject) => ({
+          subjectId: subject.subjectId,
+          name: subject.name,
+          academicGroup: subject.academicGroup ?? null,
+        })),
+      },
     });
   };
 
@@ -508,7 +653,7 @@ export default function EntryMarks() {
           batchId: draft.batchId,
           examName: draft.examName,
           subject: teacherSubjectName,
-          totalMarks: 100,
+          totalMarks: subj.totalMarks,
           obtainedMarks: existing.obtainedMarks,
           mcqMarks: existing.mcqMarks ?? null,
           cqMarks: existing.cqMarks ?? null,
@@ -542,7 +687,7 @@ export default function EntryMarks() {
         batchId: draft.batchId,
         examName: draft.examName,
         subject: teacherSubjectName,
-        totalMarks: 100,
+        totalMarks: subj.totalMarks,
         obtainedMarks,
         ...parts,
       };
@@ -1014,7 +1159,11 @@ export default function EntryMarks() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Class / Batch</label>
-                        <Select value={draftBatchId} onValueChange={(value) => { setDraftBatchId(value); setDraftAcademicGroup(""); }}>
+                          <Select value={draftBatchId} onValueChange={(value) => {
+                            setDraftBatchId(value);
+                            setDraftAcademicGroup("");
+                            setDraftSubjects([{ subjectId: "" }]);
+                          }}>
                           <SelectTrigger><SelectValue placeholder="Select Class / Batch" /></SelectTrigger>
                           <SelectContent>{batches?.map((b) => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}</SelectContent>
                         </Select>
@@ -1048,7 +1197,7 @@ export default function EntryMarks() {
                                   <SelectValue placeholder="Choose a predefined subject" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {subjectMasterList.map((option) => {
+                                  {availableMasterSubjects.map((option) => {
                                     const usedElsewhere = draftSubjects.some((item, itemIndex) =>
                                       itemIndex !== idx && item.subjectId === String(option.id)
                                     );
@@ -1078,8 +1227,10 @@ export default function EntryMarks() {
                             </div>
                           );
                         })}
-                        {subjectMasterList.length === 0 && (
-                          <p className="text-sm text-muted-foreground">Add subjects in Manage → Subject Master List first.</p>
+                        {availableMasterSubjects.length === 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            Add subjects for this class or all classes in Manage → Subject Master List first.
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1129,6 +1280,14 @@ export default function EntryMarks() {
                                 <Badge className={draft.status === "published" ? "bg-green-500 text-white" : "bg-amber-400 text-white"}>
                                   {draft.status === "published" ? "Published" : "Draft"}
                                 </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5"
+                                  onClick={() => openDraftEditor(draft)}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" /> Edit Draft
+                                </Button>
                                 {draft.status === "draft" && (
                                   <Button
                                     size="sm"
@@ -1359,7 +1518,7 @@ export default function EntryMarks() {
                               <div>
                                 <CardTitle className="text-base">Step 3 — Enter Marks: {teacherSubjectName}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                  Total: 100 marks · {draft.batch?.name} · {subj?.allGroups ? "All Groups" : subj?.academicGroup || "All Groups"} · {draftBatchStudents.length} students
+                                  Total: {markingRule.total} marks · {draft.batch?.name} · {subj?.allGroups ? "All Groups" : subj?.academicGroup || "All Groups"} · {draftBatchStudents.length} students
                                 </p>
                               </div>
                               <Button
@@ -1391,7 +1550,7 @@ export default function EntryMarks() {
                                         {field.label} (/{field.max})
                                       </TableHead>
                                     ))}
-                                    <TableHead className="min-w-[120px] text-center">Calculated Total (/100)</TableHead>
+                                    <TableHead className="min-w-[120px] text-center">Calculated Total (/{markingRule.total})</TableHead>
                                     <TableHead className="min-w-[90px] text-center">Absent</TableHead>
                                     <TableHead>Status</TableHead>
                                   </TableRow>
@@ -1639,6 +1798,140 @@ export default function EntryMarks() {
                   }}
                 >
                   {updateResultMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingDraft} onOpenChange={(open) => !open && setEditingDraft(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>Edit Model Test Draft</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Update the name or subject list. Class stays fixed so saved student records remain attached to the right group.
+            </p>
+          </DialogHeader>
+          {editingDraft && (
+            <div className="space-y-5 pt-2">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Exam Name</Label>
+                  <Input
+                    value={editingDraft.examName}
+                    onChange={(event) => setEditingDraft((previous) =>
+                      previous ? { ...previous, examName: event.target.value } : null
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Class / Batch</Label>
+                  <Input
+                    value={batches?.find((batch) => batch.id === editingDraft.batchId)?.name ?? ""}
+                    disabled
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label>Subjects</Label>
+                  <Select value="" onValueChange={addSubjectToEditedDraft}>
+                    <SelectTrigger className="w-auto min-w-[190px]">
+                      <SelectValue placeholder="Add a subject..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {editAvailableMasterSubjects
+                        .filter((option) => !editingDraft.subjects.some((subject) =>
+                          subject.name.trim().toLowerCase() === option.name.trim().toLowerCase()
+                        ))
+                        .map((option) => (
+                          <SelectItem key={option.id} value={String(option.id)}>
+                            {option.name} · /{option.totalMarks}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editingDraft.subjects.map((subject, index) => {
+                  const subjectResultCount = modelTestResults.filter((result: any) =>
+                    result.modelTestGroupId === editingDraft.groupId && result.subject === subject.name
+                  ).length;
+                  const rule = getSubjectMarkingRule(subject.name, subject);
+                  return (
+                    <div key={`${subject.subjectId ?? subject.name}-${index}`} className="rounded-lg border p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold">{subject.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {rule.fields.map((field) => `${field.label} /${field.max}`).join(" · ")}
+                            {" · "}Total /{rule.total}
+                            {subject.allGroups ? " · All Groups" : ""}
+                            {subjectResultCount ? ` · ${subjectResultCount} saved mark${subjectResultCount === 1 ? "" : "s"}` : ""}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove ${subject.name} from draft`}
+                          className="shrink-0 text-destructive"
+                          onClick={() => setEditingDraft((previous) => previous ? {
+                            ...previous,
+                            subjects: previous.subjects.filter((_, subjectIndex) => subjectIndex !== index),
+                          } : null)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {!subject.allGroups && editDraftAvailableGroups.length > 0 && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Academic Group</Label>
+                          <Select
+                            value={subject.academicGroup ?? ""}
+                            disabled={subjectResultCount > 0}
+                            onValueChange={(academicGroup) => setEditingDraft((previous) => previous ? {
+                              ...previous,
+                              subjects: previous.subjects.map((entry, subjectIndex) =>
+                                subjectIndex === index ? { ...entry, academicGroup } : entry
+                              ),
+                            } : null)}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger>
+                            <SelectContent>
+                              {editDraftAvailableGroups.map((group) => (
+                                <SelectItem key={group} value={group}>{group}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {subjectResultCount > 0 && (
+                            <p className="text-xs text-muted-foreground">Group scope is locked after marks are entered.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {editingDraft.subjects.length === 0 && (
+                  <p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+                    Add at least one subject before saving.
+                  </p>
+                )}
+                {editAvailableMasterSubjects.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    There are no additional subjects configured for this class.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 border-t pt-4">
+                <Button variant="outline" onClick={() => setEditingDraft(null)} disabled={updateDraftMutation.isPending}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateDraft} disabled={updateDraftMutation.isPending || editingDraft.subjects.length === 0}>
+                  {updateDraftMutation.isPending ? "Saving..." : "Save Draft Changes"}
                 </Button>
               </div>
             </div>
