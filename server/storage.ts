@@ -10,6 +10,7 @@ import {
   type User, type InsertUser,
   type Result, type InsertResult,
   type ModelTestDraft,
+  type ModelTestSubject,
   type Notification,
   type CollectionTracking,
   type Attendance, type InsertAttendance,
@@ -80,7 +81,7 @@ export interface IStorage {
   // Model Test Drafts
   getModelTestDrafts(): Promise<any[]>;
   getModelTestDraftByGroupId(groupId: string): Promise<ModelTestDraft | undefined>;
-  createModelTestDraft(data: { groupId: string; examName: string; batchId: number; subjects: { name: string; totalMarks: number }[] }): Promise<ModelTestDraft>;
+  createModelTestDraft(data: { groupId: string; examName: string; batchId: number; subjects: ModelTestSubject[] }): Promise<ModelTestDraft>;
   publishModelTestDraft(groupId: string): Promise<ModelTestDraft>;
   deleteModelTestDraft(groupId: string): Promise<void>;
   getPublishedModelTestGroupIds(): Promise<string[]>;
@@ -420,7 +421,7 @@ export class DatabaseStorage implements IStorage {
     return draft;
   }
 
-  async createModelTestDraft(data: { groupId: string; examName: string; batchId: number; subjects: { name: string; totalMarks: number }[] }): Promise<ModelTestDraft> {
+  async createModelTestDraft(data: { groupId: string; examName: string; batchId: number; subjects: ModelTestSubject[] }): Promise<ModelTestDraft> {
     const [draft] = await db.insert(modelTestDrafts).values({
       groupId: data.groupId,
       examName: data.examName,

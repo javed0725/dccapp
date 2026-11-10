@@ -126,12 +126,19 @@ export const omrScanResults = pgTable("omr_scan_results", {
   ),
 }));
 
+export type ModelTestSubject = {
+  name: string;
+  totalMarks: number;
+  academicGroup?: string | null;
+  allGroups?: boolean;
+};
+
 export const modelTestDrafts = pgTable("model_test_drafts", {
   id: serial("id").primaryKey(),
   groupId: text("group_id").notNull().unique(),
   examName: text("exam_name").notNull(),
   batchId: integer("batch_id").references(() => batches.id).notNull(),
-  subjects: json("subjects").notNull().$type<{ name: string; totalMarks: number }[]>(),
+  subjects: json("subjects").notNull().$type<ModelTestSubject[]>(),
   status: text("status").notNull().default("draft"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

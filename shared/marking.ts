@@ -3,6 +3,17 @@ export type SubjectMarkingRule = {
   fields: { key: MarkComponent; label: string; max: number }[];
   total: number;
 };
+export type ModelTestSubject = {
+  name: string;
+  totalMarks: number;
+  academicGroup?: string | null;
+  allGroups?: boolean;
+};
+
+export function isCommonCoreSubject(subject: string): boolean {
+  const normalized = subject.trim().toLowerCase().replace(/[._-]+/g, " ").replace(/\s+/g, " ");
+  return normalized.includes("english") || ["math", "mathematics"].includes(normalized);
+}
 
 export type SubjectMarksEntry = {
   subject: string;

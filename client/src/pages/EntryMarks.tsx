@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
 import OMRScanner from "@/components/OMRScanner";
-import { getSubjectMarkingRule, type MarkComponent } from "@shared/marking";
+import { getSubjectMarkingRule, isCommonCoreSubject, type MarkComponent } from "@shared/marking";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
   if (obtained === -1) return { grade: "ABS", gp: 0.0 };
@@ -59,7 +59,24 @@ function WhatsAppBtn({ url }: { url: string }) {
   );
 }
 
-type Subject = { name: string; totalMarks: string };
+type Subject = { name: string; totalMarks: string; allGroups?: boolean };
+type DraftSubject = { name: string; totalMarks: number; academicGroup?: string | null; allGroups?: boolean };
+
+function getDraftStudentsForSubject(students: any[] | undefined, batchId: number, subject: DraftSubject) {
+  const targetGroup = subject.allGroups ? "" : subject.academicGroup?.trim().toLowerCase() || "";
+  return (students?.filter((student) =>
+    student.batchId === batchId
+    && student.isActive !== false
+    && (!targetGroup || student.academicGroup?.trim().toLowerCase() === targetGroup)
+  ) || []).sort((a, b) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0"));
+}
+
+function getDraftScopeLabel(subjects: DraftSubject[]) {
+  const labels = Array.from(new Set(subjects.map((subject) =>
+    subject.allGroups ? "All Groups" : subject.academicGroup?.trim() || "All Groups"
+  )));
+  return labels.join(" + ");
+}
 
 export default function EntryMarks() {
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
@@ -308,7 +325,14 @@ export default function EntryMarks() {
   // --- Admin: Draft creation state ---
   const [draftExamName, setDraftExamName] = useState("");
   const [draftBatchId, setDraftBatchId] = useState("");
+  const [draftAcademicGroup, setDraftAcademicGroup] = useState("");
   const [draftSubjects, setDraftSubjects] = useState<Subject[]>([{ name: "", totalMarks: "100" }]);
+  const draftAvailableGroups = Array.from(new Set(
+    (students || [])
+      .filter((student) => student.batchId === Number(draftBatchId))
+      .map((student) => student.academicGroup?.trim())
+      .filter((group): group is string => !!group)
+  )).sort((a, b) => a.localeCompare(b));
 
   // --- Teacher: Mark entry via draft state ---
   const [selectedDraftGroupId, setSelectedDraftGroupId] = useState("");
@@ -327,8 +351,11 @@ export default function EntryMarks() {
 
   const addDraftSubject = () => setDraftSubjects((p) => [...p, { name: "", totalMarks: "100" }]);
   const removeDraftSubject = (i: number) => setDraftSubjects((p) => p.filter((_, j) => j !== i));
-  const updateDraftSubject = (i: number, field: keyof Subject, value: string) =>
-    setDraftSubjects((p) => p.map((s, j) => (j === i ? { ...s, [field]: value } : s)));
+  const updateDraftSubject = (i: number, field: "name" | "totalMarks", value: string) =>
+    setDraftSubjects((p) => p.map((s, j) => {
+      if (j !== i) return s;
+      return { ...s, [field]: value, ...(field === "name" && !isCommonCoreSubject(value) ? { allGroups: false } : {}) };
+    }));
 
   const { data: modelTestDrafts, refetch: refetchDrafts } = useQuery<any[]>({
     queryKey: ["/api/model-test-drafts"],
@@ -344,6 +371,7 @@ export default function EntryMarks() {
       queryClient.invalidateQueries({ queryKey: ["/api/model-test-drafts"] });
       setDraftExamName("");
       setDraftBatchId("");
+      setDraftAcademicGroup("");
       setDraftSubjects([{ name: "", totalMarks: "100" }]);
       toast({ title: "Draft created!", description: "Teachers can now enter marks." });
     },
@@ -403,6 +431,10 @@ export default function EntryMarks() {
       toast({ variant: "destructive", title: "Fill in Exam Name and Batch" });
       return;
     }
+    if (draftAvailableGroups.length > 0 && !draftAcademicGroup) {
+      toast({ variant: "destructive", title: "Select a group for this class" });
+      return;
+    }
     const valid = draftSubjects.filter((s) => s.name.trim() && s.totalMarks);
     if (valid.length === 0) {
       toast({ variant: "destructive", title: "Add at least one subject" });
@@ -411,17 +443,22 @@ export default function EntryMarks() {
     createDraftMutation.mutate({
       examName: draftExamName.trim(),
       batchId: Number(draftBatchId),
-      subjects: valid.map((s) => ({ name: s.name.trim(), totalMarks: Number(s.totalMarks) })),
+      subjects: valid.map((s) => ({
+        name: s.name.trim(),
+        totalMarks: Number(s.totalMarks),
+        academicGroup: s.allGroups ? null : draftAcademicGroup || null,
+        allGroups: s.allGroups ?? false,
+      })),
     });
   };
 
   const handleSaveTeacherMarks = async () => {
     const draft = modelTestDrafts?.find((d) => d.groupId === selectedDraftGroupId);
     if (!draft || !teacherSubjectName) return;
-    const subj = (draft.subjects as { name: string; totalMarks: number }[]).find((s) => s.name === teacherSubjectName);
+    const subj = (draft.subjects as DraftSubject[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
     const markingRule = getSubjectMarkingRule(teacherSubjectName);
-    const draftBatchStudents = (students?.filter((s) => s.batchId === draft.batchId && s.isActive !== false) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
+    const draftBatchStudents = getDraftStudentsForSubject(students, draft.batchId, subj);
     // Include every active student. Existing rows without component data are
     // retained unchanged until a teacher enters the new breakdown for them.
     const entries = draftBatchStudents.map((student) => {
@@ -952,13 +989,25 @@ export default function EntryMarks() {
                         <Input placeholder="e.g. Model Test 1" value={draftExamName} onChange={(e) => setDraftExamName(e.target.value)} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Batch</label>
-                        <Select value={draftBatchId} onValueChange={setDraftBatchId}>
-                          <SelectTrigger><SelectValue placeholder="Select Batch" /></SelectTrigger>
+                        <label className="text-sm font-medium">Class / Batch</label>
+                        <Select value={draftBatchId} onValueChange={(value) => { setDraftBatchId(value); setDraftAcademicGroup(""); }}>
+                          <SelectTrigger><SelectValue placeholder="Select Class / Batch" /></SelectTrigger>
                           <SelectContent>{batches?.map((b) => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
+                    {draftAvailableGroups.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Academic Group</label>
+                        <Select value={draftAcademicGroup} onValueChange={setDraftAcademicGroup}>
+                          <SelectTrigger><SelectValue placeholder="Select Science, Commerce, or Arts" /></SelectTrigger>
+                          <SelectContent>
+                            {draftAvailableGroups.map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">Select the group for this draft. Common subjects can be shared with every group below.</p>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="text-sm font-medium">Subjects</label>
@@ -966,9 +1015,20 @@ export default function EntryMarks() {
                       </div>
                       <div className="space-y-2">
                         {draftSubjects.map((subj, idx) => (
-                          <div key={idx} className="flex gap-2 items-center">
+                          <div key={idx} className="flex flex-wrap gap-2 items-center">
                             <Input placeholder="Subject name (e.g. Physics)" value={subj.name} onChange={(e) => updateDraftSubject(idx, "name", e.target.value)} className="flex-1" />
                             <Input type="number" placeholder="Total" value={subj.totalMarks} onChange={(e) => updateDraftSubject(idx, "totalMarks", e.target.value)} className="w-24" />
+                            {isCommonCoreSubject(subj.name) && (
+                              <label className="flex items-center gap-2 text-xs font-medium text-slate-600 whitespace-nowrap">
+                                <Checkbox
+                                  checked={subj.allGroups ?? false}
+                                  onCheckedChange={(checked) => setDraftSubjects((previous) =>
+                                    previous.map((item, index) => index === idx ? { ...item, allGroups: !!checked } : item)
+                                  )}
+                                />
+                                All groups
+                              </label>
+                            )}
                             {draftSubjects.length > 1 && (
                               <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeDraftSubject(idx)}>
                                 <Trash2 className="w-4 h-4 text-destructive" />
@@ -978,7 +1038,7 @@ export default function EntryMarks() {
                         ))}
                       </div>
                     </div>
-                    <Button onClick={handleCreateDraft} disabled={createDraftMutation.isPending} className="gap-2">
+                    <Button onClick={handleCreateDraft} disabled={createDraftMutation.isPending || (draftAvailableGroups.length > 0 && !draftAcademicGroup)} className="gap-2">
                       <Send className="w-4 h-4" />
                       {createDraftMutation.isPending ? "Creating..." : "Create Draft"}
                     </Button>
@@ -990,7 +1050,7 @@ export default function EntryMarks() {
                   <div className="space-y-3">
                     <h3 className="font-semibold text-slate-700 text-sm uppercase tracking-wide">Active & Published Drafts</h3>
                     {modelTestDrafts.map((draft) => {
-                      const draftSubjectList = draft.subjects as { name: string; totalMarks: number }[];
+                      const draftSubjectList = draft.subjects as DraftSubject[];
                       const draftGroupResults = modelTestResults.filter((r: any) => r.modelTestGroupId === draft.groupId);
                       const filledSubjectNames = draftSubjectList.filter((s) =>
                         draftGroupResults.some((r: any) => r.subject === s.name)
@@ -1014,7 +1074,7 @@ export default function EntryMarks() {
                               >
                                 <div className="flex-1 min-w-0">
                                   <CardTitle className="text-base font-bold group-hover:text-primary transition-colors">{draft.examName}</CardTitle>
-                                  <p className="text-sm text-muted-foreground">{draft.batch?.name} · {draftSubjectList.length} subject{draftSubjectList.length !== 1 ? "s" : ""}{Object.keys(byStudent).length > 0 ? ` · ${Object.keys(byStudent).length} student${Object.keys(byStudent).length !== 1 ? "s" : ""}` : ""}</p>
+                                  <p className="text-sm text-muted-foreground">{draft.batch?.name} · {getDraftScopeLabel(draftSubjectList)} · {draftSubjectList.length} subject{draftSubjectList.length !== 1 ? "s" : ""}{Object.keys(byStudent).length > 0 ? ` · ${Object.keys(byStudent).length} student${Object.keys(byStudent).length !== 1 ? "s" : ""}` : ""}</p>
                                 </div>
                                 <div className="text-muted-foreground shrink-0">
                                   {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1185,7 +1245,7 @@ export default function EntryMarks() {
                       <SelectContent>
                         {modelTestDrafts?.filter((d) => d.status === "draft").map((d) => (
                           <SelectItem key={d.groupId} value={d.groupId}>
-                            {d.examName} — {d.batch?.name}
+                            {d.examName} — {d.batch?.name} · {getDraftScopeLabel(d.subjects as DraftSubject[])}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1196,9 +1256,8 @@ export default function EntryMarks() {
                 {selectedDraftGroupId && (() => {
                   const draft = modelTestDrafts?.find((d) => d.groupId === selectedDraftGroupId);
                   if (!draft) return null;
-                  const draftSubjectList = draft.subjects as { name: string; totalMarks: number }[];
+                  const draftSubjectList = draft.subjects as DraftSubject[];
                   const draftGroupResults = modelTestResults.filter((r: any) => r.modelTestGroupId === selectedDraftGroupId);
-                  const draftBatchStudents = (students?.filter((s) => s.batchId === draft.batchId && s.isActive !== false) || []).sort((a, b) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
 
                   return (
                     <>
@@ -1230,6 +1289,9 @@ export default function EntryMarks() {
                                   <div className={`text-xs mt-0.5 ${isSelected ? "text-white/80" : "text-muted-foreground"}`}>
                                     /{s.totalMarks} marks{isFilled ? ` · ${new Set(subjectResults.map((r: any) => r.studentId)).size} submitted` : ""}
                                   </div>
+                                  <div className={`mt-1 text-[10px] font-semibold ${isSelected ? "text-white/80" : "text-indigo-600 dark:text-indigo-400"}`}>
+                                    {s.allGroups ? "All groups" : s.academicGroup || "All groups"}
+                                  </div>
                                 </button>
                               );
                             })}
@@ -1240,6 +1302,9 @@ export default function EntryMarks() {
                       {/* Step 3: Enter Marks */}
                       {teacherSubjectName && (() => {
                         const subj = draftSubjectList.find((s) => s.name === teacherSubjectName);
+                        const draftBatchStudents = subj
+                          ? getDraftStudentsForSubject(students, draft.batchId, subj)
+                          : [];
                         const markingRule = getSubjectMarkingRule(teacherSubjectName);
                         const existingSubjectResults = draftGroupResults.filter((r: any) => r.subject === teacherSubjectName);
 
@@ -1249,7 +1314,7 @@ export default function EntryMarks() {
                               <div>
                                 <CardTitle className="text-base">Step 3 — Enter Marks: {teacherSubjectName}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                  Total: 100 marks · {draft.batch?.name} · {draftBatchStudents.length} students
+                                  Total: 100 marks · {draft.batch?.name} · {subj?.allGroups ? "All Groups" : subj?.academicGroup || "All Groups"} · {draftBatchStudents.length} students
                                 </p>
                               </div>
                               <Button

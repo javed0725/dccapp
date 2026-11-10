@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getSubjectMarkingRule, validateSubjectMarksEntry } from "../shared/marking";
+import { getSubjectMarkingRule, isCommonCoreSubject, validateSubjectMarksEntry } from "../shared/marking";
+
+test("common subjects can be shared across groups without sharing group-only subjects", () => {
+  assert.equal(isCommonCoreSubject("English 1st"), true);
+  assert.equal(isCommonCoreSubject("English 2nd Paper"), true);
+  assert.equal(isCommonCoreSubject("Mathematics"), true);
+  assert.equal(isCommonCoreSubject("Physics"), false);
+  assert.equal(isCommonCoreSubject("Higher Math"), false);
+});
 
 test("all English-labeled subjects use one total field", () => {
   for (const subject of ["English 1st", "English 2nd", "english 1st paper", "English Grammar"]) {

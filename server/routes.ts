@@ -11,7 +11,7 @@ import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf";
 import { registerOmrRoutes } from "./omr-routes";
-import { validateSubjectMarksEntry } from "@shared/marking";
+import { isCommonCoreSubject, validateSubjectMarksEntry } from "@shared/marking";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -1116,20 +1116,50 @@ export async function registerRoutes(
   app.post("/api/model-test-drafts", async (req, res) => {
     if (!requireAdmin(req, res)) return;
     try {
-      const { examName, batchId, subjects } = req.body;
-      if (!examName || !batchId || !Array.isArray(subjects) || subjects.length === 0) {
-        return res.status(400).json({ message: "examName, batchId, and subjects are required" });
+      const payload = z.object({
+        examName: z.string().trim().min(1),
+        batchId: z.coerce.number().int().positive(),
+        subjects: z.array(z.object({
+          name: z.string().trim().min(1),
+          totalMarks: z.coerce.number().int().positive(),
+          academicGroup: z.string().nullable().optional(),
+          allGroups: z.boolean().optional().default(false),
+        })).min(1),
+      }).parse(req.body);
+
+      const classStudents = (await storage.getStudents()).filter((student) => student.batchId === payload.batchId);
+      const availableGroups = new Set(
+        classStudents.map((student) => student.academicGroup?.trim()).filter((group): group is string => !!group)
+      );
+
+      for (const subject of payload.subjects) {
+        if (subject.allGroups && !isCommonCoreSubject(subject.name)) {
+          return res.status(400).json({ message: `${subject.name} cannot be assigned to all groups` });
+        }
+        if (subject.academicGroup && !availableGroups.has(subject.academicGroup.trim())) {
+          return res.status(400).json({ message: `Unknown group for ${subject.name}` });
+        }
+        if (availableGroups.size > 0 && !subject.allGroups && !subject.academicGroup?.trim()) {
+          return res.status(400).json({ message: `Select a group for ${subject.name}` });
+        }
       }
+
       const { randomUUID } = await import("crypto");
       const groupId = randomUUID();
       const draft = await storage.createModelTestDraft({
         groupId,
-        examName,
-        batchId: Number(batchId),
-        subjects,
+        examName: payload.examName,
+        batchId: payload.batchId,
+        subjects: payload.subjects.map((subject) => ({
+          ...subject,
+          academicGroup: subject.allGroups ? null : subject.academicGroup?.trim() || null,
+        })),
       });
       res.status(201).json(draft);
     } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: "Provide a name, class, and at least one valid subject" });
+      }
       res.status(500).json({ message: "Failed to create draft" });
     }
   });
@@ -1176,6 +1206,29 @@ export async function registerRoutes(
       const entries = entriesSchema.parse(req.body?.entries);
       if (entries.length === 0) {
         return res.status(400).json({ message: "entries array is required" });
+      }
+
+      const draft = await storage.getModelTestDraftByGroupId(groupId);
+      if (!draft) return res.status(404).json({ message: "Model test draft not found" });
+      const subjectName = entries[0].subject;
+      const draftSubject = draft.subjects.find((subject) => subject.name === subjectName);
+      if (!draftSubject || entries.some((entry) =>
+        entry.subject !== subjectName
+        || entry.batchId !== draft.batchId
+        || entry.examName !== draft.examName
+      )) {
+        return res.status(400).json({ message: "Marks must match the selected draft subject and class" });
+      }
+
+      const studentsInScope = (await storage.getStudents()).filter((student) => {
+        if (student.batchId !== draft.batchId || student.isActive === false) return false;
+        if (draftSubject.allGroups || !draftSubject.academicGroup) return true;
+        return student.academicGroup?.trim().toLowerCase() === draftSubject.academicGroup.trim().toLowerCase();
+      });
+      const allowedStudentIds = new Set(studentsInScope.map((student) => student.id));
+      const submittedStudentIds = new Set(entries.map((entry) => entry.studentId));
+      if (submittedStudentIds.size !== entries.length || entries.some((entry) => !allowedStudentIds.has(entry.studentId))) {
+        return res.status(400).json({ message: "Marks include a duplicate or a student outside this group" });
       }
 
       const existingGroupResults = await storage.getModelTestResults(groupId, null);
