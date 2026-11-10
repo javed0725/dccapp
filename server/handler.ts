@@ -42,25 +42,32 @@ app.use((req, res, next) => {
 });
 
 // Register all routes (auth + API) — returns a Promise
-const ready = registerRoutes(httpServer, app)
-  .then(() => {
-    // Global error handler (must be registered AFTER routes)
-    app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      logHandlerError("request_failed", err, req);
-      if (res.headersSent) return next(err);
-      res.status(status).json({ message });
+let ready: Promise<void> | null = null;
+
+function initializeApplication(): Promise<void> {
+  if (!ready) {
+    ready = registerRoutes(httpServer, app).then(() => {
+      // Global error handler (must be registered AFTER routes)
+      app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+        const status = err.status || err.statusCode || 500;
+        const message = err.message || "Internal Server Error";
+        logHandlerError("request_failed", err, req);
+        if (res.headersSent) return next(err);
+        res.status(status).json({ message });
+      });
     });
-  });
+  }
+  return ready;
+}
 
 // Export for Vercel: await ready then hand off to Express
 export default async function handler(req: any, res: any) {
   try {
-    await ready;
+    await initializeApplication();
   } catch (err) {
+    console.error("[Vercel] Application initialization failed:", err);
     logHandlerError("initialization_failed", err, req);
-    return res.status(503).json({ message: "Service initializing, please retry." });
+    return res.status(503).json({ message: "Service initialization failed. Please try again." });
   }
   try {
     return app(req, res);

@@ -41,49 +41,67 @@ function sanitizeConnectionString(url: string): string {
   }
 }
 
-const connectionString = rawConnectionString
-  ? sanitizeConnectionString(rawConnectionString)
-  : undefined;
-
 type GlobalWithDatabasePool = typeof globalThis & {
   __dynamicCoachingPgPool?: pg.Pool;
+  __dynamicCoachingDrizzle?: ReturnType<typeof drizzle>;
 };
 const globalWithPool = globalThis as GlobalWithDatabasePool;
 const isServerless = process.env.VERCEL === "1"
   || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
-function getPool(): pg.Pool {
+export function getPool(): pg.Pool {
   if (!globalWithPool.__dynamicCoachingPgPool) {
-    const pool = new Pool({
-      connectionString: connectionString ?? "",
-      ssl: { rejectUnauthorized: false },
-      // Reuse one client per warm serverless instance; use a larger pool for
-      // the long-running Replit server.
-      max: isServerless ? 1 : 5,
-      allowExitOnIdle: isServerless,
-      connectionTimeoutMillis: isServerless ? 10_000 : 15_000,
-      idleTimeoutMillis: 30_000,
-      statement_timeout: 20_000,        // kill runaway queries after 20 s
-      // TCP keep-alive: prevents silent connection drops on long-idle ISP links
-      // (Robi/Teletalk NAT tables can silently discard idle TCP flows after ~60 s).
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10_000,
-    });
+    try {
+      const connectionString = rawConnectionString
+        ? sanitizeConnectionString(rawConnectionString)
+        : undefined;
+      const pool = new Pool({
+        connectionString: connectionString ?? "",
+        ssl: { rejectUnauthorized: false },
+        // Reuse one client per warm serverless instance; use a larger pool for
+        // the long-running Replit server.
+        max: isServerless ? 1 : 5,
+        allowExitOnIdle: isServerless,
+        connectionTimeoutMillis: isServerless ? 10_000 : 15_000,
+        idleTimeoutMillis: 30_000,
+        statement_timeout: 20_000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10_000,
+      });
 
-    pool.on("error", (err) => {
-      const databaseError = err as Error & { code?: string };
-      console.error(JSON.stringify({
-        level: "error",
-        component: "database",
-        event: "idle_client_error",
-        code: databaseError.code ?? null,
-        message: databaseError.message,
-      }));
-    });
-    globalWithPool.__dynamicCoachingPgPool = pool;
+      pool.on("error", (err) => {
+        const databaseError = err as Error & { code?: string };
+        console.error(JSON.stringify({
+          level: "error",
+          component: "database",
+          event: "idle_client_error",
+          code: databaseError.code ?? null,
+          message: databaseError.message,
+        }));
+        console.error(err);
+      });
+      globalWithPool.__dynamicCoachingPgPool = pool;
+    } catch (error) {
+      console.error("[DB] Pool initialization failed:", error);
+      throw error;
+    }
   }
   return globalWithPool.__dynamicCoachingPgPool;
 }
 
-export const pool = getPool();
-export const db = drizzle(pool, { schema });
+function getDatabase(): ReturnType<typeof drizzle> {
+  if (!globalWithPool.__dynamicCoachingDrizzle) {
+    globalWithPool.__dynamicCoachingDrizzle = drizzle(getPool(), { schema });
+  }
+  return globalWithPool.__dynamicCoachingDrizzle;
+}
+
+// Export a Drizzle-shaped lazy facade so importing route modules doesn't create
+// a Pool or Drizzle client during Vercel's module-loading phase.
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_target, property) {
+    const database = getDatabase();
+    const value = Reflect.get(database, property, database);
+    return typeof value === "function" ? value.bind(database) : value;
+  },
+});

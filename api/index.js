@@ -27,6 +27,7 @@ try {
   const mod = require("./_server.cjs");
   appHandler = mod.default ?? mod;
 } catch (error) {
+  console.error("[Vercel] API module load failed:", error);
   logInvocationError("module_load_failed", error);
 }
 
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
   try {
     return await appHandler(req, res);
   } catch (error) {
+    console.error("[Vercel] API request failed:", error);
     logInvocationError("request_failed", error, req);
     return sendError(res, 500, "A server error occurred. Please try again.");
   }
