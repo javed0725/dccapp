@@ -16,11 +16,32 @@ import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
+import { calculateModelTestStandings } from "../shared/model-test-results.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
   const { password: _password, ...safeUser } = user;
   return safeUser;
+}
+
+async function getModelTestStandings(groupId: string) {
+  const draft = await storage.getModelTestDraftByGroupId(groupId);
+  if (!draft) return null;
+
+  const [allStudents, marks] = await Promise.all([
+    storage.getStudents(),
+    storage.getModelTestResults(groupId, null),
+  ]);
+  const roster = allStudents.filter((student) =>
+    student.batchId === draft.batchId && student.isActive !== false
+  );
+
+  return {
+    groupId,
+    examName: draft.examName,
+    batchId: draft.batchId,
+    standings: calculateModelTestStandings(draft.subjects, roster, marks),
+  };
 }
 
 // --- Auth guards --------------------------------------------------------
@@ -1215,14 +1236,47 @@ export async function registerRoutes(
   app.get("/api/results/model-test/:groupId", async (req, res) => {
     if (!requireAuth(req, res)) return;
     const user = req.user as any;
+    const processed = await getModelTestStandings(req.params.groupId);
+    if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+    const standingByStudent = new Map(processed.standings.map((standing) => [standing.studentId, standing]));
+    const allGroupResults = await storage.getModelTestResults(req.params.groupId, null);
+    const annotatedResults = allGroupResults.map((result) => {
+      const standing = standingByStudent.get(result.studentId);
+      const subjectStanding = standing?.subjects.find((subject) =>
+        subject.subject.trim().toLocaleLowerCase() === result.subject.trim().toLocaleLowerCase()
+      );
+      return {
+        ...result,
+        subjectPassStatus: subjectStanding?.status ?? "Pending",
+        studentResultStatus: standing?.status ?? "Pending",
+        totalMarksObtained: standing?.totalMarksObtained ?? 0,
+        totalPossibleMarks: standing?.totalPossibleMarks ?? 0,
+        meritRank: standing?.meritRank ?? null,
+        meritPosition: standing?.meritPosition ?? null,
+      };
+    });
     if (user.role === "student") {
       const student = await storage.getStudentByUserId(user.id);
       if (!student) return res.json([]);
-      const groupResults = await storage.getModelTestResults(req.params.groupId, student.id);
-      return res.json(groupResults);
+      return res.json(annotatedResults.filter((result) => result.studentId === student.id));
     }
-    const groupResults = await storage.getModelTestResults(req.params.groupId, null);
-    res.json(groupResults);
+    res.json(annotatedResults);
+  });
+
+  app.get("/api/results/model-test/:groupId/standings", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const processed = await getModelTestStandings(req.params.groupId);
+    if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+    const user = req.user as any;
+    if (user.role === "student") {
+      const student = await storage.getStudentByUserId(user.id);
+      if (!student) return res.json({ ...processed, standings: [] });
+      return res.json({
+        ...processed,
+        standings: processed.standings.filter((standing) => standing.studentId === student.id),
+      });
+    }
+    res.json(processed);
   });
 
   // Model Test Drafts Routes
@@ -1498,6 +1552,7 @@ export async function registerRoutes(
       }
 
       await storage.saveModelTestSubjectMarks(groupId, entries);
+      const processed = await getModelTestStandings(groupId);
 
       // Notification trigger: model test marks
       try {
@@ -1511,7 +1566,7 @@ export async function registerRoutes(
         );
       } catch (_) {}
 
-      res.json({ saved: entries.length });
+      res.json({ saved: entries.length, standings: processed?.standings ?? [] });
     } catch (err) {
       console.error("Error saving model test marks:", err);
       res.status(err instanceof z.ZodError ? 400 : 500).json({
