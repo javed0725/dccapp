@@ -17,6 +17,7 @@ import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf.js";
 import { registerOmrRoutes } from "./omr-routes.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
+import { registerResultReportRoutes } from "./result-report-routes.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -99,6 +100,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   setupAuth(app);
   registerOmrRoutes(app);
+  registerResultReportRoutes(app);
 
   // Health-check — useful for diagnosing Vercel cold starts and DB connectivity
   app.get("/api/health", async (_req, res) => {
@@ -1219,12 +1221,20 @@ export async function registerRoutes(
     if (!requireAuth(req, res)) return;
     const user = req.user as any;
     if (user.role === "student") {
+      const draft = await storage.getModelTestDraftByGroupId(req.params.groupId);
+      if (!draft || draft.status !== "published") {
+        return res.status(403).json({ message: "These results are not published." });
+      }
       const student = await storage.getStudentByUserId(user.id);
       if (!student) return res.json([]);
       const groupResults = await storage.getModelTestResults(req.params.groupId, student.id);
       return res.json(groupResults);
     }
-    const groupResults = await storage.getModelTestResults(req.params.groupId, null);
+    const selectedStudentId = req.query.studentId == null ? null : Number(req.query.studentId);
+    if (selectedStudentId != null && (!Number.isInteger(selectedStudentId) || selectedStudentId <= 0)) {
+      return res.status(400).json({ message: "Invalid student selection" });
+    }
+    const groupResults = await storage.getModelTestResults(req.params.groupId, selectedStudentId);
     res.json(groupResults);
   });
 

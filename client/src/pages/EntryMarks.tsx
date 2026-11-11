@@ -21,18 +21,9 @@ import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp"
 import { Link } from "wouter";
 import OMRScanner from "@/components/OMRScanner";
 import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
+import { ClassResultPdfDownload, IndividualResultPdfButton } from "@/components/ModelTestPdfActions";
 
-function getGrade(obtained: number, total: number): { grade: string; gp: number } {
-  if (obtained === -1) return { grade: "ABS", gp: 0.0 };
-  const pct = total > 0 ? (obtained / total) * 100 : 0;
-  if (pct >= 80) return { grade: "A+", gp: 5.0 };
-  if (pct >= 70) return { grade: "A", gp: 4.0 };
-  if (pct >= 60) return { grade: "A-", gp: 3.5 };
-  if (pct >= 50) return { grade: "B", gp: 3.0 };
-  if (pct >= 40) return { grade: "C", gp: 2.0 };
-  if (pct >= 33) return { grade: "D", gp: 1.0 };
-  return { grade: "F", gp: 0.0 };
-}
+import { getBangladeshGrade as getGrade, summarizeModelTest } from "@shared/result-reports";
 
 function gradeColor(grade: string) {
   const map: Record<string, string> = {
@@ -706,6 +697,7 @@ export default function EntryMarks() {
   const isTeacher = user?.role === "teacher";
   const isStudent = user?.role === "student";
   const isAdmin = user?.role === "admin";
+  const canManagePublishedResults = isAdmin || !!user?.isAuthority;
 
   const singleResults = results?.filter((r: any) => !r.isModelTest) || [];
   const modelTestResults = results?.filter((r: any) => r.isModelTest && r.modelTestGroupId) || [];
@@ -1146,7 +1138,7 @@ export default function EntryMarks() {
           <div className="space-y-5">
 
             {/* ═══ ADMIN VIEW ═══ */}
-            {isAdmin && (
+            {(isAdmin || user?.isAuthority) && (
               <>
                 {/* Create Draft Card */}
                 <Card className="border-2 border-slate-100">
@@ -1273,7 +1265,14 @@ export default function EntryMarks() {
                         byStudent[r.studentId].push(r);
                       });
 
-                      const isExpanded = expandedDraftIds.has(draft.groupId);
+                       const isExpanded = expandedDraftIds.has(draft.groupId);
+                       const resultGroups = Array.from(new Set(
+                         (students || [])
+                           .filter((student) => student.batchId === draft.batchId)
+                           .map((student) => student.academicGroup?.trim())
+                           .filter((group): group is string => !!group)
+                       )).sort((a, b) => a.localeCompare(b));
+                       const draftSession = draft.createdAt ? String(new Date(draft.createdAt).getFullYear()) : "";
                       return (
                         <Card key={draft.groupId} className={`border-2 ${draft.status === "published" ? "border-green-200 bg-green-50/30" : "border-slate-100"}`}>
                           <CardHeader className="pb-3">
@@ -1291,6 +1290,13 @@ export default function EntryMarks() {
                                 </div>
                               </button>
                               <div className="flex items-center gap-2 flex-wrap">
+                                {canManagePublishedResults && draft.status === "published" && (
+                                  <ClassResultPdfDownload
+                                    groupId={draft.groupId}
+                                    groups={resultGroups}
+                                    session={draftSession}
+                                  />
+                                )}
                                 <Badge className={draft.status === "published" ? "bg-green-500 text-white" : "bg-amber-400 text-white"}>
                                   {draft.status === "published" ? "Published" : "Draft"}
                                 </Badge>
@@ -1379,14 +1385,14 @@ export default function EntryMarks() {
                                     {Object.entries(byStudent).map(([, sr]) => {
                                       const studentRes = sr as any[];
                                       const st = studentRes[0]?.student;
-                                      const hasAbsent = studentRes.some((r: any) => r.obtainedMarks === -1);
-                                      const attendedRes = studentRes.filter((r: any) => r.obtainedMarks !== -1);
-                                      const totalObtained = attendedRes.reduce((s: number, r: any) => s + r.obtainedMarks, 0);
-                                      const totalFull = attendedRes.reduce((s: number, r: any) => s + r.totalMarks, 0);
-                                      const gpa = attendedRes.length > 0
-                                        ? attendedRes.map((r: any) => getGrade(r.obtainedMarks, r.totalMarks).gp)
-                                            .reduce((s: number, g: number) => s + g, 0) / attendedRes.length
-                                        : 0;
+                                      const rowStudentId = Number(studentRes[0]?.studentId);
+                                      const rowReport = summarizeModelTest(st ?? {
+                                        id: rowStudentId, name: "", batchId: draft.batchId,
+                                      }, draftSubjectList, studentRes);
+                                      const hasAbsent = !rowReport.passed;
+                                      const totalObtained = rowReport.obtainedMarks;
+                                      const totalFull = rowReport.totalMarks;
+                                      const gpa = rowReport.gpa;
                                       const waUrl = buildResultWhatsAppUrl(
                                         st?.mobileNumber, st?.name || "Student", draft.examName, totalObtained, totalFull, gpa
                                       );
@@ -1394,7 +1400,7 @@ export default function EntryMarks() {
                                         <TableRow key={studentRes[0]?.studentId} className={`group ${hasAbsent ? "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20" : "hover:bg-slate-50/60 dark:hover:bg-slate-800/30"}`}>
                                           <TableCell className="py-2.5 font-medium text-sm">
                                             <span className={hasAbsent ? "text-red-600" : ""}>{st?.name || "—"}</span>
-                                            {hasAbsent && <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">Absent</span>}
+                                            {hasAbsent && <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">{rowReport.status}</span>}
                                           </TableCell>
                                           <TableCell className="py-2.5 text-center text-sm font-bold">
                                             {hasAbsent
@@ -1407,6 +1413,9 @@ export default function EntryMarks() {
                                           </TableCell>
                                           <TableCell className="py-2.5">
                                             <div className="flex items-center gap-0.5 justify-end">
+                                              {canManagePublishedResults && draft.status === "published" && Number.isFinite(rowStudentId) && rowStudentId > 0 && (
+                                                <IndividualResultPdfButton groupId={draft.groupId} studentId={rowStudentId} />
+                                              )}
                                               {isAdmin && draft.status === "published" && <WhatsAppBtn url={waUrl} />}
                                               <Button
                                                 variant="ghost" size="icon"
@@ -1529,7 +1538,7 @@ export default function EntryMarks() {
                         return (
                           <Card>
                             <CardHeader className="flex flex-row items-center justify-between pb-3">
-                              <div>
+                         <div className="min-w-0">
                                 <CardTitle className="text-base">Step 3 — Enter Marks: {teacherSubjectName}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
                                   Total: {markingRule.total} marks · {draft.batch?.name} · {subj?.allGroups ? "All Groups" : subj?.academicGroup || "All Groups"} · {draftBatchStudents.length} students
@@ -1687,7 +1696,8 @@ export default function EntryMarks() {
                     const attendedRes = groupResults.filter((r: any) => r.obtainedMarks !== -1);
                     const totalObtained = attendedRes.reduce((s: number, r: any) => s + r.obtainedMarks, 0);
                     const totalFull = attendedRes.reduce((s: number, r: any) => s + r.totalMarks, 0);
-                    const gpa = attendedRes.length > 0
+                    const gpa = !groupResults.some((r: any) =>
+                      ["F", "ABS", "INC"].includes(getGrade(r.obtainedMarks, r.totalMarks).grade)) && attendedRes.length > 0
                       ? attendedRes.map((r: any) => getGrade(r.obtainedMarks, r.totalMarks).gp)
                           .reduce((s: number, g: number) => s + g, 0) / attendedRes.length
                       : 0;
@@ -1697,9 +1707,14 @@ export default function EntryMarks() {
                           <p className="font-bold text-slate-900 dark:text-slate-100">{examN}</p>
                           <p className="text-sm text-slate-500 dark:text-slate-400">{groupResults.length} subjects · GPA: <span className="font-black text-indigo-600 dark:text-indigo-400">{gpa.toFixed(2)}</span></p>
                         </div>
-                        <Link href={`/marksheet?groupId=${groupId}`}>
-                          <Button size="sm" variant="outline" className="gap-2"><Eye className="w-4 h-4" /> View Marksheet</Button>
-                        </Link>
+                         <div className="flex flex-wrap items-center justify-end gap-2">
+                           <Button asChild size="sm" variant="outline" className="gap-2">
+                             <Link href={`/marksheet?groupId=${groupId}`}>
+                               <Eye className="w-4 h-4" /> View Marksheet
+                             </Link>
+                           </Button>
+                           <IndividualResultPdfButton groupId={groupId} />
+                         </div>
                       </div>
                     );
                   })}
