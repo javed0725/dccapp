@@ -3,9 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Printer, ArrowLeft } from "lucide-react";
 import coachingLogo from "@assets/IMG_20260126_081644_1769393818079.jpg";
 import { getSubjectMarkingRule } from "@shared/marking";
-import { IndividualResultPdfButton } from "@/components/ModelTestPdfActions";
 
-import { getBangladeshGrade as getGrade } from "@shared/result-reports";
+function getGrade(obtained: number, total: number): { grade: string; gp: number } {
+  if (obtained === -1) return { grade: "ABS", gp: 0.0 };
+  const pct = total > 0 ? (obtained / total) * 100 : 0;
+  if (pct >= 80) return { grade: "A+", gp: 5.0 };
+  if (pct >= 70) return { grade: "A", gp: 4.0 };
+  if (pct >= 60) return { grade: "A-", gp: 3.5 };
+  if (pct >= 50) return { grade: "B", gp: 3.0 };
+  if (pct >= 40) return { grade: "C", gp: 2.0 };
+  if (pct >= 33) return { grade: "D", gp: 1.0 };
+  return { grade: "F", gp: 0.0 };
+}
 
 function GradeBadge({ grade }: { grade: string }) {
   const styles: Record<string, string> = {
@@ -90,11 +99,11 @@ export default function Marksheet() {
   const hasAbsent     = gradedResults.some((r) => r.isAbsent);
   const attendedRes   = gradedResults.filter((r) => !r.isAbsent);
   const totalObtained = attendedRes.reduce((s, r) => s + r.obtainedMarks, 0);
-  const totalFull     = gradedResults.reduce((s, r) => s + r.totalMarks, 0);
-  const hasFailed     = gradedResults.some((r) => ["F", "ABS", "INC"].includes(r.grade));
-  const gpa           = !hasFailed && attendedRes.length > 0
+  const totalFull     = attendedRes.reduce((s, r) => s + r.totalMarks, 0);
+  const gpa           = attendedRes.length > 0
     ? attendedRes.reduce((s, r) => s + r.gp, 0) / attendedRes.length
     : 0;
+  const hasFailed     = hasAbsent || gradedResults.some((r) => r.grade === "F");
   const overallPct    = totalFull > 0 ? Math.round((totalObtained / totalFull) * 100) : 0;
 
   return (
@@ -104,10 +113,6 @@ export default function Marksheet() {
         <Button onClick={() => window.print()} className="gap-2 bg-[#2c3e50] hover:bg-[#34495e] text-white">
           <Printer className="w-4 h-4" /> Print / Save PDF
         </Button>
-        <IndividualResultPdfButton
-          groupId={groupId}
-          studentId={studentIdParam && /^\d+$/.test(studentIdParam) ? Number(studentIdParam) : undefined}
-        />
         <Button variant="outline" onClick={() => window.history.back()} className="gap-2">
           <ArrowLeft className="w-4 h-4" /> Back
         </Button>

@@ -226,12 +226,7 @@ export async function renderAttendancePdf(
   data: AttendancePdfData,
   batchName: string,
 ): Promise<Buffer> {
-  return renderPdfDocument(buildDocument(data, batchName));
-}
-
-/** Shared Bengali-capable renderer for attendance and result documents. */
-export async function renderPdfDocument(definition: Record<string, unknown>): Promise<Buffer> {
   const fonts = await getFontData();
   configureFonts(fonts);
-  return pdfMake.createPdf(definition).getBuffer();
+  return pdfMake.createPdf(buildDocument(data, batchName)).getBuffer();
 }
