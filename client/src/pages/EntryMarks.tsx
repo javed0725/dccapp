@@ -1265,60 +1265,88 @@ export default function EntryMarks() {
 
                       const isExpanded = expandedDraftIds.has(draft.groupId);
                       return (
-                        <Card key={draft.groupId} className={`border-2 ${draft.status === "published" ? "border-green-200 bg-green-50/30" : "border-slate-100"}`}>
-                          <CardHeader className="pb-3">
-                            <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Card key={draft.groupId} className={`overflow-hidden border-2 ${draft.status === "published" ? "border-green-200 bg-green-50/30" : "border-slate-100"}`}>
+                          <CardHeader className="space-y-4 p-4 sm:p-5">
+                            <div className="flex items-start gap-3">
                               <button
-                                className="flex items-center gap-2 text-left group flex-1 min-w-0"
+                                type="button"
+                                aria-expanded={isExpanded}
+                                className="group flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
                                 onClick={() => toggleDraftExpand(draft.groupId)}
                               >
-                                <div className="flex-1 min-w-0">
-                                  <CardTitle className="text-base font-bold group-hover:text-primary transition-colors">{draft.examName}</CardTitle>
-                                  <p className="text-sm text-muted-foreground">{draft.batch?.name} · {getDraftScopeLabel(draftSubjectList)} · {draftSubjectList.length} subject{draftSubjectList.length !== 1 ? "s" : ""}{Object.keys(byStudent).length > 0 ? ` · ${Object.keys(byStudent).length} student${Object.keys(byStudent).length !== 1 ? "s" : ""}` : ""}</p>
-                                </div>
-                                <div className="text-muted-foreground shrink-0">
-                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                </div>
+                                <CardTitle className="min-w-0 break-words text-base font-bold leading-snug transition-colors group-hover:text-primary [overflow-wrap:anywhere] sm:text-lg">
+                                  {draft.examName}
+                                </CardTitle>
+                                <span className="mt-0.5 shrink-0 text-muted-foreground">
+                                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </span>
                               </button>
-                              <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex shrink-0 items-center gap-1.5">
                                 <Badge className={draft.status === "published" ? "bg-green-500 text-white" : "bg-amber-400 text-white"}>
                                   {draft.status === "published" ? "Published" : "Draft"}
                                 </Badge>
                                 <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-1.5"
-                                  onClick={() => openDraftEditor(draft)}
-                                >
-                                  <Pencil className="w-3.5 h-3.5" /> Edit Draft
-                                </Button>
-                                {draft.status === "draft" && (
-                                  <Button
-                                    size="sm"
-                                    className="gap-1.5 bg-green-600 hover:bg-green-700"
-                                    disabled={publishDraftMutation.isPending}
-                                    onClick={() => {
-                                      if (confirm(`Publish "${draft.examName}"? Students will be able to view results immediately.`)) {
-                                        publishDraftMutation.mutate(draft.groupId);
-                                      }
-                                    }}
-                                  >
-                                    <Send className="w-3.5 h-3.5" /> Publish Result
-                                  </Button>
-                                )}
-                                <Button
+                                  type="button"
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  aria-label={`Delete ${draft.examName}`}
+                                  title="Delete draft"
+                                  className="h-9 w-9 shrink-0 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
                                   onClick={() => {
                                     if (confirm(`Delete draft "${draft.examName}" and all its marks? This cannot be undone.`)) {
                                       deleteDraftMutation.mutate(draft.groupId);
                                     }
                                   }}
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
+                            </div>
+
+                            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+                              <div className="min-w-0 rounded-xl border border-border/70 bg-background/50 px-3 py-2.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[11px]">Class</p>
+                                <p className="mt-1 break-words text-xs font-medium leading-snug text-foreground sm:text-sm [overflow-wrap:anywhere]">{draft.batch?.name || "—"}</p>
+                              </div>
+                              <div className="min-w-0 rounded-xl border border-border/70 bg-background/50 px-3 py-2.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[11px]">Group</p>
+                                <p className="mt-1 break-words text-xs font-medium leading-snug text-foreground sm:text-sm [overflow-wrap:anywhere]">{getDraftScopeLabel(draftSubjectList)}</p>
+                              </div>
+                              <div className="min-w-0 rounded-xl border border-border/70 bg-background/50 px-3 py-2.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[11px]">Subjects</p>
+                                <p className="mt-1 text-xs font-medium leading-snug text-foreground sm:text-sm">{draftSubjectList.length} subject{draftSubjectList.length !== 1 ? "s" : ""}</p>
+                              </div>
+                              {Object.keys(byStudent).length > 0 && (
+                                <div className="min-w-0 rounded-xl border border-border/70 bg-background/50 px-3 py-2.5">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-[11px]">Students</p>
+                                  <p className="mt-1 text-xs font-medium leading-snug text-foreground sm:text-sm">{Object.keys(byStudent).length} students</p>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="min-h-10 w-full justify-center gap-2 sm:flex-1"
+                                onClick={() => openDraftEditor(draft)}
+                              >
+                                <Pencil className="h-4 w-4" /> Edit Draft
+                              </Button>
+                              {draft.status === "draft" && (
+                                <Button
+                                  type="button"
+                                  className="min-h-10 w-full justify-center gap-2 bg-green-600 text-white hover:bg-green-700 sm:flex-1"
+                                  disabled={publishDraftMutation.isPending}
+                                  onClick={() => {
+                                    if (confirm(`Publish "${draft.examName}"? Students will be able to view results immediately.`)) {
+                                      publishDraftMutation.mutate(draft.groupId);
+                                    }
+                                  }}
+                                >
+                                  <Send className="h-4 w-4" /> Publish Result
+                                </Button>
+                              )}
                             </div>
                           </CardHeader>
                           {isExpanded && <CardContent className="space-y-4">
