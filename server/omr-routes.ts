@@ -1,9 +1,9 @@
 import type { Express } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "./db";
-import { storage } from "./storage";
-import { scanOmrSheet } from "./omr-scanner";
+import { db } from "./db.js";
+import { storage } from "./storage.js";
+import { scanOmrSheet } from "./omr-scanner.js";
 import {
   omrConfigs,
   omrScanResults,
@@ -12,7 +12,7 @@ import {
   type OmrAnswerKeys,
   type OmrResponse,
   type OmrSetCode,
-} from "@shared/schema";
+} from "../shared/schema.js";
 
 const setCodeSchema = z.enum(["ক", "খ", "গ", "ঘ"]);
 const answerSchema = z.enum(["A", "B", "C", "D"]);

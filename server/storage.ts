@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 import { 
   incomes, expenses, deposits, batches, subjectMasterList, students, users, results, modelTestDrafts, notifications, siteSettings,
   collectionTracking, attendance, zktecoLogs, classRoutines,
@@ -17,7 +17,7 @@ import {
   type Attendance, type InsertAttendance,
   type ZktecoLog, type InsertZktecoLog,
   type ClassRoutine, type InsertClassRoutine,
-} from "@shared/schema";
+} from "../shared/schema.js";
 import { eq, desc, asc, inArray, sql, and, gte, lte } from "drizzle-orm";
 
 function removePassword<T extends User | null | undefined>(user: T) {

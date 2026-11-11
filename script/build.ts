@@ -48,7 +48,7 @@ async function buildAll() {
   if (isVercel) {
     // Vercel compiles api/index.ts and its TypeScript imports as a native
     // Node.js function; no generated CJS sibling is required at runtime.
-    console.log("Vercel will bundle the api/index.ts function directly.");
+    console.log("Vercel will compile the api/index.ts function directly.");
   } else {
     // Replit build: bundle allowlisted deps into a single file for faster cold starts
     console.log("building replit server...");

@@ -3,20 +3,20 @@ import {
   databaseUrlEnvironmentKey,
   databaseUrlEnvironmentKeys,
   hasDatabaseUrl,
-} from "./db";
+} from "./db.js";
 import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
-import { students, incomes as incomesTable, users, type ModelTestSubject } from "@shared/schema";
+import { students, incomes as incomesTable, users, type ModelTestSubject } from "../shared/schema.js";
 import type { Express } from "express";
 import { type Server } from "http";
-import { storage } from "./storage";
-import { api } from "@shared/routes";
+import { storage } from "./storage.js";
+import { api } from "../shared/routes.js";
 import { z } from "zod";
-import { setupAuth } from "./auth/auth";
+import { setupAuth } from "./auth/auth.js";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
-import { renderAttendancePdf } from "./attendance-pdf";
-import { registerOmrRoutes } from "./omr-routes";
-import { validateSubjectMarksEntry } from "@shared/marking";
+import { renderAttendancePdf } from "./attendance-pdf.js";
+import { registerOmrRoutes } from "./omr-routes.js";
+import { validateSubjectMarksEntry } from "../shared/marking.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -786,7 +786,7 @@ export async function registerRoutes(
   app.post("/api/results", async (req, res) => {
     if (!requireRoles(req, res, ['teacher', 'admin'])) return;
     try {
-      const { insertResultSchema } = await import("@shared/schema");
+      const { insertResultSchema } = await import("../shared/schema.js");
       const data = insertResultSchema.parse({
         ...req.body,
         totalMarks: Number(req.body.totalMarks),
@@ -811,7 +811,7 @@ export async function registerRoutes(
   app.post("/api/results/batch", async (req, res) => {
     if (!requireRoles(req, res, ['teacher', 'admin'])) return;
     try {
-      const { insertResultSchema } = await import("@shared/schema");
+      const { insertResultSchema } = await import("../shared/schema.js");
       const rawEntries = Array.isArray(req.body?.entries) ? req.body.entries : [];
       if (rawEntries.length === 0) {
         return res.status(400).json({ message: "entries array is required" });
@@ -1605,7 +1605,7 @@ export async function registerRoutes(
       const studentMap: Record<number, { name: string; batchId: number | null }> = {};
       allStudents.forEach((s) => { studentMap[s.id] = { name: s.name, batchId: s.batchId ?? null }; });
 
-      const { batches: batchesTable } = await import("@shared/schema");
+      const { batches: batchesTable } = await import("../shared/schema.js");
       const allBatches = await db.select().from(batchesTable);
       const batchMap: Record<number, string> = {};
       allBatches.forEach((b) => { batchMap[b.id] = b.name; });

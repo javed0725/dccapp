@@ -22,7 +22,7 @@ function describeSafeError(error: unknown) {
 }
 
 export default async function handler(req: any, res: any) {
-  let server: typeof import("../server/handler");
+  let server: typeof import("../server/handler.js");
   try {
     server = await import("../server/handler.js");
   } catch (error) {

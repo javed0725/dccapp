@@ -4,13 +4,13 @@ import { type Express, type Request } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
-import { storage } from "../storage";
+import { storage } from "../storage.js";
 import {
   databaseUrlEnvironmentKeys,
   hasDatabaseUrl,
   lazyPool,
-} from "../db";
-import { type User as SelectUser } from "@shared/schema";
+} from "../db.js";
+import { type User as SelectUser } from "../../shared/schema.js";
 
 declare global {
   namespace Express {

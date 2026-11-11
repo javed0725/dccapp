@@ -81,7 +81,7 @@ let ready: Promise<void> | null = null;
 
 function initializeApplication(): Promise<void> {
   if (!ready) {
-    ready = import("./routes")
+    ready = import("./routes.js")
       .then(({ registerRoutes }) => registerRoutes(httpServer, app))
       .then(() => {
       // Global error handler (must be registered AFTER routes)

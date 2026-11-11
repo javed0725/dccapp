@@ -3,9 +3,9 @@ export type SubjectMarkingRule = {
   fields: { key: MarkComponent; label: string; max: number }[];
   total: number;
 };
-import type { ModelTestSubject } from "./schema";
+import type { ModelTestSubject } from "./schema.js";
 
-export type { ModelTestSubject } from "./schema";
+export type { ModelTestSubject } from "./schema.js";
 
 export type SubjectMarkingConfig = Partial<Pick<
   ModelTestSubject,

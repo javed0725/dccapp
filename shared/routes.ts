@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { insertIncomeSchema, insertExpenseSchema, insertDepositSchema, incomes, expenses, deposits, batches, students, insertBatchSchema, insertStudentSchema, results, insertResultSchema, classRoutines, insertClassRoutineSchema } from './schema';
+import { insertIncomeSchema, insertExpenseSchema, insertDepositSchema, incomes, expenses, deposits, batches, students, insertBatchSchema, insertStudentSchema, results, insertResultSchema, classRoutines, insertClassRoutineSchema } from './schema.js';
 
 export const errorSchemas = {
   validation: z.object({
