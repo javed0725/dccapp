@@ -24,7 +24,7 @@ function describeSafeError(error: unknown) {
 export default async function handler(req: any, res: any) {
   let server: typeof import("../server/handler");
   try {
-    server = await import("../server/handler");
+    server = await import("../server/handler.js");
   } catch (error) {
     console.error("[Vercel] Server handler import failed:", error);
     const requestId = req?.headers?.["x-vercel-id"] ?? req?.headers?.["x-request-id"] ?? null;
