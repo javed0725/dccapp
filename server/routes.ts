@@ -16,7 +16,10 @@ import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
-import { calculateModelTestStandings } from "../shared/model-test-results.js";
+import {
+  calculateModelTestStandings,
+  formatModelTestTabulation,
+} from "../shared/model-test-results.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -40,6 +43,8 @@ async function getModelTestStandings(groupId: string) {
     groupId,
     examName: draft.examName,
     batchId: draft.batchId,
+    draftStatus: draft.status,
+    subjects: draft.subjects,
     standings: calculateModelTestStandings(draft.subjects, roster, marks),
   };
 }
@@ -1277,6 +1282,22 @@ export async function registerRoutes(
       });
     }
     res.json(processed);
+  });
+
+  app.get("/api/model-test-drafts/:groupId/tabulation", async (req, res) => {
+    if (!requireRoles(req, res, ["admin", "teacher"])) return;
+    const processed = await getModelTestStandings(req.params.groupId);
+    if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+
+    const table = formatModelTestTabulation(processed.subjects, processed.standings);
+    res.json({
+      groupId: processed.groupId,
+      examName: processed.examName,
+      batchId: processed.batchId,
+      draftStatus: processed.draftStatus,
+      columns: table.columns,
+      rows: table.rows,
+    });
   });
 
   // Model Test Drafts Routes

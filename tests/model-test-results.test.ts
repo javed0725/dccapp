@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateModelTestStandings } from "../shared/model-test-results";
+import {
+  calculateModelTestStandings,
+  formatModelTestTabulation,
+} from "../shared/model-test-results";
 import type { ModelTestSubject } from "../shared/schema";
 
 const subjects: ModelTestSubject[] = [
@@ -127,4 +130,77 @@ test("absent marks fail the subject and prevent overall merit ranking", () => {
   assert.equal(standings[0].status, "F");
   assert.equal(standings[0].totalMarksObtained, 0);
   assert.equal(standings[0].meritRank, null);
+});
+
+test("formats only draft subjects into grouped tabulation columns and rows", () => {
+  const draftSubjects: ModelTestSubject[] = [
+    subjects[0],
+    {
+      ...subjects[1],
+      name: "English 2nd",
+      totalMarks: 50,
+      subjectId: 12,
+    },
+  ];
+  const standings = calculateModelTestStandings(
+    draftSubjects,
+    [
+      { id: 1, name: "Student One", studentCustomId: "S-001" },
+      { id: 2, name: "Student Two" },
+    ],
+    [
+      mark(1, "Physics", 80, { mcqMarks: 20, cqMarks: 40, practicalMarks: 20 }),
+      mark(1, "English 2nd", 40),
+      mark(2, "Physics", 75, { mcqMarks: 20, cqMarks: 40, practicalMarks: 15 }),
+      mark(2, "English 2nd", 35),
+    ],
+  );
+  const table = formatModelTestTabulation(draftSubjects, standings);
+
+  assert.deepEqual(table.columns.map((column) => column.label), [
+    "Student ID",
+    "Student Name",
+    "Physics",
+    "English 2nd",
+    "Total Marks Obtained",
+    "Result Status",
+    "Merit Rank",
+  ]);
+  assert.deepEqual(table.columns[2].children?.map(({ label }) => label), [
+    "CQ",
+    "MCQ",
+    "Practical",
+    "Total",
+  ]);
+  assert.deepEqual(table.columns[3].children?.map(({ label }) => label), ["Total"]);
+  assert.equal(table.rows[0].studentId, "S-001");
+  assert.equal(table.rows[0].subject_1_cq, 40);
+  assert.equal(table.rows[0].subject_1_mcq, 20);
+  assert.equal(table.rows[0].subject_1_total, 80);
+  assert.equal(table.rows[0].subject_12_total, 40);
+  assert.equal(table.rows[0].resultStatus, "Passed");
+  assert.equal(table.rows[0].meritRank, "1st");
+  assert.equal(table.rows[1].studentId, "2");
+});
+
+test("tabulation keeps group-only subject cells blank for other groups", () => {
+  const draftSubjects: ModelTestSubject[] = [
+    { ...subjects[1], name: "English 2nd", totalMarks: 100, allGroups: true },
+    {
+      ...subjects[1],
+      name: "Accounting",
+      totalMarks: 100,
+      academicGroup: "Commerce",
+      allGroups: false,
+      subjectId: 25,
+    },
+  ];
+  const standings = calculateModelTestStandings(
+    draftSubjects,
+    [{ id: 2, name: "Science Student", academicGroup: "Science" }],
+    [mark(2, "English 2nd", 80)],
+  );
+  const table = formatModelTestTabulation(draftSubjects, standings);
+  assert.equal(table.columns[3].label, "Accounting");
+  assert.equal(table.rows[0].subject_25_total, null);
 });

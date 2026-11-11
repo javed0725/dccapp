@@ -5,6 +5,7 @@ export type ModelTestRosterStudent = {
   id: number;
   name: string;
   academicGroup?: string | null;
+  studentCustomId?: string | null;
 };
 
 export type ModelTestMark = {
@@ -33,6 +34,7 @@ export type SubjectStanding = {
 
 export type StudentStanding = {
   studentId: number;
+  studentCode: string;
   studentName: string;
   academicGroup: string | null;
   totalMarksObtained: number;
@@ -180,6 +182,7 @@ export function calculateModelTestStandings(
 
     return [{
       studentId: student.id,
+      studentCode: student.studentCustomId?.trim() || String(student.id),
       studentName: student.name,
       academicGroup: student.academicGroup ?? null,
       totalMarksObtained: subjectResults.reduce((sum, subject) => sum + (subject.obtainedMarks ?? 0), 0),
@@ -218,4 +221,97 @@ export function calculateModelTestStandings(
     if (b.status === "F" && a.status !== "F") return 1;
     return b.totalMarksObtained - a.totalMarksObtained;
   });
+}
+
+export type TabulationColumn = {
+  key: string;
+  label: string;
+  max?: number;
+  children?: Array<{ key: string; label: string; max: number }>;
+};
+
+export type ModelTestTabulation = {
+  columns: TabulationColumn[];
+  rows: Array<Record<string, string | number | null>>;
+};
+
+const componentOrder = ["cq", "mcq", "practical", "total"] as const;
+const componentLabels: Record<(typeof componentOrder)[number], string> = {
+  cq: "CQ",
+  mcq: "MCQ",
+  practical: "Practical",
+  total: "Total",
+};
+
+/** Build a flat-row, grouped-column table using only subjects in this draft. */
+export function formatModelTestTabulation(
+  subjects: ModelTestSubject[],
+  standings: StudentStanding[],
+): ModelTestTabulation {
+  const columns: TabulationColumn[] = [
+    { key: "studentId", label: "Student ID" },
+    { key: "studentName", label: "Student Name" },
+  ];
+  const subjectColumnKeys = subjects.map((subject, index) => {
+    const subjectKey = `subject_${subject.subjectId ?? index + 1}`;
+    const rule = getSubjectMarkingRule(subject.name, subject);
+    const configuredComponents = new Set(rule.fields.map((field) => field.key));
+    const orderedComponents = componentOrder.filter((component) => configuredComponents.has(component));
+    const fields = orderedComponents.map((component) => {
+      const field = rule.fields.find((candidate) => candidate.key === component)!;
+      return {
+        key: `${subjectKey}_${component}`,
+        label: componentLabels[component],
+        max: field.max,
+      };
+    });
+    if (!configuredComponents.has("total")) {
+      fields.push({ key: `${subjectKey}_total`, label: "Total", max: rule.total });
+    }
+    columns.push({
+      key: subjectKey,
+      label: subject.name,
+      children: fields,
+    });
+    return { subject, subjectKey, fields };
+  });
+
+  columns.push(
+    { key: "totalMarksObtained", label: "Total Marks Obtained" },
+    { key: "resultStatus", label: "Result Status" },
+    { key: "meritRank", label: "Merit Rank" },
+  );
+
+  const rows = standings.map((standing) => {
+    const row: Record<string, string | number | null> = {
+      studentId: standing.studentCode,
+      studentRecordId: standing.studentId,
+      studentName: standing.studentName,
+    };
+    for (const { subject, fields } of subjectColumnKeys) {
+      const subjectStanding = standing.subjects.find((candidate) =>
+        candidate.subject.trim().toLocaleLowerCase() === subject.name.trim().toLocaleLowerCase()
+      );
+      for (const field of fields) {
+        const component = field.key.slice(field.key.lastIndexOf("_") + 1);
+        if (!subjectStanding) {
+          row[field.key] = null;
+        } else if (component === "total") {
+          row[field.key] = subjectStanding.obtainedMarks;
+        } else {
+          row[field.key] = subjectStanding.componentResults.find((result) => result.component === component)?.obtainedMarks ?? null;
+        }
+      }
+    }
+    row.totalMarksObtained = standing.totalMarksObtained;
+    row.resultStatus = standing.status === "P"
+      ? "Passed"
+      : standing.status === "F"
+        ? "Failed"
+        : "Pending";
+    row.meritRank = standing.meritPosition;
+    return row;
+  });
+
+  return { columns, rows };
 }
