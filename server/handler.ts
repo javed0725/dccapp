@@ -45,6 +45,22 @@ export function sendJsonError(res: any, statusCode: number, payload: Record<stri
   return res.end(JSON.stringify(payload));
 }
 
+export function describeSafeError(error: unknown) {
+  const err = error instanceof Error ? error : new Error(String(error));
+  const code = error && typeof error === "object" && "code" in error
+    ? (error as { code?: unknown }).code
+    : null;
+  const message = err.message
+    .replace(/(postgres(?:ql)?:\/\/[^:/\s]+:)[^@\s/]+@/gi, "$1[redacted]@")
+    .replace(/([?&](?:password|token|secret)=)[^&\s]+/gi, "$1[redacted]")
+    .slice(0, 500);
+  return {
+    name: err.name,
+    code: typeof code === "string" ? code : null,
+    message,
+  };
+}
+
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
 
@@ -91,6 +107,7 @@ export default async function handler(req: any, res: any) {
     return sendJsonError(res, 503, {
       code: "HANDLER_INITIALIZATION_FAILED",
       message: "Service initialization failed. Please try again.",
+      diagnostic: describeSafeError(err),
     });
   }
   try {

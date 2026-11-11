@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sanitizeConnectionString } from "../server/db";
-import { sendJsonError } from "../server/handler";
+import { describeSafeError, sendJsonError } from "../server/handler";
 
 test("Vercel SSL settings cannot be disabled by connection-string parameters", () => {
   const sanitized = sanitizeConnectionString(
@@ -55,4 +55,15 @@ test("initialization errors can respond through a native Node response", () => {
     code: "HANDLER_INITIALIZATION_FAILED",
     message: "Service initialization failed.",
   });
+});
+
+test("startup diagnostics redact database credentials", () => {
+  const diagnostic = describeSafeError(
+    new Error("Unable to connect to postgresql://teacher:secret-pass@db.example.test/app?password=other-secret"),
+  );
+
+  assert.equal(
+    diagnostic.message,
+    "Unable to connect to postgresql://teacher:[redacted]@db.example.test/app?password=[redacted]",
+  );
 });
