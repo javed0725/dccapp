@@ -5,7 +5,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { storage } from "../storage";
-import { getPool } from "../db";
+import { lazyPool } from "../db";
 import { type User as SelectUser } from "@shared/schema";
 
 declare global {
@@ -77,17 +77,15 @@ export function setupAuth(app: Express) {
   let store: session.Store | undefined;
   try {
     store = new PgStore({
-      pool: getPool(),
+      pool: lazyPool,
       tableName: "user_sessions",
       createTableIfMissing: true,
+      ...(process.env.VERCEL === "1" ? { pruneSessionInterval: false } : {}),
     });
     console.log("[Auth] PostgreSQL session store initialised.");
   } catch (storeErr) {
     console.error("[Auth] PostgreSQL session store initialization failed:", storeErr);
     logAuthError("session_store_initialization_failed", storeErr);
-    if (process.env.VERCEL === "1") {
-      throw storeErr;
-    }
     store = undefined; // express-session uses MemoryStore when store is omitted
   }
 

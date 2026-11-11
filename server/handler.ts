@@ -10,6 +10,10 @@ function logHandlerError(event: string, error: unknown, req?: Request) {
   const details = error && typeof error === "object"
     ? error as { code?: unknown }
     : {};
+  const request = req as (Request & {
+    headers?: Record<string, string | string[] | undefined>;
+    get?: (name: string) => string | undefined;
+  }) | undefined;
   console.error(err);
   console.error(JSON.stringify({
     level: "error",
@@ -17,7 +21,11 @@ function logHandlerError(event: string, error: unknown, req?: Request) {
     event,
     method: req?.method ?? null,
     path: req?.path ?? null,
-    requestId: req?.get("x-vercel-id") || req?.get("x-request-id") || null,
+    requestId: request?.get?.("x-vercel-id")
+      || request?.get?.("x-request-id")
+      || request?.headers?.["x-vercel-id"]
+      || request?.headers?.["x-request-id"]
+      || null,
     error: {
       name: err.name,
       code: typeof details.code === "string" ? details.code : null,

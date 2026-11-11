@@ -52,6 +52,11 @@ const isServerless = process.env.VERCEL === "1"
 export function getPool(): pg.Pool {
   if (!globalWithPool.__dynamicCoachingPgPool) {
     try {
+      if (!rawConnectionString) {
+        throw new Error(
+          `No database URL configured. Set one of: ${databaseUrlEnvironmentKeys.join(", ")}`,
+        );
+      }
       const connectionString = rawConnectionString
         ? sanitizeConnectionString(rawConnectionString)
         : undefined;
@@ -88,6 +93,16 @@ export function getPool(): pg.Pool {
   }
   return globalWithPool.__dynamicCoachingPgPool;
 }
+
+// connect-pg-simple stores this object in its constructor without querying it.
+// Resolve the real Pool only when a session operation actually needs a query.
+export const lazyPool = new Proxy({} as pg.Pool, {
+  get(_target, property) {
+    const pool = getPool();
+    const value = Reflect.get(pool, property, pool);
+    return typeof value === "function" ? value.bind(pool) : value;
+  },
+});
 
 function getDatabase(): ReturnType<typeof drizzle> {
   if (!globalWithPool.__dynamicCoachingDrizzle) {
