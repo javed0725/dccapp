@@ -52,6 +52,92 @@ function normalize(value: string): string {
   return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
+function uniqueGroupNames(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const groups: string[] = [];
+  for (const value of values) {
+    const group = value?.trim();
+    if (!group) continue;
+    const key = normalize(group);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    groups.push(group);
+  }
+  return groups;
+}
+
+export function sameAcademicGroup(left: string | null | undefined, right: string | null | undefined): boolean {
+  return normalize(left ?? "") === normalize(right ?? "");
+}
+
+export function getModelTestDraftAcademicGroup(subjects: ModelTestSubject[]): string | null {
+  const storedScopes = uniqueGroupNames(subjects.map((subject) => subject.draftAcademicGroup));
+  if (storedScopes.length === 1) return storedScopes[0];
+  if (storedScopes.length > 1) return null;
+
+  const subjectGroups = uniqueGroupNames(subjects
+    .filter((subject) => !subject.allGroups)
+    .map((subject) => subject.academicGroup));
+  return subjectGroups.length === 1 ? subjectGroups[0] : null;
+}
+
+export function resolveModelTestGroupScope(subjects: ModelTestSubject[], requestedGroup?: string | null) {
+  const configuredGroup = getModelTestDraftAcademicGroup(subjects);
+  const requested = requestedGroup?.trim() || null;
+  const availableGroups = uniqueGroupNames(subjects
+    .filter((subject) => !subject.allGroups)
+    .map((subject) => subject.academicGroup));
+
+  if (configuredGroup && requested && !sameAcademicGroup(configuredGroup, requested)) {
+    return {
+      academicGroup: configuredGroup,
+      subjects: [] as ModelTestSubject[],
+      groupRequired: false,
+      error: `This draft is scoped to ${configuredGroup}`,
+    };
+  }
+
+  const academicGroup = configuredGroup || requested || (availableGroups.length === 1 ? availableGroups[0] : null);
+  if (!academicGroup && availableGroups.length > 1) {
+    return {
+      academicGroup: null,
+      subjects: [] as ModelTestSubject[],
+      groupRequired: true,
+      error: "Select an academic group for this draft",
+    };
+  }
+
+  const scopedSubjects = academicGroup
+    ? subjects.filter((subject) =>
+      subject.allGroups
+      || !subject.academicGroup?.trim()
+      || sameAcademicGroup(subject.academicGroup, academicGroup)
+    )
+    : subjects;
+  return {
+    academicGroup,
+    subjects: scopedSubjects,
+    groupRequired: false,
+    error: null,
+  };
+}
+
+export function filterModelTestRoster<T extends {
+  batchId: number;
+  isActive?: boolean;
+  academicGroup?: string | null;
+}>(
+  students: T[],
+  batchId: number,
+  academicGroup: string | null,
+): T[] {
+  return students.filter((student) =>
+    student.batchId === batchId
+    && student.isActive !== false
+    && (!academicGroup || sameAcademicGroup(student.academicGroup, academicGroup))
+  );
+}
+
 function rankLabel(rank: number): string {
   const lastTwoDigits = rank % 100;
   const suffix = lastTwoDigits >= 11 && lastTwoDigits <= 13

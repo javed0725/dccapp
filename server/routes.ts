@@ -19,6 +19,9 @@ import { validateSubjectMarksEntry } from "../shared/marking.js";
 import {
   calculateModelTestStandings,
   formatModelTestTabulation,
+  filterModelTestRoster,
+  resolveModelTestGroupScope,
+  sameAcademicGroup,
 } from "../shared/model-test-results.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
@@ -27,25 +30,31 @@ function removePassword<T extends { password?: string } | null | undefined>(user
   return safeUser;
 }
 
-async function getModelTestStandings(groupId: string) {
+async function getModelTestStandings(groupId: string, requestedGroup?: string | null) {
   const draft = await storage.getModelTestDraftByGroupId(groupId);
   if (!draft) return null;
 
+  const scope = resolveModelTestGroupScope(draft.subjects, requestedGroup);
   const [allStudents, marks] = await Promise.all([
     storage.getStudents(),
     storage.getModelTestResults(groupId, null),
   ]);
-  const roster = allStudents.filter((student) =>
-    student.batchId === draft.batchId && student.isActive !== false
+  const classGroupExists = !scope.academicGroup || allStudents.some((student) =>
+    student.batchId === draft.batchId && sameAcademicGroup(student.academicGroup, scope.academicGroup)
   );
+  const scopeError = scope.error
+    || (!classGroupExists ? `No students are assigned to ${scope.academicGroup} in this class` : null);
+  const roster = filterModelTestRoster(allStudents, draft.batchId, scope.academicGroup);
 
   return {
     groupId,
     examName: draft.examName,
     batchId: draft.batchId,
     draftStatus: draft.status,
-    subjects: draft.subjects,
-    standings: calculateModelTestStandings(draft.subjects, roster, marks),
+    academicGroup: scope.academicGroup,
+    scopeError,
+    subjects: scope.subjects,
+    standings: scopeError ? [] : calculateModelTestStandings(scope.subjects, roster, marks),
   };
 }
 
@@ -1241,8 +1250,16 @@ export async function registerRoutes(
   app.get("/api/results/model-test/:groupId", async (req, res) => {
     if (!requireAuth(req, res)) return;
     const user = req.user as any;
-    const processed = await getModelTestStandings(req.params.groupId);
+    const student = user.role === "student" ? await storage.getStudentByUserId(user.id) : undefined;
+    if (user.role === "student" && !student) return res.json([]);
+    const requestedGroup = user.role === "student"
+      ? student!.academicGroup
+      : typeof req.query.group === "string" ? req.query.group : undefined;
+    const processed = await getModelTestStandings(req.params.groupId, requestedGroup);
     if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+    if (processed.scopeError) {
+      return user.role === "student" ? res.json([]) : res.status(400).json({ message: processed.scopeError });
+    }
     const standingByStudent = new Map(processed.standings.map((standing) => [standing.studentId, standing]));
     const allGroupResults = await storage.getModelTestResults(req.params.groupId, null);
     const annotatedResults = allGroupResults.map((result) => {
@@ -1259,26 +1276,35 @@ export async function registerRoutes(
         meritRank: standing?.meritRank ?? null,
         meritPosition: standing?.meritPosition ?? null,
       };
-    });
+    }).filter((result) =>
+      standingByStudent.has(result.studentId)
+      && processed.subjects.some((subject) => sameAcademicGroup(subject.name, result.subject))
+    );
     if (user.role === "student") {
-      const student = await storage.getStudentByUserId(user.id);
-      if (!student) return res.json([]);
-      return res.json(annotatedResults.filter((result) => result.studentId === student.id));
+      return res.json(annotatedResults.filter((result) => result.studentId === student!.id));
     }
     res.json(annotatedResults);
   });
 
   app.get("/api/results/model-test/:groupId/standings", async (req, res) => {
     if (!requireAuth(req, res)) return;
-    const processed = await getModelTestStandings(req.params.groupId);
-    if (!processed) return res.status(404).json({ message: "Model test draft not found" });
     const user = req.user as any;
+    const student = user.role === "student" ? await storage.getStudentByUserId(user.id) : undefined;
+    if (user.role === "student" && !student) return res.json({ standings: [] });
+    const requestedGroup = user.role === "student"
+      ? student!.academicGroup
+      : typeof req.query.group === "string" ? req.query.group : undefined;
+    const processed = await getModelTestStandings(req.params.groupId, requestedGroup);
+    if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+    if (processed.scopeError) {
+      return user.role === "student"
+        ? res.json({ ...processed, standings: [] })
+        : res.status(400).json({ message: processed.scopeError });
+    }
     if (user.role === "student") {
-      const student = await storage.getStudentByUserId(user.id);
-      if (!student) return res.json({ ...processed, standings: [] });
       return res.json({
         ...processed,
-        standings: processed.standings.filter((standing) => standing.studentId === student.id),
+        standings: processed.standings.filter((standing) => standing.studentId === student!.id),
       });
     }
     res.json(processed);
@@ -1286,8 +1312,10 @@ export async function registerRoutes(
 
   app.get("/api/model-test-drafts/:groupId/tabulation", async (req, res) => {
     if (!requireRoles(req, res, ["admin", "teacher"])) return;
-    const processed = await getModelTestStandings(req.params.groupId);
+    const requestedGroup = typeof req.query.group === "string" ? req.query.group : undefined;
+    const processed = await getModelTestStandings(req.params.groupId, requestedGroup);
     if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+    if (processed.scopeError) return res.status(400).json({ message: processed.scopeError });
 
     const table = formatModelTestTabulation(processed.subjects, processed.standings);
     res.json({
@@ -1295,6 +1323,7 @@ export async function registerRoutes(
       examName: processed.examName,
       batchId: processed.batchId,
       draftStatus: processed.draftStatus,
+      academicGroup: processed.academicGroup,
       columns: table.columns,
       rows: table.rows,
     });
@@ -1313,6 +1342,7 @@ export async function registerRoutes(
       const payload = z.object({
         examName: z.string().trim().min(1),
         batchId: z.coerce.number().int().positive(),
+        academicGroup: z.string().trim().nullable().optional(),
         subjects: z.array(z.object({
           subjectId: z.coerce.number().int().positive(),
           academicGroup: z.string().nullable().optional(),
@@ -1345,15 +1375,26 @@ export async function registerRoutes(
       const availableGroups = new Set(
         classStudents.map((student) => student.academicGroup?.trim()).filter((group): group is string => !!group)
       );
+      const selectedGroup = payload.academicGroup?.trim()
+        || payload.subjects.find((selection, index) =>
+          !selectedSubjects[index]!.allGroups && !!selection.academicGroup?.trim()
+        )?.academicGroup?.trim()
+        || null;
+      if (selectedGroup && !Array.from(availableGroups).some((group) => sameAcademicGroup(group, selectedGroup))) {
+        return res.status(400).json({ message: `Unknown group: ${selectedGroup}` });
+      }
 
       for (let index = 0; index < payload.subjects.length; index += 1) {
         const selection = payload.subjects[index];
         const masterSubject = selectedSubjects[index]!;
         if (masterSubject.allGroups) continue;
-        if (selection.academicGroup && !availableGroups.has(selection.academicGroup.trim())) {
+        if (selection.academicGroup && !Array.from(availableGroups).some((group) => sameAcademicGroup(group, selection.academicGroup))) {
           return res.status(400).json({ message: `Unknown group for ${masterSubject.name}` });
         }
-        if (availableGroups.size > 0 && !selection.academicGroup?.trim()) {
+        if (selectedGroup && selection.academicGroup?.trim() && !sameAcademicGroup(selection.academicGroup, selectedGroup)) {
+          return res.status(400).json({ message: `All group-specific subjects must use ${selectedGroup}` });
+        }
+        if (availableGroups.size > 0 && !selectedGroup) {
           return res.status(400).json({ message: `Select a group for ${masterSubject.name}` });
         }
       }
@@ -1376,8 +1417,9 @@ export async function registerRoutes(
             mcqMax: subject.mcqMax,
             cqMax: subject.cqMax,
             practicalMax: subject.practicalMax,
-            academicGroup: subject.allGroups ? null : selection.academicGroup?.trim() || null,
+            academicGroup: subject.allGroups ? null : selection.academicGroup?.trim() || selectedGroup,
             allGroups: subject.allGroups,
+            draftAcademicGroup: selectedGroup,
           };
         }),
       });
@@ -1395,6 +1437,7 @@ export async function registerRoutes(
     try {
       const payload = z.object({
         examName: z.string().trim().min(1).max(150),
+        academicGroup: z.string().trim().nullable().optional(),
         subjects: z.array(z.object({
           subjectId: z.coerce.number().int().positive().optional(),
           name: z.string().trim().min(1),
@@ -1420,6 +1463,14 @@ export async function registerRoutes(
       const availableGroups = new Set(
         classStudents.map((student) => student.academicGroup?.trim()).filter((group): group is string => !!group)
       );
+      const nextDraftGroup = payload.academicGroup?.trim() || null;
+      const currentDraftGroup = resolveModelTestGroupScope(draft.subjects).academicGroup;
+      if (existingResults.length && !sameAcademicGroup(currentDraftGroup, nextDraftGroup)) {
+        return res.status(400).json({ message: "Cannot change this draft's academic group after marks have been entered" });
+      }
+      if (nextDraftGroup && !Array.from(availableGroups).some((group) => sameAcademicGroup(group, nextDraftGroup))) {
+        return res.status(400).json({ message: `Unknown group: ${nextDraftGroup}` });
+      }
       const nextSubjects: ModelTestSubject[] = [];
 
       for (const selection of payload.subjects) {
@@ -1438,6 +1489,7 @@ export async function registerRoutes(
           subject = {
             ...oldSubject,
             academicGroup: nextGroup,
+            draftAcademicGroup: nextDraftGroup,
           };
         } else {
           if (selection.subjectId === undefined) {
@@ -1461,14 +1513,18 @@ export async function registerRoutes(
             practicalMax: masterSubject.practicalMax,
             academicGroup: masterSubject.allGroups ? null : selection.academicGroup?.trim() || null,
             allGroups: masterSubject.allGroups,
+            draftAcademicGroup: nextDraftGroup,
           };
         }
 
         if (!subject.allGroups) {
-          if (subject.academicGroup && !availableGroups.has(subject.academicGroup)) {
+          if (subject.academicGroup && !Array.from(availableGroups).some((group) => sameAcademicGroup(group, subject.academicGroup))) {
             return res.status(400).json({ message: `Unknown group for ${subject.name}` });
           }
-          if (availableGroups.size > 0 && !subject.academicGroup) {
+          if (nextDraftGroup && subject.academicGroup && !sameAcademicGroup(subject.academicGroup, nextDraftGroup)) {
+            return res.status(400).json({ message: `${subject.name} is scoped to ${subject.academicGroup}, not ${nextDraftGroup}` });
+          }
+          if (availableGroups.size > 0 && !nextDraftGroup && !subject.academicGroup) {
             return res.status(400).json({ message: `Select a group for ${subject.name}` });
           }
         }
@@ -1476,12 +1532,22 @@ export async function registerRoutes(
       }
 
       const previousNames = new Set(draft.subjects.map((subject) => subject.name));
+      const subjectScopesChanged = nextSubjects.some((subject) => {
+        const previous = draft.subjects.find((candidate) => candidate.name === subject.name);
+        return previous && !sameAcademicGroup(previous.academicGroup, subject.academicGroup);
+      });
       const subjectsChanged = draft.subjects.length !== nextSubjects.length
-        || nextSubjects.some((subject) => !previousNames.has(subject.name));
+        || nextSubjects.some((subject) => !previousNames.has(subject.name))
+        || subjectScopesChanged;
       const updated = await storage.updateModelTestDraft(req.params.groupId, {
         examName: payload.examName,
-        subjects: nextSubjects,
-        status: draft.status === "published" && subjectsChanged ? "draft" : draft.status,
+        subjects: nextSubjects.map((subject) => ({
+          ...subject,
+          draftAcademicGroup: nextDraftGroup,
+        })),
+        status: draft.status === "published" && (subjectsChanged || !sameAcademicGroup(currentDraftGroup, nextDraftGroup))
+          ? "draft"
+          : draft.status,
       });
       if (!updated) return res.status(404).json({ message: "Model test draft not found" });
       res.json(updated);
@@ -1540,8 +1606,10 @@ export async function registerRoutes(
 
       const draft = await storage.getModelTestDraftByGroupId(groupId);
       if (!draft) return res.status(404).json({ message: "Model test draft not found" });
+      const scope = resolveModelTestGroupScope(draft.subjects);
+      if (scope.error) return res.status(400).json({ message: scope.error });
       const subjectName = entries[0].subject;
-      const draftSubject = draft.subjects.find((subject) => subject.name === subjectName);
+      const draftSubject = scope.subjects.find((subject) => subject.name === subjectName);
       if (!draftSubject || entries.some((entry) =>
         entry.subject !== subjectName
         || entry.batchId !== draft.batchId
@@ -1550,11 +1618,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Marks must match the selected draft subject and class" });
       }
 
-      const studentsInScope = (await storage.getStudents()).filter((student) => {
-        if (student.batchId !== draft.batchId || student.isActive === false) return false;
-        if (draftSubject.allGroups || !draftSubject.academicGroup) return true;
-        return student.academicGroup?.trim().toLowerCase() === draftSubject.academicGroup.trim().toLowerCase();
-      });
+      const studentsInScope = filterModelTestRoster(await storage.getStudents(), draft.batchId, scope.academicGroup);
       const allowedStudentIds = new Set(studentsInScope.map((student) => student.id));
       const submittedStudentIds = new Set(entries.map((entry) => entry.studentId));
       if (submittedStudentIds.size !== entries.length || entries.some((entry) => !allowedStudentIds.has(entry.studentId))) {

@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
 import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
+import { getModelTestDraftAcademicGroup, resolveModelTestGroupScope, sameAcademicGroup } from "@shared/model-test-results";
 import { downloadClassResultSheetPdf } from "@/lib/class-result-pdf";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
@@ -67,6 +68,7 @@ type DraftEditState = {
   examName: string;
   batchId: number;
   status: string;
+  academicGroup: string | null;
   subjects: DraftSubject[];
 };
 type SubjectMasterOption = {
@@ -83,20 +85,30 @@ type SubjectMasterOption = {
   allGroups: boolean;
 };
 
-function getDraftStudentsForSubject(students: any[] | undefined, batchId: number, subject: DraftSubject) {
-  const targetGroup = subject.allGroups ? "" : subject.academicGroup?.trim().toLowerCase() || "";
+function getDraftStudentsForSubject(
+  students: any[] | undefined,
+  batchId: number,
+  subject: DraftSubject,
+  draftAcademicGroup?: string | null,
+) {
+  const subjectGroup = subject.allGroups ? "" : subject.academicGroup?.trim() || "";
+  const draftGroup = draftAcademicGroup?.trim() || "";
+  if (subjectGroup && draftGroup && !sameAcademicGroup(subjectGroup, draftGroup)) return [];
+  const targetGroup = draftGroup || subjectGroup;
   return (students?.filter((student) =>
     student.batchId === batchId
     && student.isActive !== false
-    && (!targetGroup || student.academicGroup?.trim().toLowerCase() === targetGroup)
+    && (!targetGroup || sameAcademicGroup(student.academicGroup, targetGroup))
   ) || []).sort((a, b) => parseInt(a.studentCustomId || "0") - parseInt(b.studentCustomId || "0"));
 }
 
 function getDraftScopeLabel(subjects: DraftSubject[]) {
-  const labels = Array.from(new Set(subjects.map((subject) =>
-    subject.allGroups ? "All Groups" : subject.academicGroup?.trim() || "All Groups"
-  )));
-  return labels.join(" + ");
+  const draftGroup = getModelTestDraftAcademicGroup(subjects);
+  if (draftGroup) return draftGroup;
+  const labels = Array.from(new Set(subjects
+    .filter((subject) => !subject.allGroups && subject.academicGroup?.trim())
+    .map((subject) => subject.academicGroup!.trim())));
+  return labels.length ? labels.join(" + ") : "All Groups";
 }
 
 export default function EntryMarks() {
@@ -446,7 +458,11 @@ export default function EntryMarks() {
   const updateDraftMutation = useMutation({
     mutationFn: async ({ groupId, data }: {
       groupId: string;
-      data: { examName: string; subjects: Array<{ subjectId?: number; name: string; academicGroup: string | null }> };
+      data: {
+        examName: string;
+        academicGroup: string | null;
+        subjects: Array<{ subjectId?: number; name: string; academicGroup: string | null }>;
+      };
     }) => {
       const response = await apiRequest("PATCH", `/api/model-test-drafts/${groupId}`, data);
       return response.json();
@@ -514,6 +530,7 @@ export default function EntryMarks() {
     createDraftMutation.mutate({
       examName: draftExamName.trim(),
       batchId: Number(draftBatchId),
+      academicGroup: draftAcademicGroup || null,
       subjects: valid.map(({ selection, subject }) => ({
         subjectId: subject.id,
         academicGroup: subject.allGroups ? null : draftAcademicGroup || null,
@@ -548,6 +565,7 @@ export default function EntryMarks() {
       examName: draft.examName,
       batchId: draft.batchId,
       status: draft.status,
+      academicGroup: getModelTestDraftAcademicGroup(draft.subjects as DraftSubject[]),
       subjects: (draft.subjects as DraftSubject[]).map((subject) => ({ ...subject })),
     });
   };
@@ -556,7 +574,8 @@ export default function EntryMarks() {
     if (!editingDraft) return;
     const masterSubject = editAvailableMasterSubjects.find((subject) => subject.id === Number(subjectId));
     if (!masterSubject) return;
-    const nextGroup = editingDraft.subjects.find((subject) => !subject.allGroups)?.academicGroup
+    const nextGroup = editingDraft.academicGroup
+      ?? editingDraft.subjects.find((subject) => !subject.allGroups)?.academicGroup
       ?? editDraftAvailableGroups[0]
       ?? null;
     setEditingDraft((previous) => previous ? {
@@ -573,6 +592,7 @@ export default function EntryMarks() {
         practicalMax: masterSubject.practicalMax,
         academicGroup: masterSubject.allGroups ? null : nextGroup,
         allGroups: masterSubject.allGroups,
+        draftAcademicGroup: editingDraft.academicGroup,
       }],
     } : null);
   };
@@ -589,6 +609,18 @@ export default function EntryMarks() {
     }
 
     const draftResults = modelTestResults.filter((result: any) => result.modelTestGroupId === editingDraft.groupId);
+    const originalDraft = modelTestDrafts?.find((draft) => draft.groupId === editingDraft.groupId);
+    const originalGroup = originalDraft
+      ? getModelTestDraftAcademicGroup(originalDraft.subjects as DraftSubject[])
+      : null;
+    if (draftResults.length > 0 && !sameAcademicGroup(originalGroup, editingDraft.academicGroup)) {
+      toast({
+        variant: "destructive",
+        title: "Group cannot be changed",
+        description: "This draft already has saved marks for its current group.",
+      });
+      return;
+    }
     const retainedNames = new Set(editingDraft.subjects.map((subject) => subject.name));
     const removedSubjects = (modelTestDrafts?.find((draft) => draft.groupId === editingDraft.groupId)?.subjects as DraftSubject[] || [])
       .filter((subject) => !retainedNames.has(subject.name));
@@ -616,6 +648,7 @@ export default function EntryMarks() {
       groupId: editingDraft.groupId,
       data: {
         examName: editingDraft.examName.trim(),
+        academicGroup: editingDraft.academicGroup,
         subjects: editingDraft.subjects.map((subject) => ({
           subjectId: subject.subjectId,
           name: subject.name,
@@ -631,7 +664,8 @@ export default function EntryMarks() {
     const subj = (draft.subjects as DraftSubject[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
     const markingRule = getSubjectMarkingRule(teacherSubjectName, subj);
-    const draftBatchStudents = getDraftStudentsForSubject(students, draft.batchId, subj);
+    const draftGroup = getModelTestDraftAcademicGroup(draft.subjects as DraftSubject[]);
+    const draftBatchStudents = getDraftStudentsForSubject(students, draft.batchId, subj, draftGroup);
     // Include every active student. Existing rows without component data are
     // retained unchanged until a teacher enters the new breakdown for them.
     const entries = draftBatchStudents.map((student) => {
@@ -1283,8 +1317,21 @@ export default function EntryMarks() {
                   <div className="space-y-3">
                     <h3 className="font-semibold text-slate-700 text-sm uppercase tracking-wide">Active & Published Drafts</h3>
                     {modelTestDrafts.map((draft) => {
-                      const draftSubjectList = draft.subjects as DraftSubject[];
-                      const draftGroupResults = modelTestResults.filter((r: any) => r.modelTestGroupId === draft.groupId);
+                      const allDraftSubjects = draft.subjects as DraftSubject[];
+                      const draftScope = resolveModelTestGroupScope(allDraftSubjects);
+                      const draftSubjectList = draftScope.error ? allDraftSubjects : draftScope.subjects;
+                      const scopedStudentIds = new Set((students || [])
+                        .filter((student) =>
+                          student.batchId === draft.batchId
+                          && student.isActive !== false
+                          && (!draftScope.academicGroup || sameAcademicGroup(student.academicGroup, draftScope.academicGroup))
+                        )
+                        .map((student) => student.id));
+                      const draftGroupResults = modelTestResults.filter((r: any) =>
+                        r.modelTestGroupId === draft.groupId
+                        && scopedStudentIds.has(r.studentId)
+                        && draftSubjectList.some((subject) => subject.name === r.subject)
+                      );
                       const filledSubjectNames = draftSubjectList.filter((s) =>
                         draftGroupResults.some((r: any) => r.subject === s.name)
                       );
@@ -1540,8 +1587,21 @@ export default function EntryMarks() {
                 {selectedDraftGroupId && (() => {
                   const draft = modelTestDrafts?.find((d) => d.groupId === selectedDraftGroupId);
                   if (!draft) return null;
-                  const draftSubjectList = draft.subjects as DraftSubject[];
-                  const draftGroupResults = modelTestResults.filter((r: any) => r.modelTestGroupId === selectedDraftGroupId);
+                  const allDraftSubjects = draft.subjects as DraftSubject[];
+                  const draftScope = resolveModelTestGroupScope(allDraftSubjects);
+                  const draftSubjectList = draftScope.error ? allDraftSubjects : draftScope.subjects;
+                  const scopedStudentIds = new Set((students || [])
+                    .filter((student) =>
+                      student.batchId === draft.batchId
+                      && student.isActive !== false
+                      && (!draftScope.academicGroup || sameAcademicGroup(student.academicGroup, draftScope.academicGroup))
+                    )
+                    .map((student) => student.id));
+                  const draftGroupResults = modelTestResults.filter((r: any) =>
+                    r.modelTestGroupId === selectedDraftGroupId
+                    && scopedStudentIds.has(r.studentId)
+                    && draftSubjectList.some((subject) => subject.name === r.subject)
+                  );
 
                   return (
                     <>
@@ -1553,6 +1613,11 @@ export default function EntryMarks() {
                         </CardHeader>
                         <CardContent>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {draftScope.error && (
+                              <p className="col-span-full rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                This older draft contains subjects from multiple groups. An Authority must choose one group in Edit Draft before teachers can enter marks.
+                              </p>
+                            )}
                             {draftSubjectList.map((s) => {
                               const subjectResults = draftGroupResults.filter((r: any) => r.subject === s.name);
                               const isFilled = subjectResults.length > 0;
@@ -1560,6 +1625,7 @@ export default function EntryMarks() {
                               return (
                                 <button
                                   key={s.name}
+                                  disabled={!!draftScope.error}
                                   onClick={() => { setTeacherSubjectName(s.name); setTeacherMarks({}); }}
                                   className={`rounded-xl px-3 py-3 text-sm border-2 transition-all text-left ${
                                     isSelected
@@ -1574,7 +1640,7 @@ export default function EntryMarks() {
                                     /{s.totalMarks} marks{isFilled ? ` · ${new Set(subjectResults.map((r: any) => r.studentId)).size} submitted` : ""}
                                   </div>
                                   <div className={`mt-1 text-[10px] font-semibold ${isSelected ? "text-white/80" : "text-indigo-600 dark:text-indigo-400"}`}>
-                                    {s.allGroups ? "All groups" : s.academicGroup || "All groups"}
+                                    {draftScope.academicGroup || (s.allGroups ? "All groups" : s.academicGroup || "All groups")}
                                   </div>
                                 </button>
                               );
@@ -1587,7 +1653,7 @@ export default function EntryMarks() {
                       {teacherSubjectName && (() => {
                         const subj = draftSubjectList.find((s) => s.name === teacherSubjectName);
                         const draftBatchStudents = subj
-                          ? getDraftStudentsForSubject(students, draft.batchId, subj)
+                          ? getDraftStudentsForSubject(students, draft.batchId, subj, getModelTestDraftAcademicGroup(draftSubjectList))
                           : [];
                         const markingRule = getSubjectMarkingRule(teacherSubjectName, subj);
                         const existingSubjectResults = draftGroupResults.filter((r: any) => r.subject === teacherSubjectName);
@@ -1598,12 +1664,12 @@ export default function EntryMarks() {
                               <div>
                                 <CardTitle className="text-base">Step 3 — Enter Marks: {teacherSubjectName}</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                  Total: {markingRule.total} marks · {draft.batch?.name} · {subj?.allGroups ? "All Groups" : subj?.academicGroup || "All Groups"} · {draftBatchStudents.length} students
+                                  Total: {markingRule.total} marks · {draft.batch?.name} · {draftScope.academicGroup || (subj?.allGroups ? "All Groups" : subj?.academicGroup || "All Groups")} · {draftBatchStudents.length} students
                                 </p>
                               </div>
                               <Button
                                 onClick={handleSaveTeacherMarks}
-                                disabled={saveModelTestMarksMutation.isPending}
+                                disabled={saveModelTestMarksMutation.isPending || !!draftScope.error}
                                 data-testid="button-save-teacher-marks"
                                 className="gap-2 shrink-0"
                               >
@@ -1916,6 +1982,46 @@ export default function EntryMarks() {
                 </div>
               </div>
 
+              {editDraftAvailableGroups.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Draft student group</Label>
+                  <Select
+                    value={editingDraft.academicGroup ?? "__all_groups__"}
+                    disabled={modelTestResults.some((result: any) => result.modelTestGroupId === editingDraft.groupId)}
+                    onValueChange={(value) => setEditingDraft((previous) => previous ? {
+                      ...previous,
+                      academicGroup: value === "__all_groups__" ? null : value,
+                      subjects: previous.subjects.map((subject) => ({
+                        ...subject,
+                        academicGroup: subject.allGroups
+                          ? null
+                          : value === "__all_groups__" ? subject.academicGroup : value,
+                        draftAcademicGroup: value === "__all_groups__" ? null : value,
+                      })),
+                    } : null)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select group scope" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        value="__all_groups__"
+                        disabled={editingDraft.subjects.some((subject) => !subject.allGroups && !!subject.academicGroup)}
+                      >
+                        All groups
+                      </SelectItem>
+                      {editDraftAvailableGroups.map((group) => (
+                        <SelectItem key={group} value={group}>{group}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Common subjects use this roster scope. Group-specific subjects for other groups are excluded from the result sheet.
+                    {modelTestResults.some((result: any) => result.modelTestGroupId === editingDraft.groupId)
+                      ? " The group is locked because marks have been entered."
+                      : ""}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <Label>Subjects</Label>
@@ -1991,7 +2097,9 @@ export default function EntryMarks() {
                           >
                             <SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger>
                             <SelectContent>
-                              {editDraftAvailableGroups.map((group) => (
+                              {editDraftAvailableGroups
+                                .filter((group) => !editingDraft.academicGroup || sameAcademicGroup(group, editingDraft.academicGroup))
+                                .map((group) => (
                                 <SelectItem key={group} value={group}>{group}</SelectItem>
                               ))}
                             </SelectContent>

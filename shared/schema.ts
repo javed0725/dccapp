@@ -159,6 +159,8 @@ export type ModelTestSubject = {
   practicalMax?: number;
   academicGroup?: string | null;
   allGroups?: boolean;
+  /** Selected class group for the draft, including drafts with only common subjects. */
+  draftAcademicGroup?: string | null;
 };
 
 export const modelTestDrafts = pgTable("model_test_drafts", {

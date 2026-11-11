@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   calculateModelTestStandings,
+  filterModelTestRoster,
   formatModelTestTabulation,
+  getModelTestDraftAcademicGroup,
+  resolveModelTestGroupScope,
 } from "../shared/model-test-results";
 import type { ModelTestSubject } from "../shared/schema";
 
@@ -203,4 +206,101 @@ test("tabulation keeps group-only subject cells blank for other groups", () => {
   const table = formatModelTestTabulation(draftSubjects, standings);
   assert.equal(table.columns[3].label, "Accounting");
   assert.equal(table.rows[0].subject_25_total, null);
+});
+
+test("group-scoped tabulation includes only that group's students and subjects", () => {
+  const mixedSubjects: ModelTestSubject[] = [
+    {
+      ...subjects[1],
+      name: "English 2nd",
+      totalMarks: 100,
+      allGroups: true,
+      draftAcademicGroup: "Arts",
+    },
+    {
+      ...subjects[1],
+      name: "History",
+      totalMarks: 100,
+      academicGroup: "Arts",
+      allGroups: false,
+      draftAcademicGroup: "Arts",
+    },
+    {
+      ...subjects[1],
+      name: "Physics",
+      totalMarks: 100,
+      academicGroup: "Science",
+      allGroups: false,
+      draftAcademicGroup: "Arts",
+    },
+  ];
+  const scope = resolveModelTestGroupScope(mixedSubjects);
+  assert.equal(scope.academicGroup, "Arts");
+  assert.deepEqual(scope.subjects.map((subject) => subject.name), ["English 2nd", "History"]);
+
+  const roster = filterModelTestRoster([
+    { id: 1, name: "Arts student", batchId: 9, academicGroup: "Arts" },
+    { id: 2, name: "Science student", batchId: 9, academicGroup: "Science" },
+    { id: 3, name: "Other class student", batchId: 10, academicGroup: "Arts" },
+  ], 9, scope.academicGroup);
+  assert.deepEqual(roster.map((student) => student.id), [1]);
+
+  const standings = calculateModelTestStandings(
+    scope.subjects,
+    roster,
+    [
+      mark(1, "English 2nd", 80),
+      mark(1, "History", 70),
+      mark(2, "English 2nd", 99),
+      mark(2, "Physics", 99),
+    ],
+  );
+  const table = formatModelTestTabulation(scope.subjects, standings);
+  assert.deepEqual(table.columns.map((column) => column.label), [
+    "Student ID",
+    "Student Name",
+    "English 2nd",
+    "History",
+    "Total Marks Obtained",
+    "Result Status",
+    "Merit Rank",
+  ]);
+  assert.deepEqual(table.rows.map((row) => row.studentName), ["Arts student"]);
+});
+
+test("common-only drafts retain their selected group and legacy drafts infer one group", () => {
+  const commonOnly: ModelTestSubject[] = [{
+    ...subjects[1],
+    name: "Mathematics",
+    totalMarks: 100,
+    allGroups: true,
+    draftAcademicGroup: "Commerce",
+  }];
+  assert.equal(getModelTestDraftAcademicGroup(commonOnly), "Commerce");
+  assert.equal(resolveModelTestGroupScope(commonOnly).academicGroup, "Commerce");
+  assert.deepEqual(filterModelTestRoster([
+    { id: 1, name: "Commerce student", batchId: 9, academicGroup: "Commerce" },
+    { id: 2, name: "Arts student", batchId: 9, academicGroup: "Arts" },
+  ], 9, resolveModelTestGroupScope(commonOnly).academicGroup).map((student) => student.id), [1]);
+
+  const legacy: ModelTestSubject[] = [{
+    ...subjects[1],
+    name: "Accounting",
+    academicGroup: "Commerce",
+    allGroups: false,
+  }];
+  assert.equal(getModelTestDraftAcademicGroup(legacy), "Commerce");
+  assert.deepEqual(resolveModelTestGroupScope(legacy).subjects.map((subject) => subject.name), ["Accounting"]);
+});
+
+test("legacy drafts with multiple group mappings require an explicit group", () => {
+  const mixedLegacySubjects: ModelTestSubject[] = [
+    { ...subjects[1], name: "History", academicGroup: "Arts", allGroups: false },
+    { ...subjects[1], name: "Physics", academicGroup: "Science", allGroups: false },
+    { ...subjects[1], name: "English 2nd", allGroups: true },
+  ];
+  assert.equal(resolveModelTestGroupScope(mixedLegacySubjects).groupRequired, true);
+  const artsScope = resolveModelTestGroupScope(mixedLegacySubjects, "Arts");
+  assert.equal(artsScope.error, null);
+  assert.deepEqual(artsScope.subjects.map((subject) => subject.name), ["History", "English 2nd"]);
 });
