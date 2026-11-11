@@ -18,6 +18,8 @@ import { renderAttendancePdf } from "./attendance-pdf.js";
 import { registerOmrRoutes } from "./omr-routes.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
 import { registerResultReportRoutes } from "./result-report-routes.js";
+import { registerResultPermissionMiddleware, requireResultPermission } from "./result-permissions.js";
+import { getResultPermissions, canEnterDraftMarks, visibleResultDrafts } from "../shared/result-permissions.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
   if (!user) return user;
@@ -99,6 +101,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupAuth(app);
+  registerResultPermissionMiddleware(app);
   registerOmrRoutes(app);
   registerResultReportRoutes(app);
 
@@ -782,6 +785,11 @@ export async function registerRoutes(
       return res.json(filtered);
     }
     const results = await storage.getResults();
+    if (getResultPermissions(user).canEnterMarks) {
+      const activeIds = new Set(visibleResultDrafts(user, await storage.getModelTestDrafts()).map((draft) => draft.groupId));
+      return res.json(results.filter((result) =>
+        result.isModelTest && result.modelTestGroupId && activeIds.has(result.modelTestGroupId)));
+    }
     res.json(results);
   });
 
@@ -1220,6 +1228,12 @@ export async function registerRoutes(
   app.get("/api/results/model-test/:groupId", async (req, res) => {
     if (!requireAuth(req, res)) return;
     const user = req.user as any;
+    if (getResultPermissions(user).canEnterMarks) {
+      const draft = await storage.getModelTestDraftByGroupId(req.params.groupId);
+      if (!draft || draft.status !== "draft") {
+        return res.status(403).json({ message: "Teachers can access marks only under active model-test drafts." });
+      }
+    }
     if (user.role === "student") {
       const draft = await storage.getModelTestDraftByGroupId(req.params.groupId);
       if (!draft || draft.status !== "published") {
@@ -1242,7 +1256,7 @@ export async function registerRoutes(
   app.get("/api/model-test-drafts", async (req, res) => {
     if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     const drafts = await storage.getModelTestDrafts();
-    res.json(drafts);
+    res.json(visibleResultDrafts(req.user, drafts));
   });
 
   app.post("/api/model-test-drafts", async (req, res) => {
@@ -1450,14 +1464,11 @@ export async function registerRoutes(
 
   app.delete("/api/model-test-drafts/:groupId/subject", async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    const { subject } = req.body;
-    if (!subject) return res.status(400).json({ message: "subject required" });
-    await storage.deleteResultsByGroupIdAndSubject(req.params.groupId, subject);
-    res.sendStatus(204);
+    res.status(409).json({ message: "Use Edit Draft to remove a subject from the exam structure. Direct clearing of student marks is not allowed." });
   });
 
   app.post("/api/model-test-drafts/:groupId/marks", async (req, res) => {
-    if (!requireRoles(req, res, ['admin', 'teacher'])) return;
+    if (!requireResultPermission(req, res, "canEnterMarks")) return;
     try {
       const { groupId } = req.params;
       const entriesSchema = z.array(z.object({
@@ -1478,6 +1489,9 @@ export async function registerRoutes(
 
       const draft = await storage.getModelTestDraftByGroupId(groupId);
       if (!draft) return res.status(404).json({ message: "Model test draft not found" });
+      if (!canEnterDraftMarks(req.user, draft)) {
+        return res.status(409).json({ message: "This exam is published. Marks can only be entered or updated in active drafts." });
+      }
       const subjectName = entries[0].subject;
       const draftSubject = draft.subjects.find((subject) => subject.name === subjectName);
       if (!draftSubject || entries.some((entry) =>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useStudents, useBatches } from "@/hooks/use-finance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,18 +12,19 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { type User } from "@/lib/schemas";
-import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp, Loader2, ScanLine } from "lucide-react";
+import { Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, RefreshCw, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
-import OMRScanner from "@/components/OMRScanner";
 import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
 import { ClassResultPdfDownload, IndividualResultPdfButton } from "@/components/ModelTestPdfActions";
 
 import { getBangladeshGrade as getGrade, summarizeModelTest } from "@shared/result-reports";
+import { getResultPermissions } from "@shared/result-permissions";
+import { usePortal } from "@/lib/portal-context";
 
 function gradeColor(grade: string) {
   const map: Record<string, string> = {
@@ -92,12 +93,19 @@ function getDraftScopeLabel(subjects: DraftSubject[]) {
 
 export default function EntryMarks() {
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
+  const { activePortal, setActivePortal } = usePortal();
+  const permissions = getResultPermissions(user);
+  const isAdmin = user?.role === "admin";
+  const isAuthorityUser = permissions.canManageStructure && !isAdmin;
+  const canManageView = isAdmin || (permissions.canManageStructure && activePortal === "admin");
+  const canEnterMarks = permissions.canEnterMarks && activePortal === "teacher";
+  const isStudent = user?.role === "student";
   const { data: students } = useStudents();
   const { data: batches } = useBatches();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [mode, setMode] = useState<"single" | "model" | "omr">("single");
+  const [mode, setMode] = useState<"single" | "model" | "omr">("model");
 
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [selectedShift, setSelectedShift] = useState("all");
@@ -131,8 +139,8 @@ export default function EntryMarks() {
   });
 
   const createResultMutation = useMutation({
-    mutationFn: async (data: any) => {
-      await apiRequest("POST", "/api/results", data);
+    mutationFn: async (_data: any) => {
+      throw new Error("Standalone result creation is unavailable. Use an active model test draft.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
@@ -144,8 +152,8 @@ export default function EntryMarks() {
 
   // Batch save: one HTTP call for many results, one consolidated notification.
   const createResultsBatchMutation = useMutation({
-    mutationFn: async (entries: any[]) => {
-      await apiRequest("POST", "/api/results/batch", { entries });
+    mutationFn: async (_entries: any[]) => {
+      throw new Error("Generic result batches are unavailable. Use an active model test draft.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
@@ -164,8 +172,8 @@ export default function EntryMarks() {
   } | null>(null);
 
   const updateResultMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      await apiRequest("PATCH", `/api/results/${id}`, data);
+    mutationFn: async (_variables: { id: number; data: any }) => {
+      throw new Error("Direct result editing is unavailable.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
@@ -178,8 +186,8 @@ export default function EntryMarks() {
   });
 
   const deleteResultMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/results/${id}`);
+    mutationFn: async (_id: number) => {
+      throw new Error("Direct result deletion is unavailable.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
@@ -193,10 +201,8 @@ export default function EntryMarks() {
   const [examToDelete, setExamToDelete] = useState<{ batchId: number; batchName: string; examName: string } | null>(null);
 
   const deleteExamMutation = useMutation({
-    mutationFn: async ({ batchId, examName }: { batchId: number; examName: string }) => {
-      const params = new URLSearchParams({ batchId: String(batchId), examName });
-      const res = await apiRequest("DELETE", `/api/results/exam/bulk?${params.toString()}`);
-      return res.json();
+    mutationFn: async (_variables: { batchId: number; examName: string }) => {
+      throw new Error("Legacy exam deletion is unavailable. Delete the model test draft instead.");
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/results"] });
@@ -210,6 +216,13 @@ export default function EntryMarks() {
   });
 
   const handleSaveMarks = async () => {
+    if (!canEnterMarks) return;
+    toast({
+      variant: "destructive",
+      title: "Subject-wise mark entry is unavailable",
+      description: "Enter marks through an active model test draft.",
+    });
+    return;
     if (!examName || !subject || !totalMarks || !selectedBatchId) {
       toast({ variant: "destructive", title: "Missing fields", description: "Please fill in all exam details" });
       return;
@@ -274,6 +287,12 @@ export default function EntryMarks() {
   };
 
   const handleSaveModelTest = async () => {
+    toast({
+      variant: "destructive",
+      title: "Standalone model tests are unavailable",
+      description: "Create a model test draft first, then enter marks by subject.",
+    });
+    return;
     if (!modelBatchId || !modelExamName) {
       toast({ variant: "destructive", title: "Missing fields", description: "Select batch and enter exam name" });
       return;
@@ -344,7 +363,7 @@ export default function EntryMarks() {
   const [editAddSubjectPickerOpen, setEditAddSubjectPickerOpen] = useState(false);
   const { data: subjectMasterList = [] } = useQuery<SubjectMasterOption[]>({
     queryKey: ["/api/subject-master-list"],
-    enabled: !!user && (user.role === "admin" || !!user.isAuthority),
+    enabled: !!user && canManageView,
   });
   const eligibleMasterSubjects = subjectMasterList.filter((subject) =>
     subject.batchId === null || subject.batchId === Number(draftBatchId)
@@ -388,13 +407,40 @@ export default function EntryMarks() {
   const updateDraftSubject = (i: number, subjectId: string) =>
     setDraftSubjects((p) => p.map((s, j) => j === i ? { subjectId } : s));
 
-  const { data: modelTestDrafts, refetch: refetchDrafts } = useQuery<any[]>({
+  const { data: modelTestDrafts } = useQuery<any[]>({
     queryKey: ["/api/model-test-drafts"],
     enabled: !!user && user.role !== "student",
   });
+  const activeTeacherDrafts = (modelTestDrafts || []).filter((draft) => draft.status === "draft");
+
+  useEffect(() => {
+    setMode(isStudent ? "single" : "model");
+    setEditingResult(null);
+    setEditingDraft(null);
+    setExamToDelete(null);
+    setSelectedDraftGroupId("");
+    setTeacherSubjectName("");
+    setTeacherMarks({});
+    setAbsentStudents({});
+    setMarks({});
+    setSingleAbsents({});
+    setMarkErrors({});
+  }, [user?.role, user?.isAuthority, activePortal, isStudent]);
+
+  useEffect(() => {
+    if (!selectedDraftGroupId) return;
+    const selectedDraft = modelTestDrafts?.find((draft) => draft.groupId === selectedDraftGroupId);
+    if (!canEnterMarks || !selectedDraft || selectedDraft.status !== "draft") {
+      setSelectedDraftGroupId("");
+      setTeacherSubjectName("");
+      setTeacherMarks({});
+      setAbsentStudents({});
+    }
+  }, [modelTestDrafts, selectedDraftGroupId, canEnterMarks]);
 
   const createDraftMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (!canManageView) throw new Error("Only Authority users can manage model test drafts.");
       const res = await apiRequest("POST", "/api/model-test-drafts", data);
       return res.json();
     },
@@ -411,6 +457,8 @@ export default function EntryMarks() {
 
   const publishDraftMutation = useMutation({
     mutationFn: async (groupId: string) => {
+      const draft = modelTestDrafts?.find((item) => item.groupId === groupId);
+      if (!canManageView || draft?.status !== "draft") throw new Error("Only active drafts can be published by Authority users.");
       await apiRequest("PATCH", `/api/model-test-drafts/${groupId}/publish`, {});
     },
     onSuccess: () => {
@@ -423,6 +471,8 @@ export default function EntryMarks() {
 
   const deleteDraftMutation = useMutation({
     mutationFn: async (groupId: string) => {
+      const draft = modelTestDrafts?.find((item) => item.groupId === groupId);
+      if (!canManageView || !draft) throw new Error("Only Authority users can delete model test drafts.");
       await apiRequest("DELETE", `/api/model-test-drafts/${groupId}`);
     },
     onSuccess: () => {
@@ -438,6 +488,8 @@ export default function EntryMarks() {
       groupId: string;
       data: { examName: string; subjects: Array<{ subjectId?: number; name: string; academicGroup: string | null }> };
     }) => {
+      const draft = modelTestDrafts?.find((item) => item.groupId === groupId);
+      if (!canManageView || !draft) throw new Error("Only Authority users can edit model test drafts.");
       const response = await apiRequest("PATCH", `/api/model-test-drafts/${groupId}`, data);
       return response.json();
     },
@@ -456,6 +508,8 @@ export default function EntryMarks() {
 
   const saveModelTestMarksMutation = useMutation({
     mutationFn: async ({ groupId, entries }: { groupId: string; entries: any[] }) => {
+      const draft = modelTestDrafts?.find((item) => item.groupId === groupId);
+      if (!canEnterMarks || draft?.status !== "draft") throw new Error("Marks can only be entered by teacher-only accounts in active drafts.");
       const res = await apiRequest("POST", `/api/model-test-drafts/${groupId}/marks`, { entries });
       return res.json();
     },
@@ -479,6 +533,7 @@ export default function EntryMarks() {
   });
 
   const handleCreateDraft = () => {
+    if (!canManageView) return;
     if (!draftExamName.trim() || !draftBatchId) {
       toast({ variant: "destructive", title: "Fill in Exam Name and Batch" });
       return;
@@ -532,6 +587,7 @@ export default function EntryMarks() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const openDraftEditor = (draft: any) => {
+    if (!canManageView) return;
     setEditAddSubjectPickerOpen(false);
     setEditingDraft({
       groupId: draft.groupId,
@@ -568,7 +624,9 @@ export default function EntryMarks() {
   };
 
   const handleUpdateDraft = () => {
+    if (!canManageView) return;
     if (!editingDraft) return;
+    if (editingDraft.status !== "draft") return;
     if (!editingDraft.examName.trim()) {
       toast({ variant: "destructive", title: "Enter an exam name" });
       return;
@@ -597,9 +655,6 @@ export default function EntryMarks() {
       const totalRows = removedWithMarks.reduce((sum, entry) => sum + entry.count, 0);
       warnings.push(`Removing ${removedWithMarks.map(({ subject }) => subject.name).join(", ")} will permanently delete ${totalRows} saved mark record${totalRows === 1 ? "" : "s"}.`);
     }
-    if (editingDraft.status === "published" && hasSubjectChanges) {
-      warnings.push("Because this test is published, changing its subjects will return it to Draft and hide its results until it is published again.");
-    }
     if (warnings.length && !confirm(`${warnings.join("\n\n")}\n\nSave these changes?`)) return;
 
     updateDraftMutation.mutate({
@@ -616,8 +671,9 @@ export default function EntryMarks() {
   };
 
   const handleSaveTeacherMarks = async () => {
+    if (!canEnterMarks) return;
     const draft = modelTestDrafts?.find((d) => d.groupId === selectedDraftGroupId);
-    if (!draft || !teacherSubjectName) return;
+    if (!draft || draft.status !== "draft" || !teacherSubjectName) return;
     const subj = (draft.subjects as DraftSubject[]).find((s) => s.name === teacherSubjectName);
     if (!subj) return;
     const markingRule = getSubjectMarkingRule(teacherSubjectName, subj);
@@ -694,10 +750,8 @@ export default function EntryMarks() {
     saveModelTestMarksMutation.mutate({ groupId: draft.groupId, entries });
   };
 
-  const isTeacher = user?.role === "teacher";
-  const isStudent = user?.role === "student";
-  const isAdmin = user?.role === "admin";
-  const canManagePublishedResults = isAdmin || !!user?.isAuthority;
+  const isTeacher = canEnterMarks;
+  const canManagePublishedResults = canManageView && permissions.canManageStructure;
 
   const singleResults = results?.filter((r: any) => !r.isModelTest) || [];
   const modelTestResults = results?.filter((r: any) => r.isModelTest && r.modelTestGroupId) || [];
@@ -730,15 +784,17 @@ export default function EntryMarks() {
       subtitle={isStudent ? "Your academic performance overview" : "Record and review student exam results"}
     >
       <div className="space-y-6">
-        {/* Tab switcher — visible to all roles */}
+        {/* Students retain result tabs; staff use the model-test workflow only. */}
         <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
-          <Button
-            variant={mode === "single" ? "default" : "ghost"}
-            onClick={() => setMode("single")}
-            className="gap-2 rounded-lg"
-          >
-            <BookOpen className="w-4 h-4" /> Subject-wise Result
-          </Button>
+          {isStudent && (
+            <Button
+              variant={mode === "single" ? "default" : "ghost"}
+              onClick={() => setMode("single")}
+              className="gap-2 rounded-lg"
+            >
+              <BookOpen className="w-4 h-4" /> Subject-wise Result
+            </Button>
+          )}
           <Button
             variant={mode === "model" ? "default" : "ghost"}
             onClick={() => setMode("model")}
@@ -746,19 +802,10 @@ export default function EntryMarks() {
           >
             <ClipboardList className="w-4 h-4" /> Model Test
           </Button>
-          {isTeacher && (
-            <Button
-              variant={mode === "omr" ? "default" : "ghost"}
-              onClick={() => setMode("omr")}
-              className="gap-2 rounded-lg"
-            >
-              <ScanLine className="w-4 h-4" /> OMR Scanner
-            </Button>
-          )}
         </div>
 
         {/* ── SUBJECT-WISE TAB ── */}
-        {mode === "single" && (
+        {mode === "single" && isStudent && (
           <div className="space-y-6">
             {/* Entry forms — teacher only */}
             {isTeacher && (
@@ -1138,7 +1185,7 @@ export default function EntryMarks() {
           <div className="space-y-5">
 
             {/* ═══ ADMIN VIEW ═══ */}
-            {(isAdmin || user?.isAuthority) && (
+            {canManageView && (
               <>
                 {/* Create Draft Card */}
                 <Card className="border-2 border-slate-100">
@@ -1300,20 +1347,23 @@ export default function EntryMarks() {
                                 <Badge className={draft.status === "published" ? "bg-green-500 text-white" : "bg-amber-400 text-white"}>
                                   {draft.status === "published" ? "Published" : "Draft"}
                                 </Badge>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-1.5"
-                                  onClick={() => openDraftEditor(draft)}
-                                >
-                                  <Pencil className="w-3.5 h-3.5" /> Edit Draft
-                                </Button>
+                                {canManageView && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1.5"
+                                    onClick={() => openDraftEditor(draft)}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" /> Edit Draft
+                                  </Button>
+                                )}
                                 {draft.status === "draft" && (
                                   <Button
                                     size="sm"
                                     className="gap-1.5 bg-green-600 hover:bg-green-700"
                                     disabled={publishDraftMutation.isPending}
                                     onClick={() => {
+                                      if (!canManageView || draft.status !== "draft") return;
                                       if (confirm(`Publish "${draft.examName}"? Students will be able to view results immediately.`)) {
                                         publishDraftMutation.mutate(draft.groupId);
                                       }
@@ -1322,18 +1372,22 @@ export default function EntryMarks() {
                                     <Send className="w-3.5 h-3.5" /> Publish Result
                                   </Button>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => {
-                                    if (confirm(`Delete draft "${draft.examName}" and all its marks? This cannot be undone.`)) {
-                                      deleteDraftMutation.mutate(draft.groupId);
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {canManageView && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Delete draft ${draft.examName}`}
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => {
+                                      if (!canManageView) return;
+                                      if (confirm(`Delete draft "${draft.examName}" and all its marks? This cannot be undone.`)) {
+                                        deleteDraftMutation.mutate(draft.groupId);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </CardHeader>
@@ -1417,17 +1471,6 @@ export default function EntryMarks() {
                                                 <IndividualResultPdfButton groupId={draft.groupId} studentId={rowStudentId} />
                                               )}
                                               {isAdmin && draft.status === "published" && <WhatsAppBtn url={waUrl} />}
-                                              <Button
-                                                variant="ghost" size="icon"
-                                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                onClick={() => {
-                                                  if (confirm(`Delete ${st?.name}'s results in this exam?`)) {
-                                                    studentRes.forEach((r: any) => deleteResultMutation.mutate(r.id));
-                                                  }
-                                                }}
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </Button>
                                             </div>
                                           </TableCell>
                                         </TableRow>
@@ -1455,7 +1498,7 @@ export default function EntryMarks() {
             )}
 
             {/* ═══ TEACHER VIEW ═══ */}
-            {isTeacher && (
+            {canEnterMarks && (
               <div className="space-y-4">
                 {/* Step 1: Select Draft */}
                 <Card>
@@ -1470,7 +1513,7 @@ export default function EntryMarks() {
                     >
                       <SelectTrigger><SelectValue placeholder="Select active model test..." /></SelectTrigger>
                       <SelectContent>
-                        {modelTestDrafts?.filter((d) => d.status === "draft").map((d) => (
+                        {activeTeacherDrafts.map((d) => (
                           <SelectItem key={d.groupId} value={d.groupId}>
                             {d.examName} — {d.batch?.name} · {getDraftScopeLabel(d.subjects as DraftSubject[])}
                           </SelectItem>
@@ -1481,7 +1524,7 @@ export default function EntryMarks() {
                 </Card>
 
                 {selectedDraftGroupId && (() => {
-                  const draft = modelTestDrafts?.find((d) => d.groupId === selectedDraftGroupId);
+                  const draft = activeTeacherDrafts.find((d) => d.groupId === selectedDraftGroupId);
                   if (!draft) return null;
                   const draftSubjectList = draft.subjects as DraftSubject[];
                   const draftGroupResults = modelTestResults.filter((r: any) => r.modelTestGroupId === selectedDraftGroupId);
@@ -1666,7 +1709,7 @@ export default function EntryMarks() {
                   );
                 })()}
 
-                {(!modelTestDrafts?.filter((d) => d.status === "draft").length) && (
+                {activeTeacherDrafts.length === 0 && (
                   <div className="text-center py-14 text-slate-400">
                     <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p className="font-medium">No active model tests</p>
@@ -1731,13 +1774,25 @@ export default function EntryMarks() {
             )}
           </div>
         )}
-        {mode === "omr" && isTeacher && (
-          <OMRScanner onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/results"] })} />
+        {mode === "model" && isAuthorityUser && activePortal === "teacher" && (
+          <Card className="border-amber-300 bg-amber-50/70">
+            <CardContent className="flex flex-col items-start justify-between gap-4 py-5 sm:flex-row sm:items-center">
+              <div>
+                <p className="font-semibold text-amber-950">Read-only in Teacher portal</p>
+                <p className="mt-1 text-sm text-amber-900/80">
+                  Authority accounts cannot enter marks. Switch to the Authority panel to manage model tests and review results.
+                </p>
+              </div>
+              <Button onClick={() => setActivePortal("admin")} className="shrink-0">
+                Switch to Authority panel
+              </Button>
+            </CardContent>
+          </Card>
         )}
       </div>
 
       {/* Bulk Delete Exam Confirmation */}
-      <AlertDialog open={!!examToDelete} onOpenChange={(open) => !open && !deleteExamMutation.isPending && setExamToDelete(null)}>
+      <AlertDialog open={!!examToDelete && isAdmin} onOpenChange={(open) => !open && !deleteExamMutation.isPending && setExamToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete entire exam?</AlertDialogTitle>
@@ -1759,7 +1814,7 @@ export default function EntryMarks() {
               className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-600"
               onClick={(e) => {
                 e.preventDefault();
-                if (examToDelete) {
+                if (isAdmin && examToDelete) {
                   deleteExamMutation.mutate({ batchId: examToDelete.batchId, examName: examToDelete.examName });
                 }
               }}
@@ -1771,12 +1826,12 @@ export default function EntryMarks() {
       </AlertDialog>
 
       {/* Edit Result Dialog — admin only */}
-      <Dialog open={!!editingResult} onOpenChange={(open) => !open && setEditingResult(null)}>
+      <Dialog open={false} onOpenChange={(open) => !open && setEditingResult(null)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Edit Result Record</DialogTitle>
           </DialogHeader>
-          {editingResult && (
+          {editingResult && isAdmin && (
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Exam Name</Label>
@@ -1834,7 +1889,7 @@ export default function EntryMarks() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingDraft} onOpenChange={(open) => {
+      <Dialog open={!!editingDraft && canManageView} onOpenChange={(open) => {
         if (!open) {
           setEditAddSubjectPickerOpen(false);
           setEditingDraft(null);
@@ -1847,7 +1902,7 @@ export default function EntryMarks() {
               Update the name or subject list. Class stays fixed so saved student records remain attached to the right group.
             </p>
           </DialogHeader>
-          {editingDraft && (
+          {editingDraft && canManageView && (
             <div className="space-y-5 pt-2">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
