@@ -1329,6 +1329,34 @@ export async function registerRoutes(
     });
   });
 
+  app.get("/api/model-test-drafts/:groupId/pdf", async (req, res) => {
+    if (!requireRoles(req, res, ["admin", "teacher"])) return;
+    try {
+      const requestedGroup = typeof req.query.group === "string" ? req.query.group : undefined;
+      const processed = await getModelTestStandings(req.params.groupId, requestedGroup);
+      if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+      if (processed.scopeError) return res.status(400).json({ message: processed.scopeError });
+      const batches = await storage.getBatches();
+      const batch = batches.find((candidate) => candidate.id === processed.batchId);
+      const { renderClassResultSheetPdf } = await import("./class-result-pdf.js");
+      const pdf = await renderClassResultSheetPdf({
+        examName: processed.examName,
+        className: batch?.name || `Class ${processed.batchId}`,
+        groupName: processed.academicGroup || "All Groups",
+      }, formatModelTestTabulation(processed.subjects, processed.standings));
+      const filename = `${processed.examName}_${batch?.name || processed.batchId}_Result_Sheet`
+        .replace(/[^A-Za-z0-9_-]+/g, "_");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}.pdf"`);
+      res.setHeader("Content-Length", pdf.length);
+      res.setHeader("Cache-Control", "no-store");
+      res.send(pdf);
+    } catch (error) {
+      console.error("[Class Result PDF] OpenType rendering failed:", error);
+      if (!res.headersSent) res.status(500).json({ message: "Could not generate the class result PDF" });
+    }
+  });
+
   // Model Test Drafts Routes
   app.get("/api/model-test-drafts", async (req, res) => {
     if (!requireRoles(req, res, ['admin', 'teacher'])) return;

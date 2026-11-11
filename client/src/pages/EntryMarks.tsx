@@ -748,19 +748,7 @@ export default function EntryMarks() {
   const handleDownloadClassResultPdf = async (draft: any) => {
     setDownloadingPdfGroupId(draft.groupId);
     try {
-      const response = await fetch(`/api/model-test-drafts/${encodeURIComponent(draft.groupId)}/tabulation`, {
-        credentials: "include",
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(data?.message || "Could not load the class tabulation");
-      }
-      await downloadClassResultSheetPdf({
-        groupId: draft.groupId,
-        examName: draft.examName,
-        className: draft.batch?.name || `Class ${draft.batchId}`,
-        groupName: getDraftScopeLabel(draft.subjects as DraftSubject[]),
-      }, data);
+      await downloadClassResultSheetPdf(draft.groupId);
       toast({
         title: "Class result PDF downloaded",
         description: `${draft.examName} · ${draft.batch?.name || `Class ${draft.batchId}`}`,
