@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, existsSync } from "node:fs";
 import { getBangladeshGrade, summarizeModelTest, rankModelTestReports, ordinal } from "../shared/result-reports.js";
 import { renderTranscriptPdf, renderTabulationPdf } from "../server/result-pdf.js";
 
@@ -13,6 +14,19 @@ const results = [
   { id: 1, studentId: 1, batchId: 9, subject: "English 2nd", totalMarks: 50, obtainedMarks: 40 },
   { id: 2, studentId: 1, batchId: 9, subject: "Physics", totalMarks: 100, obtainedMarks: 85, cqMarks: 45, mcqMarks: 20, practicalMarks: 20 },
 ];
+
+test("Vercel PDF assets use a single includeFiles glob string and remain available", () => {
+  const config = JSON.parse(readFileSync("vercel.json", "utf8"));
+  const pattern = config.functions["api/index.ts"].includeFiles;
+  assert.equal(typeof pattern, "string", "Vercel rejects includeFiles arrays before the build starts");
+  assert.ok(pattern.length <= 256);
+  assert.ok(pattern.includes("client/public/fonts/*.ttf"));
+  assert.ok(pattern.includes("attached_assets/IMG_20260126_081644_1769393818079.jpg"));
+  for (const file of ["client/public/fonts/NotoSansBengali-Regular.ttf",
+    "client/public/fonts/NotoSansBengali-Bold.ttf", "attached_assets/IMG_20260126_081644_1769393818079.jpg"]) {
+    assert.ok(existsSync(file), `Required PDF asset is missing: ${file}`);
+  }
+});
 
 test("Bangladesh grade boundaries normalize custom subject maxima", () => {
   for (const [marks, grade, gp] of [[80, "A+", 5], [79, "A", 4], [70, "A", 4], [69, "A-", 3.5],

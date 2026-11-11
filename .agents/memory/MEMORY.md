@@ -1,3 +1,4 @@
 - [Package installation side effects](package-installation-side-effects.md) — npm package installation may modify Replit module config and lockfile optional metadata; review and restore unrelated changes.
 - [Vercel ESM verification](vercel-esm-verification.md) — verify the emitted, unbundled backend graph; bundled smoke tests hide Node ESM import-resolution failures.
 - [Outgoing asset tracking](outgoing-asset-tracking.md) — inspect all outgoing commits for asset deletions; a successful local build can use files absent from Git.
+- [Vercel configuration validation](vercel-config-validation.md) — local builds do not validate Vercel configuration; function asset inclusion requires a single glob string.
