@@ -15,7 +15,6 @@ import { setupAuth } from "./auth/auth.js";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf.js";
-import { registerOmrRoutes } from "./omr-routes.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
 
 function removePassword<T extends { password?: string } | null | undefined>(user: T) {
@@ -98,8 +97,6 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   setupAuth(app);
-  registerOmrRoutes(app);
-
   // Health-check — useful for diagnosing Vercel cold starts and DB connectivity
   app.get("/api/health", async (_req, res) => {
     const sessionSecret = process.env.SESSION_SECRET;

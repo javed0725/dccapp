@@ -12,14 +12,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { type User } from "@/lib/schemas";
-import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp, Loader2, ScanLine } from "lucide-react";
+import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
-import OMRScanner from "@/components/OMRScanner";
 import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
@@ -106,7 +105,7 @@ export default function EntryMarks() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [mode, setMode] = useState<"single" | "model" | "omr">("single");
+  const [mode, setMode] = useState<"single" | "model">("single");
 
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [selectedShift, setSelectedShift] = useState("all");
@@ -754,15 +753,6 @@ export default function EntryMarks() {
           >
             <ClipboardList className="w-4 h-4" /> Model Test
           </Button>
-          {isTeacher && (
-            <Button
-              variant={mode === "omr" ? "default" : "ghost"}
-              onClick={() => setMode("omr")}
-              className="gap-2 rounded-lg"
-            >
-              <ScanLine className="w-4 h-4" /> OMR Scanner
-            </Button>
-          )}
         </div>
 
         {/* ── SUBJECT-WISE TAB ── */}
@@ -1715,9 +1705,6 @@ export default function EntryMarks() {
               </div>
             )}
           </div>
-        )}
-        {mode === "omr" && isTeacher && (
-          <OMRScanner onSaved={() => queryClient.invalidateQueries({ queryKey: ["/api/results"] })} />
         )}
       </div>
 
