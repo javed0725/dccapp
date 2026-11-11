@@ -34,6 +34,17 @@ function logHandlerError(event: string, error: unknown, req?: Request) {
   }));
 }
 
+export function sendJsonError(res: any, statusCode: number, payload: Record<string, unknown>) {
+  // Initialization can fail before Express decorates Vercel's native
+  // ServerResponse with .status() and .json().
+  if (typeof res.status === "function" && typeof res.json === "function") {
+    return res.status(statusCode).json(payload);
+  }
+  res.statusCode = statusCode;
+  res.setHeader?.("Content-Type", "application/json; charset=utf-8");
+  return res.end(JSON.stringify(payload));
+}
+
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
 
@@ -77,14 +88,20 @@ export default async function handler(req: any, res: any) {
   } catch (err) {
     console.error("[Vercel] Application initialization failed:", err);
     logHandlerError("initialization_failed", err, req);
-    return res.status(503).json({ message: "Service initialization failed. Please try again." });
+    return sendJsonError(res, 503, {
+      code: "HANDLER_INITIALIZATION_FAILED",
+      message: "Service initialization failed. Please try again.",
+    });
   }
   try {
     return app(req, res);
   } catch (err) {
     logHandlerError("invocation_failed", err, req);
     if (!res.headersSent) {
-      return res.status(500).json({ message: "A server error occurred. Please try again." });
+      return sendJsonError(res, 500, {
+        code: "HANDLER_INVOCATION_FAILED",
+        message: "A server error occurred. Please try again.",
+      });
     }
     throw err;
   }
