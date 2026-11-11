@@ -1,5 +1,4 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
 import { createServer } from "http";
 
 const app = express();
@@ -55,7 +54,9 @@ let ready: Promise<void> | null = null;
 
 function initializeApplication(): Promise<void> {
   if (!ready) {
-    ready = registerRoutes(httpServer, app).then(() => {
+    ready = import("./routes")
+      .then(({ registerRoutes }) => registerRoutes(httpServer, app))
+      .then(() => {
       // Global error handler (must be registered AFTER routes)
       app.use((err: any, req: Request, res: Response, next: NextFunction) => {
         const status = err.status || err.statusCode || 500;
@@ -64,7 +65,7 @@ function initializeApplication(): Promise<void> {
         if (res.headersSent) return next(err);
         res.status(status).json({ message });
       });
-    });
+      });
   }
   return ready;
 }

@@ -46,15 +46,9 @@ async function buildAll() {
   };
 
   if (isVercel) {
-    // Vercel build: only build the serverless handler — externalize ALL deps
-    // so Vercel's npm install handles them, keeping the bundle tiny.
-    console.log("building vercel handler...");
-    await esbuild({
-      ...baseBuildConfig,
-      entryPoints: ["server/handler.ts"],
-      outfile: "api/_server.cjs",
-      external: allDeps,
-    });
+    // Vercel compiles api/index.js and its TypeScript imports as a native
+    // Node.js function; no generated CJS sibling is required at runtime.
+    console.log("Vercel will bundle the api/index.js function directly.");
   } else {
     // Replit build: bundle allowlisted deps into a single file for faster cold starts
     console.log("building replit server...");
@@ -66,14 +60,6 @@ async function buildAll() {
       external: replitExternals,
     });
 
-    // Also build the Vercel handler for local testing
-    console.log("building vercel handler...");
-    await esbuild({
-      ...baseBuildConfig,
-      entryPoints: ["server/handler.ts"],
-      outfile: "api/_server.cjs",
-      external: allDeps,
-    });
   }
 }
 

@@ -4,7 +4,7 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-const databaseUrlEnvironmentKeys = [
+export const databaseUrlEnvironmentKeys = [
   "CUSTOM_DATABASE_URL",
   "EXTERNAL_DATABASE_URL",
   "NEON_DATABASE_URL",
@@ -31,10 +31,17 @@ if (!rawConnectionString) {
 
 // Strip parameters unsupported by node-postgres (e.g. channel_binding)
 // so the driver doesn't reject the connection string.
-function sanitizeConnectionString(url: string): string {
+export function sanitizeConnectionString(url: string, forceVercelSsl: boolean): string {
   try {
     const parsed = new URL(url);
     parsed.searchParams.delete("channel_binding");
+    if (forceVercelSsl) {
+      // The URL parser can otherwise override node-postgres's explicit ssl
+      // object when a provider URL contains sslmode=disable/verify-full.
+      for (const key of ["sslmode", "ssl", "sslcert", "sslkey", "sslrootcert", "sslpassword", "uselibpqcompat"]) {
+        parsed.searchParams.delete(key);
+      }
+    }
     return parsed.toString();
   } catch {
     return url;
@@ -57,11 +64,11 @@ export function getPool(): pg.Pool {
           `No database URL configured. Set one of: ${databaseUrlEnvironmentKeys.join(", ")}`,
         );
       }
-      const connectionString = rawConnectionString
-        ? sanitizeConnectionString(rawConnectionString)
-        : undefined;
+      const connectionString = sanitizeConnectionString(rawConnectionString, isServerless);
       const pool = new Pool({
-        connectionString: connectionString ?? "",
+        connectionString,
+        // Force TLS for Vercel/Neon connections; rejectUnauthorized:false
+        // supports providers whose pool endpoint uses a non-public CA chain.
         ssl: { rejectUnauthorized: false },
         // Reuse one client per warm serverless instance; use a larger pool for
         // the long-running Replit server.

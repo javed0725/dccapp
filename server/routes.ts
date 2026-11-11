@@ -1,4 +1,9 @@
-import { db, databaseUrlEnvironmentKey, hasDatabaseUrl } from "./db";
+import {
+  db,
+  databaseUrlEnvironmentKey,
+  databaseUrlEnvironmentKeys,
+  hasDatabaseUrl,
+} from "./db";
 import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
 import { students, incomes as incomesTable, users, type ModelTestSubject } from "@shared/schema";
 import type { Express } from "express";
@@ -108,6 +113,8 @@ export async function registerRoutes(
       return res.status(503).json({
         status: "error",
         db: "not_configured",
+        code: "DATABASE_URL_MISSING",
+        message: `Set one of: ${databaseUrlEnvironmentKeys.join(", ")}`,
         ...healthDetails,
       });
     }

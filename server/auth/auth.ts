@@ -5,7 +5,11 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { storage } from "../storage";
-import { lazyPool } from "../db";
+import {
+  databaseUrlEnvironmentKeys,
+  hasDatabaseUrl,
+  lazyPool,
+} from "../db";
 import { type User as SelectUser } from "@shared/schema";
 
 declare global {
@@ -173,6 +177,17 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", async (req, res, next) => {
+    if (!hasDatabaseUrl) {
+      const error = new Error(
+        `No database URL configured. Set one of: ${databaseUrlEnvironmentKeys.join(", ")}`,
+      );
+      console.error("[Auth] Login unavailable: database URL is missing.", error);
+      return res.status(503).json({
+        code: "DATABASE_URL_MISSING",
+        message: "Database is not configured. Set DATABASE_URL or a supported database URL variable.",
+        acceptedEnvironmentKeys: databaseUrlEnvironmentKeys,
+      });
+    }
     try {
       const { user, info } = await new Promise<{
         user: Express.User | false;
