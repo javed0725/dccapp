@@ -6,11 +6,11 @@
     "NODE_ENV": "production"
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index.js" },
+    { "source": "/api/:path*", "destination": "/api/index.ts" },
     { "source": "/:path*", "destination": "/index.html" }
   ],
   "functions": {
-    "api/index.js": {
+    "api/index.ts": {
       "maxDuration": 30
     }
   }
