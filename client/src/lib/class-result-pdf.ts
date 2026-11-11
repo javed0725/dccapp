@@ -44,23 +44,15 @@ async function addBengaliFonts(doc: {
   doc.addFont("NotoSansBengali-Bold.ttf", "NotoSansBengali", "bold");
 }
 
-function chunkSubjectColumns(subjects: PdfColumn[], maxSubcolumns: number): PdfColumn[][] {
-  const chunks: PdfColumn[][] = [];
-  let currentChunk: PdfColumn[] = [];
-  let currentWidth = 0;
-
-  for (const subject of subjects) {
-    const weight = Math.max(1, subject.children?.length ?? 1);
-    if (currentChunk.length > 0 && currentWidth + weight > maxSubcolumns) {
-      chunks.push(currentChunk);
-      currentChunk = [];
-      currentWidth = 0;
-    }
-    currentChunk.push(subject);
-    currentWidth += weight;
-  }
-  if (currentChunk.length > 0 || chunks.length === 0) chunks.push(currentChunk);
-  return chunks;
+function subjectValueColumns(subject: PdfColumn): NonNullable<PdfColumn["children"]> {
+  const children = subject.children ?? [];
+  const components = children.filter((column) =>
+    column.label.trim().toLowerCase() !== "total"
+    && !/(^|_)total$/i.test(column.key)
+  );
+  // Total-only subjects still need one score cell; component subjects rely on
+  // the grand total at the end of the row instead of a per-subject total cell.
+  return components.length > 0 ? components : children.slice(0, 1);
 }
 
 function safeFilename(value: string): string {
@@ -82,168 +74,172 @@ export async function createClassResultSheetPdf(
     column.key === "studentId" || column.key === "studentName"
   );
   const subjects = tabulation.columns.filter((column) => !!column.children?.length);
-  const summaryColumns = tabulation.columns.filter((column) =>
-    ["totalMarksObtained", "resultStatus", "meritRank"].includes(column.key)
-  );
-  const subjectChunks = chunkSubjectColumns(subjects, 12);
+  // Keep the cumulative score as the final column while retaining status/rank.
+  const summaryOrder = ["resultStatus", "meritRank", "totalMarksObtained"];
+  const summaryColumns = summaryOrder
+    .map((key) => tabulation.columns.find((column) => column.key === key))
+    .filter((column): column is PdfColumn => !!column);
+  const subjectCells = subjects.map(subjectValueColumns);
+  const flattenedSubjectColumns = subjectCells.flat();
   const passed = tabulation.rows.filter((row) => row.resultStatus === "Passed").length;
   const failed = tabulation.rows.filter((row) => row.resultStatus === "Failed").length;
   const pending = tabulation.rows.filter((row) => row.resultStatus === "Pending").length;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-    const availableTableWidth = pageWidth - 20;
+  const tableSideMargin = 6;
+  const availableTableWidth = pageWidth - tableSideMargin * 2;
   const fixedWidths: Record<string, number> = {
-    studentId: 20,
-    studentName: 38,
-    totalMarksObtained: 23,
-    resultStatus: 20,
-    meritRank: 17,
+    studentId: 16,
+    studentName: 31,
+    totalMarksObtained: 20,
+    resultStatus: 16,
+    meritRank: 13,
   };
-    const fixedColumnWidth = Object.values(fixedWidths).reduce((sum, width) => sum + width, 0);
+  const fixedColumnWidth = [...studentColumns, ...summaryColumns]
+    .reduce((sum, column) => sum + (fixedWidths[column.key] ?? 16), 0);
+  const subjectMarkWidth = flattenedSubjectColumns.length > 0
+    ? (availableTableWidth - fixedColumnWidth) / flattenedSubjectColumns.length
+    : 0;
+  const tableWidth = fixedColumnWidth + flattenedSubjectColumns.length * subjectMarkWidth;
+  const tableLeftMargin = (pageWidth - tableWidth) / 2;
+  const subjectFontSize = subjectMarkWidth > 15 ? 6.4 : Math.max(2.6, subjectMarkWidth * 0.43);
+  const rowCount = Math.max(1, tabulation.rows.length);
+  const tableStartY = 32;
+  const bottomMargin = 13;
+  const headerHeightEstimate = 9;
+  const rowHeightBudget = (pageHeight - tableStartY - bottomMargin - headerHeightEstimate) / rowCount;
+  const rowFontSize = Math.max(2.6, Math.min(6.2, (rowHeightBudget - 0.25) / 0.406));
+  const fontSize = Math.min(subjectFontSize, rowFontSize);
+  const cellPadding = Math.max(0.08, Math.min(0.6, (rowHeightBudget - fontSize * 0.406) / 2));
+  const columnStyles: Record<number, { cellWidth: number; halign?: "left" | "center" }> = {};
 
-  subjectChunks.forEach((chunk, chunkIndex) => {
-    if (chunkIndex > 0) doc.addPage("a4", "landscape");
+  let columnIndex = 0;
+  for (const column of studentColumns) {
+    columnStyles[columnIndex++] = {
+      cellWidth: fixedWidths[column.key] ?? 16,
+      halign: column.key === "studentName" ? "left" : "center",
+    };
+  }
+  flattenedSubjectColumns.forEach((_, index) => {
+    columnStyles[columnIndex + index] = { cellWidth: subjectMarkWidth, halign: "center" };
+  });
+  columnIndex += flattenedSubjectColumns.length;
+  for (const column of summaryColumns) {
+    columnStyles[columnIndex++] = { cellWidth: fixedWidths[column.key] ?? 16, halign: "center" };
+  }
 
-    const flattenedSubjectColumns = chunk.flatMap((subject) => subject.children ?? []);
-    const columnCount = studentColumns.length + flattenedSubjectColumns.length + summaryColumns.length;
-    const subjectMarkWidth = Math.min(
-      22,
-      Math.max(8, (availableTableWidth - fixedColumnWidth) / Math.max(1, flattenedSubjectColumns.length)),
-    );
-    const tableWidth = fixedColumnWidth + flattenedSubjectColumns.length * subjectMarkWidth;
-    const tableSideMargin = (pageWidth - tableWidth) / 2;
-    const columnStyles: Record<number, { cellWidth: number; halign?: "left" | "center" }> = {};
-    let columnIndex = 0;
-    for (const column of studentColumns) {
-      columnStyles[columnIndex++] = {
-        cellWidth: fixedWidths[column.key] ?? 20,
-        halign: column.key === "studentName" ? "left" : "center",
-      };
-    }
-    columnIndex += flattenedSubjectColumns.length;
-    for (const column of summaryColumns) {
-      columnStyles[columnIndex++] = {
-        cellWidth: fixedWidths[column.key] ?? 20,
-        halign: "center",
-      };
-    }
-    const subjectColumnStart = studentColumns.length;
-    flattenedSubjectColumns.forEach((_, index) => {
-      columnStyles[subjectColumnStart + index] = { cellWidth: subjectMarkWidth, halign: "center" };
-    });
-
-    const firstHeaderRow = [
-      ...studentColumns.map((column) => ({
-        content: column.label,
-        rowSpan: 2,
-        styles: { valign: "middle", halign: "center" },
-      })),
-      ...chunk.map((subject) => ({
-        content: subject.label,
-        colSpan: subject.children?.length ?? 1,
-        styles: { halign: "center", valign: "middle" },
-      })),
-      ...summaryColumns.map((column) => ({
-        content: column.label,
-        rowSpan: 2,
-        styles: { valign: "middle", halign: "center" },
-      })),
-    ];
-    const secondHeaderRow = chunk.flatMap((subject) =>
-      (subject.children ?? []).map((column) => ({
-        content: `${column.label === "Practical" ? "Prac." : column.label} / ${column.max}`,
-        styles: { halign: "center", valign: "middle" },
-      }))
-    );
-    const head = [firstHeaderRow, secondHeaderRow];
-    const body = tabulation.rows.map((row) => [
-      ...studentColumns.map((column) => String(row[column.key] ?? "—")),
-      ...flattenedSubjectColumns.map((column) => {
-        const value = row[column.key];
-        return value === null || value === undefined ? "—" : String(value);
-      }),
-      ...summaryColumns.map((column) => String(row[column.key] ?? "—")),
+  const firstHeaderRow = [
+    ...studentColumns.map((column) => ({
+      content: column.label,
+      rowSpan: 2,
+      styles: { valign: "middle", halign: "center" },
+    })),
+    ...subjects.map((subject, index) => ({
+      content: subject.label,
+      colSpan: subjectCells[index].length,
+      styles: { halign: "center", valign: "middle" },
+    })),
+    ...summaryColumns.map((column) => ({
+      content: column.label,
+      rowSpan: 2,
+      styles: { valign: "middle", halign: "center" },
+    })),
+  ];
+  const secondHeaderRow = subjectCells.flatMap((columns) =>
+    columns.map((column) => ({
+      content: column.label.trim().toLowerCase() === "total" ? "Marks" : column.label,
+      styles: { halign: "center", valign: "middle" },
+    }))
+  );
+  const head = [firstHeaderRow, secondHeaderRow];
+  const body = tabulation.rows.map((row) => [
+    ...studentColumns.map((column) => String(row[column.key] ?? "—")),
+    ...flattenedSubjectColumns.map((column) => {
+      const value = row[column.key];
+      return value === null || value === undefined ? "—" : String(value);
+    }),
+    ...summaryColumns.map((column) => String(row[column.key] ?? "—")),
+  ]);
+  if (body.length === 0) {
+    body.push([
+      "—",
+      "No student results available",
+      ...flattenedSubjectColumns.map(() => "—"),
+      ...summaryColumns.map(() => "—"),
     ]);
-    if (body.length === 0) {
-      body.push([
-        "—",
-        "No student results available",
-        ...flattenedSubjectColumns.map(() => "—"),
-        ...summaryColumns.map(() => "—"),
-      ]);
-    }
+  }
 
-    autoTable(doc, {
-      head: head as any,
-      body,
-      startY: 37,
-      margin: { top: 37, right: tableSideMargin, bottom: 17, left: tableSideMargin },
-      tableWidth,
-      styles: {
-        font: "NotoSansBengali",
-        fontSize: 7,
-        cellPadding: 1.4,
-        overflow: "linebreak",
-        lineColor: [185, 192, 204],
-        lineWidth: 0.2,
-        minCellHeight: 5,
-      },
-      headStyles: {
-        font: "NotoSansBengali",
-        fontStyle: "bold",
-        fillColor: [37, 54, 87],
-        textColor: [255, 255, 255],
-        lineColor: [120, 133, 154],
-        halign: "center",
-      },
-      columnStyles,
-      alternateRowStyles: { fillColor: [246, 248, 252] },
-      showHead: "everyPage",
-      didParseCell(data) {
-        if (data.section !== "body") return;
-        const resultStatusIndex = studentColumns.length + flattenedSubjectColumns.length
-          + summaryColumns.findIndex((column) => column.key === "resultStatus");
-        if (data.column.index === resultStatusIndex) {
-          const status = String(data.cell.raw);
-          data.cell.styles.fontStyle = "bold";
-          data.cell.styles.textColor = status === "Passed"
-            ? [22, 101, 52]
-            : status === "Failed"
-              ? [185, 28, 28]
-              : [161, 98, 7];
-        }
-        if (data.column.index === columnCount - 1) {
-          data.cell.styles.fontStyle = "bold";
-        }
-      },
-      didDrawPage(data) {
-        doc.setTextColor(24, 34, 55);
-        doc.setFont("NotoSansBengali", "bold");
-        doc.setFontSize(14);
-        doc.text("Dynamic Coaching Center", pageWidth / 2, 10, { align: "center" });
-        doc.setFontSize(11);
-        doc.text(draft.examName, pageWidth / 2, 17, { align: "center", maxWidth: pageWidth - 24 });
-        doc.setFont("NotoSansBengali", "normal");
-        doc.setFontSize(8);
-        doc.text(
-          `Class: ${draft.className}   |   Group: ${draft.groupName}   |   Part ${chunkIndex + 1}/${subjectChunks.length}`,
-          pageWidth / 2,
-          24,
-          { align: "center", maxWidth: pageWidth - 24 },
-        );
-        doc.setDrawColor(160, 170, 188);
-        doc.setLineWidth(0.25);
-        doc.line(10, 28, pageWidth - 10, 28);
-        doc.setFontSize(7);
-        doc.setTextColor(75, 85, 99);
-        doc.text(
-          `Passed: ${passed}   Failed: ${failed}   Pending: ${pending}`,
-          10,
-          pageHeight - 7,
-        );
-        doc.text(`Page ${data.pageNumber}`, pageWidth - 10, pageHeight - 7, { align: "right" });
-      },
-    });
+  const columnCount = studentColumns.length + flattenedSubjectColumns.length + summaryColumns.length;
+  autoTable(doc, {
+    head: head as any,
+    body,
+    startY: tableStartY,
+    margin: { top: tableStartY, right: tableLeftMargin, bottom: bottomMargin, left: tableLeftMargin },
+    tableWidth,
+    styles: {
+      font: "NotoSansBengali",
+      fontSize,
+      cellPadding: { top: cellPadding, right: 0.4, bottom: cellPadding, left: 0.4 },
+      overflow: "linebreak",
+      lineColor: [185, 192, 204],
+      lineWidth: 0.15,
+      minCellHeight: 0,
+    },
+    headStyles: {
+      font: "NotoSansBengali",
+      fontStyle: "bold",
+      fontSize: Math.max(3, fontSize),
+      cellPadding: { top: 0.4, right: 0.25, bottom: 0.4, left: 0.25 },
+      fillColor: [37, 54, 87],
+      textColor: [255, 255, 255],
+      lineColor: [120, 133, 154],
+      halign: "center",
+    },
+    columnStyles,
+    alternateRowStyles: { fillColor: [246, 248, 252] },
+    showHead: "everyPage",
+    didParseCell(data) {
+      if (data.section !== "body") return;
+      const resultStatusIndex = studentColumns.length + flattenedSubjectColumns.length
+        + summaryColumns.findIndex((column) => column.key === "resultStatus");
+      if (data.column.index === resultStatusIndex) {
+        const status = String(data.cell.raw);
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.textColor = status === "Passed"
+          ? [22, 101, 52]
+          : status === "Failed"
+            ? [185, 28, 28]
+            : [161, 98, 7];
+      }
+      if (data.column.index === columnCount - 1) {
+        data.cell.styles.fontStyle = "bold";
+      }
+    },
+    didDrawPage(data) {
+      doc.setTextColor(24, 34, 55);
+      doc.setFont("NotoSansBengali", "bold");
+      doc.setFontSize(14);
+      doc.text("Dynamic Coaching Center", pageWidth / 2, 9, { align: "center" });
+      doc.setFontSize(10);
+      doc.text(draft.examName, pageWidth / 2, 16, { align: "center", maxWidth: pageWidth - 24 });
+      doc.setFont("NotoSansBengali", "normal");
+      doc.setFontSize(7);
+      doc.text(
+        `Class: ${draft.className}   |   Group: ${draft.groupName}`,
+        pageWidth / 2,
+        23,
+        { align: "center", maxWidth: pageWidth - 24 },
+      );
+      doc.setDrawColor(160, 170, 188);
+      doc.setLineWidth(0.25);
+      doc.line(6, 27, pageWidth - 6, 27);
+      doc.setFontSize(6.5);
+      doc.setTextColor(75, 85, 99);
+      doc.text(`Passed: ${passed}   Failed: ${failed}   Pending: ${pending}`, 6, pageHeight - 5);
+      if (doc.getNumberOfPages() > 1) {
+        doc.text(`Page ${data.pageNumber}`, pageWidth - 6, pageHeight - 5, { align: "right" });
+      }
+    },
   });
 
   return doc;

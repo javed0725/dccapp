@@ -4,7 +4,7 @@ import test from "node:test";
 import { createClassResultSheetPdf } from "../client/src/lib/class-result-pdf";
 import type { ModelTestTabulation } from "../shared/model-test-results";
 
-test("creates an A4 landscape PDF and splits wide drafts across pages", async () => {
+test("keeps all subject columns on one A4 landscape page with an embedded Bengali font", async () => {
   const [regularFont, boldFont] = await Promise.all([
     readFile(new URL("../client/public/fonts/NotoSansBengali-Regular.ttf", import.meta.url)),
     readFile(new URL("../client/public/fonts/NotoSansBengali-Bold.ttf", import.meta.url)),
@@ -16,7 +16,7 @@ test("creates an A4 landscape PDF and splits wide drafts across pages", async ()
   }) as typeof fetch;
 
   try {
-    const subjectColumns = Array.from({ length: 5 }, (_, index) => ({
+    const componentSubjects = Array.from({ length: 5 }, (_, index) => ({
       key: `subject_${index + 1}`,
       label: `Subject ${index + 1}`,
       children: [
@@ -26,6 +26,14 @@ test("creates an A4 landscape PDF and splits wide drafts across pages", async ()
         { key: `subject_${index + 1}_total`, label: "Total", max: 100 },
       ],
     }));
+    const subjectColumns = [
+      ...componentSubjects,
+      {
+        key: "subject_6",
+        label: "গণিত",
+        children: [{ key: "subject_6_total", label: "Total", max: 50 }],
+      },
+    ];
     const table: ModelTestTabulation = {
       columns: [
         { key: "studentId", label: "Student ID" },
@@ -35,18 +43,19 @@ test("creates an A4 landscape PDF and splits wide drafts across pages", async ()
         { key: "resultStatus", label: "Result Status" },
         { key: "meritRank", label: "Merit Rank" },
       ],
-      rows: [{
-        studentId: "S-001",
-        studentRecordId: 1,
-        studentName: "শিক্ষার্থী",
+      rows: Array.from({ length: 50 }, (_, index) => ({
+        studentId: `S-${String(index + 1).padStart(3, "0")}`,
+        studentRecordId: index + 1,
+        studentName: index === 0 ? "শিক্ষার্থী" : `Student ${index + 1}`,
         subject_1_cq: 40,
         subject_1_mcq: 20,
         subject_1_practical: 20,
         subject_1_total: 80,
+        subject_6_total: 40,
         totalMarksObtained: 400,
         resultStatus: "Passed",
-        meritRank: "1st",
-      }],
+        meritRank: `${index + 1}`,
+      })),
     };
 
     const doc = await createClassResultSheetPdf({
@@ -58,7 +67,8 @@ test("creates an A4 landscape PDF and splits wide drafts across pages", async ()
 
     assert.equal(Math.round(doc.internal.pageSize.getWidth()), 297);
     assert.equal(Math.round(doc.internal.pageSize.getHeight()), 210);
-    assert.equal(doc.internal.getNumberOfPages(), 2);
+    assert.equal(doc.getNumberOfPages(), 1);
+    assert.ok(Object.keys(doc.getFontList()).includes("NotoSansBengali"));
     const pdfBytes = doc.output("arraybuffer") as ArrayBuffer;
     assert.ok(pdfBytes.byteLength > 10_000);
     assert.equal(new TextDecoder().decode(pdfBytes.slice(0, 5)), "%PDF-");
