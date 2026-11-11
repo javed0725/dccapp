@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { type User } from "@/lib/schemas";
-import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { TrendingUp, Plus, Trash2, BookOpen, ClipboardList, Eye, MessageCircle, Pencil, CheckCircle2, Clock, Send, ChevronRight, RefreshCw, ChevronDown, ChevronUp, Loader2, FileDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp";
 import { Link } from "wouter";
 import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
+import { downloadClassResultSheetPdf } from "@/lib/class-result-pdf";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
   if (obtained === -1) return { grade: "ABS", gp: 0.0 };
@@ -384,6 +385,7 @@ export default function EntryMarks() {
 
   // --- Admin: Collapsible draft cards ---
   const [expandedDraftIds, setExpandedDraftIds] = useState<Set<string>>(new Set());
+  const [downloadingPdfGroupId, setDownloadingPdfGroupId] = useState<string | null>(null);
   const toggleDraftExpand = (groupId: string) =>
     setExpandedDraftIds((prev) => {
       const next = new Set(prev);
@@ -708,6 +710,37 @@ export default function EntryMarks() {
 
   const singleResults = results?.filter((r: any) => !r.isModelTest) || [];
   const modelTestResults = results?.filter((r: any) => r.isModelTest && r.modelTestGroupId) || [];
+
+  const handleDownloadClassResultPdf = async (draft: any) => {
+    setDownloadingPdfGroupId(draft.groupId);
+    try {
+      const response = await fetch(`/api/model-test-drafts/${encodeURIComponent(draft.groupId)}/tabulation`, {
+        credentials: "include",
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.message || "Could not load the class tabulation");
+      }
+      await downloadClassResultSheetPdf({
+        groupId: draft.groupId,
+        examName: draft.examName,
+        className: draft.batch?.name || `Class ${draft.batchId}`,
+        groupName: getDraftScopeLabel(draft.subjects as DraftSubject[]),
+      }, data);
+      toast({
+        title: "Class result PDF downloaded",
+        description: `${draft.examName} · ${draft.batch?.name || `Class ${draft.batchId}`}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "PDF export failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setDownloadingPdfGroupId(null);
+    }
+  };
 
   const modelTestGroups: Record<string, any[]> = {};
   modelTestResults.forEach((r: any) => {
@@ -1324,11 +1357,11 @@ export default function EntryMarks() {
                               )}
                             </div>
 
-                            <div className="flex flex-col gap-2 border-t border-border/70 pt-3 sm:flex-row">
+                            <div className="grid grid-cols-1 gap-2 border-t border-border/70 pt-3 sm:grid-cols-2">
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="min-h-10 w-full justify-center gap-2 sm:flex-1"
+                                className="min-h-10 w-full justify-center gap-2"
                                 onClick={() => openDraftEditor(draft)}
                               >
                                 <Pencil className="h-4 w-4" /> Edit Draft
@@ -1336,7 +1369,7 @@ export default function EntryMarks() {
                               {draft.status === "draft" && (
                                 <Button
                                   type="button"
-                                  className="min-h-10 w-full justify-center gap-2 bg-green-600 text-white hover:bg-green-700 sm:flex-1"
+                                  className="min-h-10 w-full justify-center gap-2 bg-green-600 text-white hover:bg-green-700"
                                   disabled={publishDraftMutation.isPending}
                                   onClick={() => {
                                     if (confirm(`Publish "${draft.examName}"? Students will be able to view results immediately.`)) {
@@ -1345,6 +1378,21 @@ export default function EntryMarks() {
                                   }}
                                 >
                                   <Send className="h-4 w-4" /> Publish Result
+                                </Button>
+                              )}
+                              {isAdmin && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="min-h-10 w-full justify-center gap-2 px-3 text-xs sm:col-span-2 sm:text-sm"
+                                  disabled={downloadingPdfGroupId === draft.groupId}
+                                  onClick={() => handleDownloadClassResultPdf(draft)}
+                                >
+                                  {downloadingPdfGroupId === draft.groupId
+                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                    : <FileDown className="h-4 w-4" />
+                                  }
+                                  {downloadingPdfGroupId === draft.groupId ? "Preparing PDF..." : "Download Class Result Sheet (PDF)"}
                                 </Button>
                               )}
                             </div>
