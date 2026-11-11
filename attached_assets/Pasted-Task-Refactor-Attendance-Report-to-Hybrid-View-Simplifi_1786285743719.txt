@@ -1,0 +1,33 @@
+Task: Refactor Attendance Report to Hybrid View: Simplified Consolidated for Multi-Day Range, Preservation of Legacy Design for Single-Day, and Global Redesign for Readability.
+
+1. Unified Visual & Readable Overhaul (Global Settings):
+   - CRITICAL READABILITY FIX: Globally increase all text sizes throughout all report containers.
+   - BOLDING: Use dynamic bolding for Institute Name ("Dynamic Coaching Center"), Key Metadata Values (e.g., specific Class/Subject name, Date Range), and Summary Statistics Numbers (Present, Absent, Rate).
+   - FONT & ENCODING: Use a clean, modern, slightly wider professional sans-serif font for table data and numbers to improve legibility. For Bangla subject names, ensure uncorrupted, perfectly rendered text.
+   - Unified Header: Create a single, high-end, lavender-gradient centered banner. Left: Institute name and bold "Smart Attendance Report." Right: "Generated: [Timestamp]."
+
+2. Redesigned Advanced Status Badges (Universal):
+   - Replace old text-based "Present/Absent" design with prominent, highly legible, accessible pill badges.
+   - PRESENT pill: Solid deep teal background `#14B8A6`, with prominent, bold white text `[Present]`. Include a centered checkmark icon.
+   - ABSENT pill: Solid deep dusty rose background `#E11D48`, with prominent, bold white text `[Absent]`. Include a centered 'X' icon.
+
+3. Redesigned Multi-Day Statistics Cards:
+   - Make the "data cards" present in multi-day range reports larger and centered.
+   - Use bold numbers and distinct sophisticated colors for each card.
+
+4. Table Redesign for Readability & Consolidated Layout:
+   - Multi-Day Range View (Hybrid Consolidated): Create a single, full-width, clean table for the entire range. Keep row alignment uniform.
+   - LEGACY Single-Day View: Ensure that when a single date is filtered, the table and section header layout retain the structure and style of image_0.png, but with the global readability and badge redesigns applied.
+   - Table Columns (in this order, simplified for Multi-Day Consolidated):
+     * `#` (Centered, fixed 45px)
+     * `Student ID` (Bolded numbers, center)
+     * `Student Name` (Left-aligned, prominent font)
+     * `Date` (DD-MM-YY, center, bolded date)
+     * `Day` (Format: Mon, Tue, etc., center)
+     * `Subject` (Proper Unicode Bangla display, center)
+     * `Status` (Redesigned Pill Badges, center)
+     * `Punch Time` (Display time or "—" if absent, center)
+
+5. Final Verification & File Name:
+   - Build a production version. File names sanitized as `Attendance_Report_Class_গণিত_2026-08-08.pdf/.png`.
+   - Ensure perfect alignment, no cutoff text, and high DPI canvas for both PDF and Image exports.

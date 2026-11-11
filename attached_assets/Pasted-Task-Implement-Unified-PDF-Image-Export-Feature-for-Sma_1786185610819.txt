@@ -1,0 +1,44 @@
+Task: Implement Unified PDF & Image Export Feature for Smart Attendance Reports with Bangla Font Support and Clean Printable Layout
+
+1. Feature Overview & UI Setup:
+   - Add a "Download Report" button (with a Download icon) inside the Smart Attendance section header (alongside class/subject info in Attendance.tsx / SmartAttendance.tsx).
+   - Show a dropdown / modal menu on click with options:
+     * "Download as PDF"
+     * "Download as Image (JPG/PNG)"
+
+2. Create Hidden Desktop A4 Print Template (Single Source of Truth for PDF & Image):
+   - To ensure PDF and Image outputs are 100% identical and print-ready, create a dedicated off-screen/hidden printable container (e.g., width fixed at 800px or 1000px, white background `#FFFFFF`, dark readable text `#111827`, and 24px padding).
+   - BOTH PDF generation (`jsPDF`) and Image export (`html2canvas`) MUST capture this EXACT SAME printable DOM container. Never capture responsive mobile containers.
+
+3. Layout & Visual Styling Requirements for Printable Component:
+   - Header (Centered):
+     * Main Title: "Dynamic Coaching Center" (Bold, 22px, Primary Brand Color e.g., `#1E40AF` or `#4F46E5`).
+     * Subtitle: "Smart Attendance Report"
+     * Date & Generated Time Stamp (e.g., Generated: YYYY-MM-DD HH:mm:ss).
+   - Class & Subject Info Banner:
+     * Display Class/Batch, Subject Name, Date Range, and Time Window clearly.
+     * Example: Class / Batch: Class 7  |  Subject: {selectedSubject || 'বাংলাদেশ ও বিশ্বপরিচয়'}
+     * Example: Date Range: 2026-08-04  |  Time: 07:00 AM – 08:00 AM
+   - Summary Badges (Centered Grid):
+     * Present Badge: "Total Present: X" (Light Green BG, Green Text)
+     * Absent Badge: "Total Absent: Y" (Light Red BG, Red Text)
+     * Attendance Rate Badge: "Rate: Z%" (Light Indigo BG, Indigo Text)
+   - Table Formatting:
+     * Table Width: 100% full-width.
+     * Header Row: Indigo background (`#4F46E5`), bold white text (`#FFFFFF`).
+     * Columns: `#` (Serial - fixed width 45px to prevent multi-line number wrap), `Student ID`, `Student Name`, `Punch Time`, `Status`.
+     * Alignment: `#`, `Student ID`, `Punch Time`, and `Status` center-aligned; `Student Name` left-aligned with padding.
+     * Zebra Striping: Light gray background (`#F9FAFB`) for alternating rows.
+     * Status Pill Badges: Light green for "Present", Light red for "Absent".
+
+4. Fix Bangla Font & Canvas Text Rendering Bug (CRITICAL):
+   - Ensure Bengali text (e.g., subject name "গণিত" or "বাংলাদেশ ও বিশ্বপরিচয়") renders perfectly without broken/corrupted characters (`¬¾,²¾...`).
+   - Wrap the print container or subject text in a UTF-8 supporting element with explicit web-safe Bengali font family rules (e.g., `font-family: 'Kalpurush', 'Noto Sans Bengali', sans-serif`).
+   - Pass `useCORS: true`, `allowTaint: true`, and correct `scale: 2` options to `html2canvas` for high-resolution text rasterization.
+
+5. Dynamic Filename Convention:
+   - Export filenames using the pattern: `Attendance_Report_{ClassName}_{Subject}_{YYYY-MM-DD}.pdf` / `.png`
+   - Clean/sanitize string characters so spaces become underscores (e.g., `Attendance_Report_Class7_Math_2026-08-04.pdf`).
+
+6. Goal:
+   - Clicking either "Download as PDF" or "Download as Image" produces visually identical, sharp, well-aligned A4-style reports with full subject details and uncorrupted Bangla text.

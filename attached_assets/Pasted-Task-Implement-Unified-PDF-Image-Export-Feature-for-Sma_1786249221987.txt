@@ -1,0 +1,42 @@
+Task: Implement Unified PDF & Image Export Feature for Smart Attendance Reports with High-End, Professional design, Advanced Branding, Centered Layout, and Flawless Bangla Font Support.
+
+1. Feature Overview & UI Setup:
+   - Add a high-visibility, "Download Report" button (using a high-end, dynamic cloud-down icon with a soft indigo ripple effect) in the Smart Attendance header.
+   - On click, display a clean, sophisticated dropdown menu with sophisticated typography for these options:
+     * "Generate Premium PDF"
+     * "Generate High-Resolution Image"
+
+2. Unified High-End Printable Template (Single Source of Truth):
+   - Create a single, hidden-by-default container for BOTH PDF and Image generation.
+   - This container MUST mimic a high-quality A4 document, with dynamic white space, refined padding (30px), and a textured matte paper finish `#F9FAFB`.
+   - All text must be generated as dynamic text, not rasterized, ensuring perfect clarity.
+
+3. Detailed Visual Styling & Alignment (Premium Design):
+   - Centered Page Layout: The entire report container must be center-aligned `margin: 0 auto; max-width: 1000px;` within the print frame. Content must never touch the absolute edges.
+   - Elegant Header (Centered Banner):
+     * Create a cohesive, sophisticated header banner with a gentle gradient (soft lavender to pearl white).
+     * INSTITUTE NAME: "Dynamic Coaching Center" in an elegant, modern corporate serif font, deep indigo-blue color (`#2D3683`), 24px, bold.
+     * SUBTITLE: "Smart Attendance Report" in a clean technical sans-serif, 16px.
+     * GENERATION DATA: "Generated: YYYY-MM-DD HH:mm:ss" in a subtle технич monospace font, on the top-right.
+   - Refined Info Cards (Data Points):
+     * Replace old data boxes with clean, elegant, rounded "data cards."
+     * Present Card: Soft teal background, green text, modern icon, large bold numbers.
+     * Absent Card: Soft rose background, red text, modern icon, large bold numbers.
+     * Attendance Rate Card: Soft indigo background, indigo text, percentage icon, large bold numbers.
+   - Advanced Table Design:
+     * Make the table width 100% and center-aligned within the report frame.
+     * HEADER ROW: Indigo background (`#4F46E5`), bold white technical text, 14px.
+     * ALTERNATING ROWS: Zebra striping using a subtle gray (`#F9FAFB`) for perfect readability.
+     * TABLE COLUMNS: `#` (45px, center-aligned), `Student ID` (bold technical font, center), `Student Name` (left-aligned), `Punch Time` (center technical font), `Status`.
+     * Clean status pills: Solid light green for "Present" and solid light red for "Absent", with dark text. No faded colors.
+
+4. Critical Bangla Font & Encoding Fix (UTF-8, No Breaks):
+   - Ensure the subject name (e.g., "গণিত") or any Bangla custom text renders perfectly without corrupted symbols or breaks (`¬¾,²¾...`).
+   - Wrap the print container or Bangla text in a dedicated `utf8-text-support` element.
+   - Dynamically load and embed a clean Unicode Bengali font (e.g., 'Kalpurush', 'Noto Sans Bengali', or standard utf-8 web font) within the printable component context.
+   - Configure `html2canvas` with `useCORS: true`, `allowTaint: true`, and high `scale: 2` to rasterize text correctly without artifacts.
+
+5. Dynamic Filename Convention & High-Res Export:
+   - Dynamic filename: `Attendance_Report_Class_Subject_YYYY-MM-DD.pdf` / `.png`.
+   - Sanitize all text to underscores for the filename.
+   - For image export, capture the entire printable A4 component with high DPI settings and fixed desktop width (800px or 1000px) and clean up package installer metadata.
