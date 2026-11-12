@@ -20,6 +20,7 @@ import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
 import TeacherDirectory from "@/pages/TeacherDirectory";
 import StudentDirectory from "@/pages/StudentDirectory";
+import StudentProfile from "@/pages/StudentProfile";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { type User } from "@/lib/schemas";
@@ -247,6 +248,9 @@ function Router() {
                 <Route path="/attendance" component={Attendance} />
               )}
               <Route path="/marksheet" component={Marksheet} />
+              <Route path="/manage/students/:id">
+                {effectiveRole === "admin" ? <StudentProfile /> : <Redirect to={roleHomePath} />}
+              </Route>
               <Route path="/admission">
                 {(effectiveRole === "teacher" || (user.isAuthority && activePortal === "teacher")) ? <Admission /> : <Redirect to={roleHomePath} />}
               </Route>

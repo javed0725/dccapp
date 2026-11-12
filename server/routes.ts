@@ -361,6 +361,74 @@ export async function registerRoutes(
     res.json(students);
   });
 
+  app.get("/api/students/:id/profile", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const studentId = Number(req.params.id);
+    if (!Number.isInteger(studentId) || studentId < 1) {
+      return res.status(400).json({ message: "Invalid student id" });
+    }
+
+    try {
+      const student = await storage.getStudent(studentId);
+      if (!student) return res.status(404).json({ message: "Student not found" });
+
+      const [batches, payments, results, drafts] = await Promise.all([
+        storage.getBatches(),
+        storage.getIncomesByStudentId(studentId),
+        storage.getResultsByStudentId(studentId),
+        storage.getModelTestDrafts(),
+      ]);
+      const draftStatusByGroupId = new Map(
+        drafts.map((draft) => [draft.groupId, draft.status])
+      );
+      const batch = batches.find((item) => item.id === student.batchId);
+
+      return res.json({
+        student: {
+          id: student.id,
+          studentCustomId: student.studentCustomId,
+          name: student.name,
+          batchId: student.batchId,
+          batchName: batch?.name ?? null,
+          mobileNumber: student.mobileNumber,
+          shift: student.shift,
+          academicGroup: student.academicGroup,
+          admissionDate: student.admissionDate,
+          isActive: student.isActive,
+        },
+        payments: payments.map(({ id, month, amount, date, status, addedBy }) => ({
+          id,
+          month,
+          amount,
+          date,
+          status,
+          addedBy,
+        })),
+        results: results.map((result) => ({
+          id: result.id,
+          batchId: result.batchId,
+          batchName: batches.find((item) => item.id === result.batchId)?.name ?? null,
+          examName: result.examName,
+          subject: result.subject,
+          totalMarks: result.totalMarks,
+          obtainedMarks: result.obtainedMarks,
+          mcqMarks: result.mcqMarks,
+          cqMarks: result.cqMarks,
+          practicalMarks: result.practicalMarks,
+          isModelTest: result.isModelTest,
+          modelTestGroupId: result.modelTestGroupId,
+          date: result.date,
+          draftStatus: result.modelTestGroupId
+            ? draftStatusByGroupId.get(result.modelTestGroupId) ?? null
+            : null,
+        })),
+      });
+    } catch (error) {
+      console.error("[GET /api/students/:id/profile] Failed to load profile:", error);
+      return res.status(500).json({ message: "Failed to load student profile" });
+    }
+  });
+
   app.post(api.students.create.path, async (req, res) => {
     if (!requireRoles(req, res, ['admin', 'teacher'])) return;
     try {

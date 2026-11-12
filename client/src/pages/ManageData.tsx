@@ -20,6 +20,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ClassRoutineManager } from "@/components/ClassRoutineManager";
 import { SubjectMasterManager } from "@/components/SubjectMasterManager";
+import { Link } from "wouter";
 
 const studentFormSchema = insertStudentSchema.extend({
   batchId: z.coerce.number().min(1, "Select a batch"),
@@ -291,7 +292,13 @@ export default function ManageData() {
                                       <TableCell className="font-medium">
                                         <div className="flex flex-col gap-1">
                                           <div className="flex items-center gap-2">
-                                            <span className={isInactive ? "line-through text-muted-foreground" : ""}>{student.name}</span>
+                                             <Link
+                                               href={`/manage/students/${student.id}`}
+                                               className={`hover:text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm ${isInactive ? "line-through text-muted-foreground" : ""}`}
+                                               title={`View ${student.name}'s profile`}
+                                             >
+                                               {student.name}
+                                             </Link>
                                             {isInactive && (
                                               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 uppercase tracking-tighter ring-1 ring-slate-200">
                                                 Inactive
