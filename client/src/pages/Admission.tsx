@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { useBatches, useCreateStudent, useStudents } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { insertStudentSchema } from "@/lib/schemas";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, CheckCircle2, GraduationCap, RefreshCw, Phone, BadgeCheck, Users } from "lucide-react";
+import { UserPlus, CheckCircle2, GraduationCap, RefreshCw, Phone, BadgeCheck, Users, Printer } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { type User } from "@/lib/schemas";
@@ -24,8 +24,30 @@ const studentFormSchema = insertStudentSchema.extend({
   mobileNumber: z.string().optional(),
 });
 
+type AdmissionReceiptData = {
+  id: number;
+  studentCustomId: string | null;
+  name: string;
+  batchName: string;
+  academicGroup: string | null;
+  shift: string | null;
+  admissionDate: string | null;
+  admittingTeacher: string;
+};
+
+function formatAdmissionDateTime(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-BD", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 export default function Admission() {
   const [open, setOpen] = useState(false);
+  const [admittedStudent, setAdmittedStudent] = useState<AdmissionReceiptData | null>(null);
   const { data: batches } = useBatches();
   const { data: students, refetch: refetchStudents } = useStudents();
   const createStudent = useCreateStudent();
@@ -37,16 +59,41 @@ export default function Admission() {
 
   const form = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
-    defaultValues: { name: "", batchId: 0, mobileNumber: "" },
+    defaultValues: { name: "", batchId: 0, mobileNumber: "", academicGroup: "", shift: "" },
   });
+
+  const selectedBatchId = Number(form.watch("batchId"));
+  const groupOptions = Array.from(new Set(
+    ((students as any[] | undefined) ?? [])
+      .filter((student) => student.batchId === selectedBatchId && student.academicGroup)
+      .map((student) => String(student.academicGroup).trim())
+      .filter(Boolean),
+  )).sort();
+
+  useEffect(() => {
+    if (!admittedStudent) return;
+    const timer = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(timer);
+  }, [admittedStudent]);
 
   function onSubmit(values: z.infer<typeof studentFormSchema>) {
     createStudent.mutate({ ...values, studentCustomId: null }, {
-      onSuccess: () => {
+      onSuccess: (student: any) => {
         setOpen(false);
         form.reset();
         queryClient.invalidateQueries({ queryKey: ["/api/students"] });
         queryClient.invalidateQueries({ queryKey: ["/api/batches"] });
+        const batch = ((batches as any[] | undefined) ?? []).find((item) => item.id === student.batchId);
+        setAdmittedStudent({
+          id: student.id,
+          studentCustomId: student.studentCustomId ?? null,
+          name: student.name,
+          batchName: batch?.name ?? `Class ${student.batchId}`,
+          academicGroup: student.academicGroup || null,
+          shift: student.shift || null,
+          admissionDate: student.admissionDate ?? new Date().toISOString(),
+          admittingTeacher: user?.name || user?.username || "Not recorded",
+        });
         toast({ title: "Success", description: "Student has been admitted successfully." });
       },
       onError: (error: any) => {
@@ -179,7 +226,13 @@ export default function Admission() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Class/Batch</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value?.toString()}>
+                            <Select
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                form.setValue("academicGroup", "");
+                              }}
+                              value={field.value?.toString()}
+                            >
                               <FormControl>
                                 <SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger>
                               </FormControl>
@@ -193,6 +246,54 @@ export default function Admission() {
                           </FormItem>
                         )}
                       />
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="academicGroup"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Academic Group</FormLabel>
+                              <Select
+                                value={field.value || "none"}
+                                onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                                disabled={groupOptions.length === 0}
+                              >
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder={groupOptions.length ? "Select a group" : "No groups set"} /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">No group</SelectItem>
+                                  {groupOptions.map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="shift"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Shift</FormLabel>
+                              <Select
+                                value={field.value || "none"}
+                                onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                              >
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Select a shift" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">Not specified</SelectItem>
+                                  <SelectItem value="Morning">Morning</SelectItem>
+                                  <SelectItem value="Evening">Evening</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
                       <Button type="submit" className="w-full h-11" disabled={createStudent.isPending}>
                         {createStudent.isPending ? "Processing..." : "Confirm Admission"}
                       </Button>
@@ -363,7 +464,104 @@ export default function Admission() {
             )}
           </div>
         )}
+
+        <Dialog
+          open={Boolean(admittedStudent)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setAdmittedStudent(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-emerald-700">
+                <CheckCircle2 className="h-5 w-5" />
+                Admission completed
+              </DialogTitle>
+              <DialogDescription>
+                The A5 office and applicant copies are ready. The print dialog was opened automatically.
+              </DialogDescription>
+            </DialogHeader>
+            {admittedStudent && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+                  <div><p className="text-xs text-muted-foreground">Student</p><p className="font-semibold">{admittedStudent.name}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Registration</p><p className="font-semibold">{admittedStudent.studentCustomId || admittedStudent.id}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Class / Group</p><p className="font-semibold">{admittedStudent.batchName} · {admittedStudent.academicGroup || "No group"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Shift</p><p className="font-semibold">{admittedStudent.shift || "Not specified"}</p></div>
+                </div>
+                <Button onClick={() => window.print()} className="w-full gap-2">
+                  <Printer className="h-4 w-4" />
+                  Print Admission Receipt
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {admittedStudent && (
+          <article id="admission-receipt-print" aria-label="Admission receipt">
+            {(["Office Copy", "Applicant Copy"] as const).map((copy, index) => (
+              <section className="admission-receipt-copy" key={copy}>
+                <header className="admission-receipt-header">
+                  <h1>Dynamic Coaching Center</h1>
+                  <p>STUDENT ADMISSION RECEIPT</p>
+                  <strong>{copy}</strong>
+                </header>
+                <div className="admission-receipt-details">
+                  <div><span>Student Name</span><strong>{admittedStudent.name}</strong></div>
+                  <div>
+                    <span>Student ID / Registration Number</span>
+                    <strong>{admittedStudent.studentCustomId || admittedStudent.id}</strong>
+                  </div>
+                  <div><span>Class</span><strong>{admittedStudent.batchName}</strong></div>
+                  <div><span>Group</span><strong>{admittedStudent.academicGroup || "Not specified"}</strong></div>
+                  <div><span>Shift / Batch</span><strong>{admittedStudent.shift || "Not specified"} · {admittedStudent.batchName}</strong></div>
+                  <div><span>Admission Date &amp; Time</span><strong>{formatAdmissionDateTime(admittedStudent.admissionDate)}</strong></div>
+                  <div className="admission-receipt-teacher">
+                    <span>Admitting Teacher</span><strong>{admittedStudent.admittingTeacher}</strong>
+                  </div>
+                </div>
+                {index === 0 && (
+                  <div className="admission-receipt-cutline">
+                    <span>CUT HERE</span>
+                  </div>
+                )}
+              </section>
+            ))}
+          </article>
+        )}
       </div>
+      <style>{`
+        #admission-receipt-print { display: none; }
+        @media print {
+          @page { size: A5 portrait; margin: 7mm; }
+          html, body, #root { width: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+          body * { visibility: hidden !important; }
+          #admission-receipt-print, #admission-receipt-print * { visibility: visible !important; }
+          #admission-receipt-print {
+            display: block !important;
+            position: absolute !important;
+            inset: 0 auto auto 0 !important;
+            width: 100% !important;
+            color: #172033 !important;
+            background: #fff !important;
+            font-family: Arial, sans-serif !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .admission-receipt-copy { position: relative; height: 94mm; box-sizing: border-box; padding: 3mm 4mm 5mm; page-break-inside: avoid; }
+          .admission-receipt-header { text-align: center; border-bottom: 1.5px solid #243b63; padding-bottom: 2.5mm; }
+          .admission-receipt-header h1 { margin: 0; color: #182b4b; font-size: 14pt; line-height: 1.15; }
+          .admission-receipt-header p { margin: 1mm 0 1.5mm; color: #64748b; font-size: 7pt; font-weight: 700; letter-spacing: 1.1px; }
+          .admission-receipt-header strong { display: inline-block; border: 1px solid #243b63; border-radius: 12px; padding: 1mm 4mm; color: #243b63; font-size: 8pt; }
+          .admission-receipt-details { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 5mm; padding-top: 4mm; }
+          .admission-receipt-details span { display: block; color: #64748b; font-size: 6.5pt; font-weight: 700; letter-spacing: .35px; text-transform: uppercase; }
+          .admission-receipt-details strong { display: block; margin-top: .8mm; overflow-wrap: anywhere; color: #172033; font-size: 8.5pt; }
+          .admission-receipt-teacher { grid-column: 1 / -1; }
+          .admission-receipt-cutline { position: relative; height: 6mm; margin-top: 2mm; border-top: 1px dashed #64748b; text-align: center; }
+          .admission-receipt-cutline span { position: relative; top: -2.6mm; padding: 0 3mm; background: #fff; color: #64748b; font-size: 6pt; font-weight: 700; letter-spacing: 1px; }
+        }
+      `}</style>
     </Layout>
   );
 }
