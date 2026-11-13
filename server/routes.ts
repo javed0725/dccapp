@@ -381,12 +381,19 @@ export async function registerRoutes(
       const draftStatusByGroupId = new Map(
         drafts.map((draft) => [draft.groupId, draft.status])
       );
+      const draftSubjectByKey = new Map<string, ModelTestSubject>(
+        drafts.flatMap((draft) => (draft.subjects as ModelTestSubject[]).map((subject: ModelTestSubject) => [
+          `${draft.groupId}::${subject.name.trim().toLowerCase()}`,
+          subject,
+        ] as [string, ModelTestSubject]))
+      );
       const batch = batches.find((item) => item.id === student.batchId);
 
       return res.json({
         student: {
           id: student.id,
           studentCustomId: student.studentCustomId,
+          registrationNumber: student.studentCustomId,
           name: student.name,
           batchId: student.batchId,
           batchName: batch?.name ?? null,
@@ -415,6 +422,22 @@ export async function registerRoutes(
           mcqMarks: result.mcqMarks,
           cqMarks: result.cqMarks,
           practicalMarks: result.practicalMarks,
+          markingConfig: result.modelTestGroupId
+            ? (() => {
+                const subject = draftSubjectByKey.get(
+                  `${result.modelTestGroupId}::${result.subject.trim().toLowerCase()}`
+                );
+                return subject ? {
+                  totalMarks: subject.totalMarks,
+                  mcqEnabled: subject.mcqEnabled,
+                  cqEnabled: subject.cqEnabled,
+                  practicalEnabled: subject.practicalEnabled,
+                  mcqMax: subject.mcqMax,
+                  cqMax: subject.cqMax,
+                  practicalMax: subject.practicalMax,
+                } : null;
+              })()
+            : null,
           isModelTest: result.isModelTest,
           modelTestGroupId: result.modelTestGroupId,
           date: result.date,

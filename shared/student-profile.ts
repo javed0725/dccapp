@@ -13,6 +13,19 @@ export type StudentExamResult = {
   modelTestGroupId: string | null;
   obtainedMarks: number;
   totalMarks: number;
+  subject?: string;
+  mcqMarks?: number | null;
+  cqMarks?: number | null;
+  practicalMarks?: number | null;
+  markingConfig?: {
+    totalMarks?: number;
+    mcqEnabled?: boolean;
+    cqEnabled?: boolean;
+    practicalEnabled?: boolean;
+    mcqMax?: number;
+    cqMax?: number;
+    practicalMax?: number;
+  } | null;
 };
 
 export function getStudentMonthIndex(value: string | null | undefined): number {

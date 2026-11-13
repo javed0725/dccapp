@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "wouter";
 import { Layout } from "@/components/Layout";
@@ -13,12 +13,15 @@ import {
   groupStudentExamResults,
   STUDENT_PROFILE_MONTHS,
 } from "@shared/student-profile";
+import { getStudentMarksheetData } from "@shared/student-marksheet";
+import { getSubjectMarkingRule } from "@shared/marking";
 import {
   ArrowLeft,
   BookOpen,
   CalendarDays,
   CircleAlert,
   GraduationCap,
+  Printer,
   Phone,
   RefreshCw,
   Wallet,
@@ -28,6 +31,7 @@ type StudentProfileData = {
   student: {
     id: number;
     studentCustomId: string | null;
+    registrationNumber: string | null;
     name: string;
     batchId: number;
     batchName: string | null;
@@ -56,6 +60,15 @@ type StudentProfileData = {
     mcqMarks: number | null;
     cqMarks: number | null;
     practicalMarks: number | null;
+    markingConfig: {
+      totalMarks?: number;
+      mcqEnabled?: boolean;
+      cqEnabled?: boolean;
+      practicalEnabled?: boolean;
+      mcqMax?: number;
+      cqMax?: number;
+      practicalMax?: number;
+    } | null;
     isModelTest: boolean;
     modelTestGroupId: string | null;
     date: string | null;
@@ -107,6 +120,7 @@ export default function StudentProfile() {
   const params = useParams<{ id: string }>();
   const id = params.id || "";
   const [paymentYear, setPaymentYear] = useState(String(new Date().getFullYear()));
+  const [printExamKey, setPrintExamKey] = useState<string | null>(null);
 
   const profileQuery = useQuery<StudentProfileData>({
     queryKey: ["/api/students", id, "profile"],
@@ -158,9 +172,23 @@ export default function StudentProfile() {
   }, [paymentsForYear]);
 
   const exams = useMemo(() => groupStudentExamResults(profile?.results ?? []), [profile?.results]);
+  const printableExam = exams.find((exam) => exam.key === printExamKey);
+  const printableResults = printableExam?.results ?? [];
+  const printableData = useMemo(() => getStudentMarksheetData(printableResults), [printableExam]);
   const overallGpa = calculateStudentGpa(profile?.results ?? []);
   const annualPaid = monthlyPayments.reduce((sum, item) => sum + (item.payment ? Number(item.payment.amount) || 0 : 0), 0);
   const paidMonths = monthlyPayments.filter((item) => item.payment).length;
+
+  useEffect(() => {
+    if (!printExamKey) return;
+    const printTimer = window.setTimeout(() => window.print(), 120);
+    const clearSelection = () => setPrintExamKey(null);
+    window.addEventListener("afterprint", clearSelection);
+    return () => {
+      window.clearTimeout(printTimer);
+      window.removeEventListener("afterprint", clearSelection);
+    };
+  }, [printExamKey]);
 
   const backLink = (
     <Link href="/manage" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
@@ -421,6 +449,19 @@ export default function StudentProfile() {
                         <span className="text-muted-foreground">{results.length} {results.length === 1 ? "subject" : "subjects"}{attending.length < results.length ? ` · ${results.length - attending.length} absent` : ""}</span>
                         <span className="font-semibold text-foreground">Total marks: {totalObtained} / {totalMarks}</span>
                       </div>
+                      {(!exam.draftStatus || exam.draftStatus.toLowerCase() === "published") && (
+                        <div className="flex justify-end px-4 py-3 sm:px-5">
+                          <Button
+                            type="button"
+                            onClick={() => setPrintExamKey(key)}
+                            className="gap-2"
+                            data-testid={`button-print-marksheet-${examIndex}`}
+                          >
+                            <Printer className="h-4 w-4" />
+                            Print / Download Marksheet
+                          </Button>
+                        </div>
+                      )}
                       <div className="overflow-x-auto">
                         <Table className="min-w-[600px]">
                           <TableHeader>
@@ -465,9 +506,128 @@ export default function StudentProfile() {
                 </Card>
               )}
             </section>
+
+            {printableExam && (
+              <article id="student-marksheet-print" aria-label="Printable student marksheet">
+                <header className="marksheet-header">
+                  <p className="marksheet-kicker">Academic Record</p>
+                  <h1>Dynamic Coaching Center</h1>
+                  <p className="marksheet-tagline">Come to Learn, Leave to Shine</p>
+                  <div className="marksheet-exam">
+                    <h2>{printableResults[0]?.examName || "Examination"}</h2>
+                    <p>
+                      {printableResults[0]?.isModelTest ? "Model Test" : "Examination"}
+                      {" · Session "}
+                      {printableResults[0]?.date
+                        ? new Date(printableResults[0].date).getFullYear()
+                        : "—"}
+                      {" · "}
+                      {formatDate(printableResults[0]?.date)}
+                    </p>
+                  </div>
+                </header>
+
+                <section className="marksheet-student-info" aria-label="Student information">
+                  <div><span>Student Name</span><strong>{student.name}</strong></div>
+                  <div><span>Student ID</span><strong>{student.id}</strong></div>
+                  <div><span>Class</span><strong>{student.batchName || "—"}</strong></div>
+                  <div><span>Group</span><strong>{student.academicGroup || "—"}</strong></div>
+                  <div><span>Roll / Registration</span><strong>{student.registrationNumber || "—"}</strong></div>
+                </section>
+
+                <table className="marksheet-table">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      {printableData.componentColumns.map((component) => (
+                        <th key={component}>{component === "cq" ? "CQ" : component === "mcq" ? "MCQ" : "Practical"}</th>
+                      ))}
+                      <th>Total</th>
+                      <th>Grade</th>
+                      <th>GP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {printableData.rows.map(({ result, grade, point, isAbsent, components }) => (
+                      <tr key={result.subject}>
+                        <td>{result.subject}</td>
+                        {printableData.componentColumns.map((component) => (
+                          <td key={component}>
+                            {isAbsent ? "—" : components[component] ?? "—"}
+                          </td>
+                        ))}
+                        <td>{isAbsent ? "Absent" : `${result.obtainedMarks} / ${result.totalMarks}`}</td>
+                        <td>{grade}</td>
+                        <td>{point === null ? "—" : point.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <section className="marksheet-summary">
+                  <div><span>Total Marks</span><strong>{printableData.totalObtained} / {printableData.totalFull}</strong></div>
+                  <div><span>GPA</span><strong>{printableData.gpa === null ? "—" : `${printableData.gpa.toFixed(2)} / 5.00`}</strong></div>
+                  <div className={printableData.passed ? "marksheet-pass" : "marksheet-fail"}>
+                    <span>Final Result</span>
+                    <strong>{printableData.passed ? "PASSED" : "FAILED"}</strong>
+                  </div>
+                </section>
+
+                <footer className="marksheet-signatures">
+                  <div><span>Authority / Principal</span></div>
+                  <div><span>Class Teacher</span></div>
+                </footer>
+              </article>
+            )}
           </>
         )}
       </div>
+      <style>{`
+        #student-marksheet-print { display: none; }
+        @media print {
+          @page { size: A5 landscape; margin: 8mm; }
+          html, body, #root { width: 100% !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+          body * { visibility: hidden !important; }
+          #student-marksheet-print, #student-marksheet-print * { visibility: visible !important; }
+          #student-marksheet-print {
+            display: block !important;
+            position: absolute !important;
+            inset: 0 auto auto 0 !important;
+            width: 100% !important;
+            color: #172033 !important;
+            background: #fff !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 9pt !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .marksheet-header { text-align: center; border-bottom: 2px solid #243b63; padding-bottom: 7px; }
+          .marksheet-kicker { margin: 0 0 2px; font-size: 7pt; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #64748b; }
+          .marksheet-header h1 { margin: 0; color: #182b4b; font-size: 19pt; line-height: 1.15; }
+          .marksheet-tagline { margin: 2px 0 0; color: #64748b; font-size: 7pt; letter-spacing: 1px; }
+          .marksheet-exam { margin-top: 7px; }
+          .marksheet-exam h2 { margin: 0; font-size: 12pt; color: #243b63; }
+          .marksheet-exam p { margin: 2px 0 0; font-size: 8pt; color: #475569; }
+          .marksheet-student-info { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1.4fr; gap: 6px 10px; padding: 9px 0; border-bottom: 1px solid #cbd5e1; }
+          .marksheet-student-info div, .marksheet-summary div { min-width: 0; }
+          .marksheet-student-info span, .marksheet-summary span { display: block; color: #64748b; font-size: 6.5pt; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+          .marksheet-student-info strong { display: block; margin-top: 2px; overflow-wrap: anywhere; font-size: 8pt; }
+          .marksheet-table { width: 100%; border-collapse: collapse; margin-top: 9px; table-layout: auto; }
+          .marksheet-table th, .marksheet-table td { border: 1px solid #b8c4d5; padding: 4px 6px; text-align: center; font-size: 7.5pt; }
+          .marksheet-table th { background: #243b63 !important; color: #fff !important; font-weight: 700; }
+          .marksheet-table th:first-child, .marksheet-table td:first-child { text-align: left; }
+          .marksheet-table tbody tr:nth-child(even) { background: #f3f6fa !important; }
+          .marksheet-summary { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 10px; border: 1px solid #b8c4d5; }
+          .marksheet-summary div { padding: 6px 9px; border-right: 1px solid #d5dce6; }
+          .marksheet-summary div:last-child { border-right: 0; }
+          .marksheet-summary strong { display: block; margin-top: 3px; font-size: 10pt; }
+          .marksheet-pass strong { color: #15803d !important; }
+          .marksheet-fail strong { color: #b91c1c !important; }
+          .marksheet-signatures { display: flex; justify-content: space-between; gap: 30mm; margin-top: 24mm; padding: 0 8mm; }
+          .marksheet-signatures div { width: 38%; border-top: 1px solid #334155; text-align: center; padding-top: 4px; }
+          .marksheet-signatures span { font-size: 7pt; font-weight: 600; }
+        }
+      `}</style>
     </Layout>
   );
 }
