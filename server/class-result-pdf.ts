@@ -18,6 +18,7 @@ type Cell = {
   color?: string;
   fillColor?: string;
   alignment?: string;
+  fontSize?: number;
 };
 
 // pdfmake uses PDFKit/fontkit's OpenType layout engine. Unlike jsPDF's
@@ -99,10 +100,19 @@ export async function renderClassResultSheetPdf(
   const widths = columns.map((column) =>
     (fixedWidths[column.key] ?? componentWidth) - padding * 2 - lineWidth
   );
-  const rowBudget = 440 / Math.max(1, tabulation.rows.length);
-  const fontSize = Math.max(2.6, Math.min(6.5, componentWidth ? componentWidth * 0.17 : 6.5, (rowBudget - 1.6) / 1.4));
+  const rowBudget = 420 / Math.max(3, tabulation.rows.length + 2);
+  const fontSize = Math.max(
+    2.6,
+    Math.min(10, componentWidth ? componentWidth * 0.23 : 10, (rowBudget - 2.4) / 1.25),
+  );
+  const headerFontSize = Math.max(
+    6.5,
+    Math.min(9, componentWidth ? componentWidth * 0.2 : 9, rowBudget * 0.44),
+  );
+  const verticalPadding = Math.max(1.2, Math.min(5.5, (rowBudget - fontSize * 1.15) / 2));
   const header = (value: unknown, extra: Partial<Cell> = {}): Cell => ({
-    text: text(value), bold: true, color: "#ffffff", fillColor: "#253657", alignment: "center", ...extra,
+    text: text(value), bold: true, color: "#ffffff", fillColor: "#253657",
+    alignment: "center", fontSize: headerFontSize, ...extra,
   });
   const top: Cell[] = metadata.map((column) => header(column.label, { rowSpan: 2 }));
   subjects.forEach((subject, index) => {
@@ -119,6 +129,7 @@ export async function renderClassResultSheetPdf(
     text: text(row[column.key]),
     alignment: column.key === "studentName" ? "left" : "center",
     bold: ["resultStatus", "totalMarksObtained"].includes(column.key),
+    fontSize,
     ...(column.key === "resultStatus" ? {
       color: row.resultStatus === "Passed" ? "#166534" : row.resultStatus === "Failed" ? "#b91c1c" : "#a16207",
     } : {}),
@@ -152,8 +163,8 @@ export async function renderClassResultSheetPdf(
           vLineColor: () => "#b9c0cc",
           paddingLeft: () => padding,
           paddingRight: () => padding,
-          paddingTop: () => padding,
-          paddingBottom: () => padding,
+          paddingTop: () => verticalPadding,
+          paddingBottom: () => verticalPadding,
           fillColor: (rowIndex: number) => rowIndex > 1 && rowIndex % 2 === 0 ? "#f6f8fc" : undefined,
         },
       },
