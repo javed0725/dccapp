@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
-import { useBatches, useCreateStudent, useStudents } from "@/hooks/use-finance";
+import { useBatches, useCreateStudent, useStudents, useUpdateStudent } from "@/hooks/use-finance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
@@ -48,9 +48,11 @@ function formatAdmissionDateTime(value: string | null) {
 export default function Admission() {
   const [open, setOpen] = useState(false);
   const [admittedStudent, setAdmittedStudent] = useState<AdmissionReceiptData | null>(null);
+  const [selectedExistingStudentId, setSelectedExistingStudentId] = useState<number | null>(null);
   const { data: batches } = useBatches();
   const { data: students, refetch: refetchStudents } = useStudents();
   const createStudent = useCreateStudent();
+  const updateStudent = useUpdateStudent();
   const { toast } = useToast();
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
 
@@ -59,10 +61,19 @@ export default function Admission() {
 
   const form = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
-    defaultValues: { name: "", batchId: 0, mobileNumber: "", academicGroup: "", shift: "" },
+    defaultValues: { name: "", batchId: 0, mobileNumber: "", studentCustomId: "", academicGroup: "", shift: "" },
   });
 
   const selectedBatchId = Number(form.watch("batchId"));
+  const studentNameQuery = String(form.watch("name") || "").trim().toLocaleLowerCase();
+  const existingStudentSuggestions = selectedBatchId > 0 && studentNameQuery
+    ? ((students as any[] | undefined) ?? [])
+      .filter((student) =>
+        Number(student.batchId) === selectedBatchId &&
+        String(student.name || "").toLocaleLowerCase().includes(studentNameQuery),
+      )
+      .slice(0, 6)
+    : [];
   const groupOptions = Array.from(new Set(
     ((students as any[] | undefined) ?? [])
       .filter((student) => student.batchId === selectedBatchId && student.academicGroup)
@@ -77,10 +88,22 @@ export default function Admission() {
   }, [admittedStudent]);
 
   function onSubmit(values: z.infer<typeof studentFormSchema>) {
-    createStudent.mutate({ ...values, studentCustomId: null }, {
-      onSuccess: (student: any) => {
+    const reAdmission = selectedExistingStudentId !== null;
+    const selectedStudent = ((students as any[] | undefined) ?? [])
+      .find((student) => student.id === selectedExistingStudentId);
+    const submittedValues = {
+      ...values,
+      name: values.name.trim(),
+      mobileNumber: values.mobileNumber?.trim() || null,
+      studentCustomId: values.studentCustomId?.trim() || (reAdmission ? selectedStudent?.studentCustomId : null) || null,
+      academicGroup: values.academicGroup?.trim() || "",
+      shift: values.shift?.trim() || "",
+    };
+
+    const handleSuccess = (student: any) => {
         setOpen(false);
         form.reset();
+        setSelectedExistingStudentId(null);
         queryClient.invalidateQueries({ queryKey: ["/api/students"] });
         queryClient.invalidateQueries({ queryKey: ["/api/batches"] });
         const batch = ((batches as any[] | undefined) ?? []).find((item) => item.id === student.batchId);
@@ -91,15 +114,35 @@ export default function Admission() {
           batchName: batch?.name ?? `Class ${student.batchId}`,
           academicGroup: student.academicGroup || null,
           shift: student.shift || null,
-          admissionDate: student.admissionDate ?? new Date().toISOString(),
+          admissionDate: reAdmission ? new Date().toISOString() : student.admissionDate ?? new Date().toISOString(),
           admittingTeacher: user?.name || user?.username || "Not recorded",
         });
-        toast({ title: "Success", description: "Student has been admitted successfully." });
-      },
-      onError: (error: any) => {
-        toast({ variant: "destructive", title: "Admission Failed", description: error.message });
-      },
-    });
+        toast({
+          title: "Success",
+          description: reAdmission ? "Student has been re-admitted successfully." : "Student has been admitted successfully.",
+        });
+    };
+    const handleError = (error: any) => {
+      toast({ variant: "destructive", title: "Admission Failed", description: error.message });
+    };
+
+    if (selectedExistingStudentId !== null) {
+      updateStudent.mutate({
+        id: selectedExistingStudentId,
+        data: { ...submittedValues, isActive: true },
+      }, { onSuccess: handleSuccess, onError: handleError });
+      return;
+    }
+    createStudent.mutate(submittedValues, { onSuccess: handleSuccess, onError: handleError });
+  }
+
+  function selectExistingStudent(student: any) {
+    setSelectedExistingStudentId(student.id);
+    form.setValue("name", student.name ?? "");
+    form.setValue("studentCustomId", student.studentCustomId ?? "");
+    form.setValue("mobileNumber", student.mobileNumber ?? "");
+    form.setValue("academicGroup", student.academicGroup ?? "");
+    form.setValue("shift", student.shift ?? "");
   }
 
   // Build admission list data
@@ -185,7 +228,16 @@ export default function Admission() {
                 <p className="text-muted-foreground">Fill in student details to enroll them in a batch.</p>
               </div>
 
-              <Dialog open={open} onOpenChange={setOpen}>
+              <Dialog
+                open={open}
+                onOpenChange={(isOpen) => {
+                  setOpen(isOpen);
+                  if (!isOpen) {
+                    form.reset();
+                    setSelectedExistingStudentId(null);
+                  }
+                }}
+              >
                 <DialogTrigger asChild>
                   <Button size="lg" className="w-full shadow-lg hover:shadow-xl transition-all h-12 text-lg">
                     Start Admission Process
@@ -200,28 +252,6 @@ export default function Admission() {
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
                       <FormField
                         control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Student Name</FormLabel>
-                            <FormControl><Input placeholder="Enter full name" {...field} /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="mobileNumber"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mobile Number</FormLabel>
-                            <FormControl><Input type="tel" placeholder="e.g. 01700000000" {...field} /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
                         name="batchId"
                         render={({ field }) => (
                           <FormItem>
@@ -229,9 +259,14 @@ export default function Admission() {
                             <Select
                               onValueChange={(value) => {
                                 field.onChange(value);
+                                setSelectedExistingStudentId(null);
+                                form.setValue("name", "");
+                                form.setValue("studentCustomId", "");
+                                form.setValue("mobileNumber", "");
                                 form.setValue("academicGroup", "");
+                                form.setValue("shift", "");
                               }}
-                              value={field.value?.toString()}
+                              value={field.value ? field.value.toString() : ""}
                             >
                               <FormControl>
                                 <SelectTrigger><SelectValue placeholder="Select a class" /></SelectTrigger>
@@ -242,6 +277,87 @@ export default function Admission() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Student Name</FormLabel>
+                            <div className="relative">
+                              <FormControl>
+                                <Input
+                                  placeholder={selectedBatchId ? "Type a name to search this class" : "Select a class first"}
+                                  autoComplete="off"
+                                  disabled={!selectedBatchId}
+                                  {...field}
+                                  onChange={(event) => {
+                                    field.onChange(event);
+                                    setSelectedExistingStudentId(null);
+                                  }}
+                                />
+                              </FormControl>
+                              {studentNameQuery && selectedBatchId > 0 && selectedExistingStudentId === null && (
+                                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-lg">
+                                  {existingStudentSuggestions.length > 0 ? existingStudentSuggestions.map((student: any) => (
+                                    <button
+                                      key={student.id}
+                                      type="button"
+                                      className="flex w-full flex-col items-start rounded-sm px-3 py-2 text-left hover:bg-accent"
+                                      onMouseDown={(event) => {
+                                        event.preventDefault();
+                                        selectExistingStudent(student);
+                                      }}
+                                    >
+                                      <span className="font-medium">{student.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        ID {student.studentCustomId || student.id}
+                                        {student.academicGroup ? ` · ${student.academicGroup}` : ""}
+                                        {student.shift ? ` · ${student.shift}` : ""}
+                                        {student.isActive === false ? " · Inactive" : ""}
+                                      </span>
+                                    </button>
+                                  )) : (
+                                    <p className="px-3 py-2 text-sm text-muted-foreground">No matching student in this class. Continue with manual entry.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {selectedExistingStudentId !== null && (
+                              <p className="text-xs text-primary">Existing student selected. Confirming will update and reactivate this record.</p>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="studentCustomId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Student ID / Registration Number</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Optional"
+                                {...field}
+                                value={field.value ?? ""}
+                                readOnly={selectedExistingStudentId !== null}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="mobileNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mobile Number</FormLabel>
+                            <FormControl><Input type="tel" placeholder="Optional · e.g. 01700000000" {...field} value={field.value ?? ""} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -275,27 +391,17 @@ export default function Admission() {
                           name="shift"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Shift</FormLabel>
-                              <Select
-                                value={field.value || "none"}
-                                onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
-                              >
-                                <FormControl>
-                                  <SelectTrigger><SelectValue placeholder="Select a shift" /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="none">Not specified</SelectItem>
-                                  <SelectItem value="Morning">Morning</SelectItem>
-                                  <SelectItem value="Evening">Evening</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <FormLabel>Shift (Optional)</FormLabel>
+                              <FormControl><Input placeholder="e.g. Morning or Evening" {...field} value={field.value ?? ""} /></FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
                       </div>
-                      <Button type="submit" className="w-full h-11" disabled={createStudent.isPending}>
-                        {createStudent.isPending ? "Processing..." : "Confirm Admission"}
+                      <Button type="submit" className="w-full h-11" disabled={createStudent.isPending || updateStudent.isPending}>
+                        {createStudent.isPending || updateStudent.isPending
+                          ? "Processing..."
+                          : selectedExistingStudentId !== null ? "Confirm Re-admission" : "Confirm Admission"}
                       </Button>
                     </form>
                   </Form>

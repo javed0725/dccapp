@@ -27,6 +27,7 @@ export interface Student {
   shift: string | null;
   academicGroup: string | null;
   userId: number | null;
+  isActive?: boolean;
 }
 
 export interface Income {
