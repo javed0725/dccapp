@@ -16,15 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Pencil, Trash2, Plus, Clock } from "lucide-react";
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-export const SHIFTS = ["Morning", "Evening"] as const;
-export const ACADEMIC_GROUPS = [
-  "Science",
-  "Commerce",
-  "Arts",
-] as const;
+import type { AdmissionOption } from "@/lib/schemas";
 
 const DAYS_OF_WEEK = [
   "Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday",
@@ -88,6 +80,11 @@ function GroupBadge({ group }: { group: string | null }) {
 
 export function ClassRoutineManager() {
   const { data: batches } = useBatches();
+  const { data: admissionOptions = [] } = useQuery<AdmissionOption[]>({
+    queryKey: ["/api/admission-options"],
+  });
+  const shifts = admissionOptions.filter((option) => option.type === "shift");
+  const groups = admissionOptions.filter((option) => option.type === "group");
   const { toast } = useToast();
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [editingRoutine, setEditingRoutine] = useState<ClassRoutine | null>(null);
@@ -176,6 +173,8 @@ export function ClassRoutineManager() {
 
   // Edit dialog state
   const [editForm, setEditForm] = useState<Partial<RoutineFormValues>>({});
+  const selectedEditShift = ("shift" in editForm ? editForm.shift : editingRoutine?.shift) ?? null;
+  const selectedEditGroup = ("academicGroup" in editForm ? editForm.academicGroup : editingRoutine?.academicGroup) ?? null;
 
   function openEdit(r: ClassRoutine) {
     setEditingRoutine(r);
@@ -275,7 +274,10 @@ export function ClassRoutineManager() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="__any__">All Shifts</SelectItem>
-                        {SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {field.value && !shifts.some((option) => option.name === field.value) && (
+                          <SelectItem value={field.value}>{field.value} (saved)</SelectItem>
+                        )}
+                        {shifts.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -301,7 +303,10 @@ export function ClassRoutineManager() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="__any__">All Groups</SelectItem>
-                        {ACADEMIC_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                        {field.value && !groups.some((option) => option.name === field.value) && (
+                          <SelectItem value={field.value}>{field.value} (saved)</SelectItem>
+                        )}
+                        {groups.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -541,13 +546,16 @@ export function ClassRoutineManager() {
                   Shift <span className="text-muted-foreground font-normal text-xs">(optional)</span>
                 </label>
                 <Select
-                  value={('shift' in editForm ? editForm.shift : editingRoutine.shift) ?? "__any__"}
+                  value={selectedEditShift ?? "__any__"}
                   onValueChange={(v) => setEditForm(f => ({ ...f, shift: v === "__any__" ? null : v }))}
                 >
                   <SelectTrigger><SelectValue placeholder="All Shifts" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__any__">All Shifts</SelectItem>
-                    {SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {selectedEditShift && !shifts.some((option) => option.name === selectedEditShift) && (
+                      <SelectItem value={selectedEditShift}>{selectedEditShift} (saved)</SelectItem>
+                    )}
+                    {shifts.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -558,13 +566,16 @@ export function ClassRoutineManager() {
                   Group <span className="text-muted-foreground font-normal text-xs">(optional)</span>
                 </label>
                 <Select
-                  value={('academicGroup' in editForm ? editForm.academicGroup : editingRoutine.academicGroup) ?? "__any__"}
+                  value={selectedEditGroup ?? "__any__"}
                   onValueChange={(v) => setEditForm(f => ({ ...f, academicGroup: v === "__any__" ? null : v }))}
                 >
                   <SelectTrigger><SelectValue placeholder="All Groups" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__any__">All Groups</SelectItem>
-                    {ACADEMIC_GROUPS.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    {selectedEditGroup && !groups.some((option) => option.name === selectedEditGroup) && (
+                      <SelectItem value={selectedEditGroup}>{selectedEditGroup} (saved)</SelectItem>
+                    )}
+                    {groups.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

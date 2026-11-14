@@ -21,6 +21,18 @@ export const batches = pgTable("batches", {
   name: text("name").notNull().unique(),
 });
 
+export const admissionOptions = pgTable("admission_options", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  typeNameUnique: uniqueIndex("admission_options_type_name_unique").on(
+    table.type,
+    sql`lower(${table.name})`,
+  ),
+}));
+
 export const subjectMasterList = pgTable("subject_master_list", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -47,6 +59,7 @@ export const students = pgTable("students", {
   name: text("name").notNull(),
   batchId: integer("batch_id").references(() => batches.id).notNull(),
   mobileNumber: text("mobile_number"),
+  school: text("school"),
   shift: text("shift"),
   academicGroup: text("academic_group"),
   userId: integer("user_id").references(() => users.id),
@@ -226,8 +239,16 @@ export type InsertZktecoLog = typeof zktecoLogs.$inferInsert;
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertBatchSchema = createInsertSchema(batches).omit({ id: true });
+export const admissionOptionTypes = ["school", "group", "shift"] as const;
+export const insertAdmissionOptionSchema = createInsertSchema(admissionOptions)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    type: z.enum(admissionOptionTypes),
+    name: z.string().trim().min(1).max(100),
+  });
 export const insertStudentSchema = createInsertSchema(students).omit({ id: true, userId: true, addedByUserId: true, admissionDate: true }).extend({
   mobileNumber: z.string().optional().nullable(),
+  school: z.string().optional().nullable(),
   studentCustomId: z.string().optional().nullable(),
 });
 export const insertIncomeSchema = createInsertSchema(incomes).omit({ 
@@ -254,6 +275,9 @@ export const insertResultSchema = createInsertSchema(results).omit({
 
 export type User = typeof users.$inferSelect;
 export type Batch = typeof batches.$inferSelect;
+export type AdmissionOption = typeof admissionOptions.$inferSelect;
+export type AdmissionOptionType = (typeof admissionOptionTypes)[number];
+export type InsertAdmissionOption = z.infer<typeof insertAdmissionOptionSchema>;
 export type SubjectMaster = typeof subjectMasterList.$inferSelect;
 export type Student = typeof students.$inferSelect;
 export type Income = typeof incomes.$inferSelect;

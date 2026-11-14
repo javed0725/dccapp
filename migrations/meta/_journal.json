@@ -36,6 +36,13 @@
       "when": 1794339162359,
       "tag": "0004_add_class_specific_subject_marks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794668182027,
+      "tag": "0005_admission_options",
+      "breakpoints": true
     }
   ]
 }

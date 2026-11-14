@@ -1,11 +1,12 @@
 import { db } from "./db.js";
 import { 
-  incomes, expenses, deposits, batches, subjectMasterList, students, users, results, modelTestDrafts, notifications, siteSettings,
+  incomes, expenses, deposits, batches, admissionOptions, subjectMasterList, students, users, results, modelTestDrafts, notifications, siteSettings,
   collectionTracking, attendance, zktecoLogs, classRoutines,
   type Income, type InsertIncome, 
   type Expense, type InsertExpense,
   type Deposit, type InsertDeposit,
   type Batch, type InsertBatch,
+  type AdmissionOption, type InsertAdmissionOption,
   type SubjectMaster,
   type Student, type InsertStudent,
   type User, type InsertUser,
@@ -35,6 +36,10 @@ export interface IStorage {
   getBatches(): Promise<Batch[]>;
   createBatch(batch: InsertBatch): Promise<Batch>;
   deleteBatch(id: number): Promise<void>;
+  getAdmissionOptions(): Promise<AdmissionOption[]>;
+  createAdmissionOption(data: InsertAdmissionOption): Promise<AdmissionOption>;
+  updateAdmissionOption(id: number, data: InsertAdmissionOption): Promise<AdmissionOption | undefined>;
+  deleteAdmissionOption(id: number): Promise<void>;
   getSubjectMasterList(): Promise<SubjectMaster[]>;
   getSubjectMaster(id: number): Promise<SubjectMaster | undefined>;
   createSubjectMaster(data: Omit<SubjectMaster, "id" | "createdAt">): Promise<SubjectMaster>;
@@ -144,6 +149,26 @@ export class DatabaseStorage implements IStorage {
   async createBatch(insertBatch: InsertBatch): Promise<Batch> {
     const [batch] = await db.insert(batches).values(insertBatch).returning();
     return batch;
+  }
+
+  async getAdmissionOptions(): Promise<AdmissionOption[]> {
+    return db.select().from(admissionOptions).orderBy(asc(admissionOptions.type), asc(admissionOptions.name));
+  }
+
+  async createAdmissionOption(data: InsertAdmissionOption): Promise<AdmissionOption> {
+    const [option] = await db.insert(admissionOptions).values(data).returning();
+    return option;
+  }
+
+  async updateAdmissionOption(id: number, data: InsertAdmissionOption): Promise<AdmissionOption | undefined> {
+    const [option] = await db.update(admissionOptions).set(data)
+      .where(eq(admissionOptions.id, id))
+      .returning();
+    return option;
+  }
+
+  async deleteAdmissionOption(id: number): Promise<void> {
+    await db.delete(admissionOptions).where(eq(admissionOptions.id, id));
   }
 
   async getStudent(id: number): Promise<Student | undefined> {

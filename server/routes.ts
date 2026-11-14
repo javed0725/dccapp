@@ -5,7 +5,13 @@ import {
   hasDatabaseUrl,
 } from "./db.js";
 import { eq, sql, desc, and, gte, lt } from "drizzle-orm";
-import { students, incomes as incomesTable, users, type ModelTestSubject } from "../shared/schema.js";
+import {
+  students,
+  incomes as incomesTable,
+  users,
+  admissionOptionTypes,
+  type ModelTestSubject,
+} from "../shared/schema.js";
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage.js";
@@ -68,6 +74,11 @@ const ADMIN_ONLY_MESSAGE =
   "Only the Authority account can perform this action.";
 const ROLE_FORBIDDEN_MESSAGE =
   "You don't have permission to perform this action.";
+
+const admissionOptionPayloadSchema = z.object({
+  type: z.enum(admissionOptionTypes),
+  name: z.string().trim().min(1).max(100),
+});
 
 const subjectMasterPayloadSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -316,6 +327,71 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  app.get("/api/admission-options", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    try {
+      res.json(await storage.getAdmissionOptions());
+    } catch (error) {
+      console.error("[GET /api/admission-options] Failed to load options:", error);
+      res.status(500).json({ message: "Failed to load admission options" });
+    }
+  });
+
+  app.post("/api/admission-options", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const parsed = admissionOptionPayloadSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid admission option" });
+    const payload = parsed.data;
+    const options = await storage.getAdmissionOptions();
+    if (options.some((option) =>
+      option.type === payload.type && option.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase()
+    )) {
+      return res.status(409).json({ message: `A ${payload.type} with this name already exists` });
+    }
+    try {
+      const created = await storage.createAdmissionOption(payload);
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (error?.code === "23505") return res.status(409).json({ message: `A ${payload.type} with this name already exists` });
+      console.error("[POST /api/admission-options] Failed to create option:", error);
+      res.status(500).json({ message: "Failed to create admission option" });
+    }
+  });
+
+  app.patch("/api/admission-options/:id", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: "Invalid admission option id" });
+    const parsed = admissionOptionPayloadSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid admission option" });
+    const payload = parsed.data;
+    const options = await storage.getAdmissionOptions();
+    if (options.some((option) =>
+      option.id !== id
+      && option.type === payload.type
+      && option.name.trim().toLocaleLowerCase() === payload.name.toLocaleLowerCase()
+    )) {
+      return res.status(409).json({ message: `A ${payload.type} with this name already exists` });
+    }
+    try {
+      const updated = await storage.updateAdmissionOption(id, payload);
+      if (!updated) return res.status(404).json({ message: "Admission option not found" });
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.code === "23505") return res.status(409).json({ message: `A ${payload.type} with this name already exists` });
+      console.error("[PATCH /api/admission-options/:id] Failed to update option:", error);
+      res.status(500).json({ message: "Failed to update admission option" });
+    }
+  });
+
+  app.delete("/api/admission-options/:id", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: "Invalid admission option id" });
+    await storage.deleteAdmissionOption(id);
+    res.sendStatus(204);
+  });
+
   app.get(api.batches.list.path, async (req, res) => {
     if (!requireAuth(req, res)) return;
     const batches = await storage.getBatches();
@@ -398,6 +474,7 @@ export async function registerRoutes(
           batchId: student.batchId,
           batchName: batch?.name ?? null,
           mobileNumber: student.mobileNumber,
+          school: student.school,
           shift: student.shift,
           academicGroup: student.academicGroup,
           admissionDate: student.admissionDate,

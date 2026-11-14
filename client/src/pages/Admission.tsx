@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UserPlus, CheckCircle2, GraduationCap, RefreshCw, Phone, BadgeCheck, Users, Printer } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
-import { type User } from "@/lib/schemas";
+import { type AdmissionOption, type User } from "@/lib/schemas";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -29,6 +29,7 @@ type AdmissionReceiptData = {
   studentCustomId: string | null;
   name: string;
   batchName: string;
+  school: string | null;
   academicGroup: string | null;
   shift: string | null;
   admissionDate: string | null;
@@ -61,9 +62,13 @@ export default function Admission() {
 
   const form = useForm<z.infer<typeof studentFormSchema>>({
     resolver: zodResolver(studentFormSchema),
-    defaultValues: { name: "", batchId: 0, mobileNumber: "", studentCustomId: "", academicGroup: "", shift: "" },
+    defaultValues: { name: "", batchId: 0, mobileNumber: "", studentCustomId: "", school: "", academicGroup: "", shift: "" },
   });
 
+  const { data: admissionOptions = [] } = useQuery<AdmissionOption[]>({
+    queryKey: ["/api/admission-options"],
+    enabled: isTeacher,
+  });
   const selectedBatchId = Number(form.watch("batchId"));
   const studentNameQuery = String(form.watch("name") || "").trim().toLocaleLowerCase();
   const existingStudentSuggestions = selectedBatchId > 0 && studentNameQuery
@@ -74,12 +79,9 @@ export default function Admission() {
       )
       .slice(0, 6)
     : [];
-  const groupOptions = Array.from(new Set(
-    ((students as any[] | undefined) ?? [])
-      .filter((student) => student.batchId === selectedBatchId && student.academicGroup)
-      .map((student) => String(student.academicGroup).trim())
-      .filter(Boolean),
-  )).sort();
+  const schoolOptions = admissionOptions.filter((option) => option.type === "school");
+  const groupOptions = admissionOptions.filter((option) => option.type === "group");
+  const shiftOptions = admissionOptions.filter((option) => option.type === "shift");
 
   useEffect(() => {
     if (!admittedStudent) return;
@@ -95,6 +97,7 @@ export default function Admission() {
       ...values,
       name: values.name.trim(),
       mobileNumber: values.mobileNumber?.trim() || null,
+      school: values.school?.trim() || "",
       studentCustomId: values.studentCustomId?.trim() || (reAdmission ? selectedStudent?.studentCustomId : null) || null,
       academicGroup: values.academicGroup?.trim() || "",
       shift: values.shift?.trim() || "",
@@ -112,6 +115,7 @@ export default function Admission() {
           studentCustomId: student.studentCustomId ?? null,
           name: student.name,
           batchName: batch?.name ?? `Class ${student.batchId}`,
+          school: student.school || null,
           academicGroup: student.academicGroup || null,
           shift: student.shift || null,
           admissionDate: reAdmission ? new Date().toISOString() : student.admissionDate ?? new Date().toISOString(),
@@ -141,6 +145,7 @@ export default function Admission() {
     form.setValue("name", student.name ?? "");
     form.setValue("studentCustomId", student.studentCustomId ?? "");
     form.setValue("mobileNumber", student.mobileNumber ?? "");
+    form.setValue("school", student.school ?? "");
     form.setValue("academicGroup", student.academicGroup ?? "");
     form.setValue("shift", student.shift ?? "");
   }
@@ -263,6 +268,7 @@ export default function Admission() {
                                 form.setValue("name", "");
                                 form.setValue("studentCustomId", "");
                                 form.setValue("mobileNumber", "");
+                                form.setValue("school", "");
                                 form.setValue("academicGroup", "");
                                 form.setValue("shift", "");
                               }}
@@ -362,6 +368,33 @@ export default function Admission() {
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={form.control}
+                        name="school"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>School (Optional)</FormLabel>
+                            <Select
+                              value={field.value || "none"}
+                              onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                            >
+                              <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a school" /></SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="none">No school selected</SelectItem>
+                                {field.value && !schoolOptions.some((option) => option.name === field.value) && (
+                                  <SelectItem value={field.value}>{field.value} (saved)</SelectItem>
+                                )}
+                                {schoolOptions.map((option) => (
+                                  <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <div className="grid gap-4 sm:grid-cols-2">
                         <FormField
                           control={form.control}
@@ -379,7 +412,10 @@ export default function Admission() {
                                 </FormControl>
                                 <SelectContent>
                                   <SelectItem value="none">No group</SelectItem>
-                                  {groupOptions.map((group) => <SelectItem key={group} value={group}>{group}</SelectItem>)}
+                                  {field.value && !groupOptions.some((option) => option.name === field.value) && (
+                                    <SelectItem value={field.value}>{field.value} (saved)</SelectItem>
+                                  )}
+                                  {groupOptions.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                               <FormMessage />
@@ -392,7 +428,21 @@ export default function Admission() {
                           render={({ field }) => (
                             <FormItem>
                               <FormLabel>Shift (Optional)</FormLabel>
-                              <FormControl><Input placeholder="e.g. Morning or Evening" {...field} value={field.value ?? ""} /></FormControl>
+                              <Select
+                                value={field.value || "none"}
+                                onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                              >
+                                <FormControl>
+                                  <SelectTrigger><SelectValue placeholder="Select a shift" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="none">No shift selected</SelectItem>
+                                  {field.value && !shiftOptions.some((option) => option.name === field.value) && (
+                                    <SelectItem value={field.value}>{field.value} (saved)</SelectItem>
+                                  )}
+                                  {shiftOptions.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -593,6 +643,7 @@ export default function Admission() {
                   <div><p className="text-xs text-muted-foreground">Student</p><p className="font-semibold">{admittedStudent.name}</p></div>
                   <div><p className="text-xs text-muted-foreground">Registration</p><p className="font-semibold">{admittedStudent.studentCustomId || admittedStudent.id}</p></div>
                   <div><p className="text-xs text-muted-foreground">Class / Group</p><p className="font-semibold">{admittedStudent.batchName} · {admittedStudent.academicGroup || "No group"}</p></div>
+                  <div><p className="text-xs text-muted-foreground">School</p><p className="font-semibold">{admittedStudent.school || "Not specified"}</p></div>
                   <div><p className="text-xs text-muted-foreground">Shift</p><p className="font-semibold">{admittedStudent.shift || "Not specified"}</p></div>
                 </div>
                 <Button onClick={() => window.print()} className="w-full gap-2">
@@ -620,6 +671,7 @@ export default function Admission() {
                     <strong>{admittedStudent.studentCustomId || admittedStudent.id}</strong>
                   </div>
                   <div><span>Class</span><strong>{admittedStudent.batchName}</strong></div>
+                  <div><span>School</span><strong>{admittedStudent.school || "Not specified"}</strong></div>
                   <div><span>Group</span><strong>{admittedStudent.academicGroup || "Not specified"}</strong></div>
                   <div><span>Shift / Batch</span><strong>{admittedStudent.shift || "Not specified"} · {admittedStudent.batchName}</strong></div>
                   <div><span>Admission Date &amp; Time</span><strong>{formatAdmissionDateTime(admittedStudent.admissionDate)}</strong></div>

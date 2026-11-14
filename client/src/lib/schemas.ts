@@ -18,12 +18,20 @@ export interface Batch {
   name: string;
 }
 
+export interface AdmissionOption {
+  id: number;
+  type: "school" | "group" | "shift";
+  name: string;
+  createdAt: string;
+}
+
 export interface Student {
   id: number;
   studentCustomId: string | null;
   name: string;
   batchId: number;
   mobileNumber: string | null;
+  school?: string | null;
   shift: string | null;
   academicGroup: string | null;
   userId: number | null;
@@ -80,6 +88,7 @@ export const insertStudentSchema = z.object({
   name: z.string().min(1, "Student name is required"),
   batchId: z.coerce.number(),
   mobileNumber: z.string().optional().nullable(),
+  school: z.string().optional().nullable(),
   studentCustomId: z.string().optional().nullable(),
   shift: z.string().optional(),
   academicGroup: z.string().optional(),

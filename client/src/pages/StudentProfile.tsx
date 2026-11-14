@@ -36,6 +36,7 @@ type StudentProfileData = {
     batchId: number;
     batchName: string | null;
     mobileNumber: string | null;
+    school: string | null;
     shift: string | null;
     academicGroup: string | null;
     admissionDate: string | null;
@@ -283,6 +284,7 @@ export default function StudentProfile() {
                     <InfoItem label="Batch / class" value={student.batchName || "—"} />
                     <InfoItem label="Academic group" value={student.academicGroup || "—"} />
                     <InfoItem label="Shift" value={student.shift || "—"} />
+                    <InfoItem label="School" value={student.school || "—"} />
                     <InfoItem label="Contact" value={student.mobileNumber || "Not provided"} />
                     <InfoItem label="Admitted" value={formatDate(student.admissionDate)} />
                   </div>

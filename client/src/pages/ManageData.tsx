@@ -19,8 +19,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ClassRoutineManager } from "@/components/ClassRoutineManager";
+import { AdmissionOptionsManager } from "@/components/AdmissionOptionsManager";
 import { SubjectMasterManager } from "@/components/SubjectMasterManager";
 import { Link } from "wouter";
+import type { AdmissionOption } from "@/lib/schemas";
 
 const studentFormSchema = insertStudentSchema.extend({
   batchId: z.coerce.number().min(1, "Select a batch"),
@@ -31,7 +33,13 @@ const studentFormSchema = insertStudentSchema.extend({
 export default function ManageData() {
   const { data: batches } = useBatches();
   const { data: students } = useStudents();
+  const { data: admissionOptions = [] } = useQuery<AdmissionOption[]>({
+    queryKey: ["/api/admission-options"],
+  });
   const { toast } = useToast();
+  const schoolOptions = admissionOptions.filter((option) => option.type === "school");
+  const groupOptions = admissionOptions.filter((option) => option.type === "group");
+  const shiftOptions = admissionOptions.filter((option) => option.type === "shift");
 
   const createBatch = useCreateBatch();
   const deleteBatch = useDeleteBatch();
@@ -56,6 +64,7 @@ export default function ManageData() {
     name: string; 
     studentCustomId: string; 
     mobileNumber?: string;
+    school?: string | null;
     shift?: string | null;
     academicGroup?: string | null;
   } | null>(null);
@@ -165,6 +174,9 @@ export default function ManageData() {
           </TabsTrigger>
           <TabsTrigger value="routine" className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4" /> Class Shift & Routine
+          </TabsTrigger>
+          <TabsTrigger value="admission-options" className="flex items-center gap-2">
+            <Users className="w-4 h-4" /> Admission Options
           </TabsTrigger>
         </TabsList>
 
@@ -318,6 +330,7 @@ export default function ManageData() {
                                                 name: student.name,
                                                 studentCustomId: student.studentCustomId || "",
                                                 mobileNumber: student.mobileNumber || "",
+                                                school: student.school || "",
                                                 shift: student.shift || "",
                                                 academicGroup: student.academicGroup || ""
                                               })}
@@ -344,6 +357,12 @@ export default function ManageData() {
                                                   <Phone className="w-3.5 h-3.5 shrink-0" />
                                                   <span>{student.mobileNumber}</span>
                                                 </a>
+                                              </>
+                                            )}
+                                            {student.school && (
+                                              <>
+                                                <span>•</span>
+                                                <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase text-[9px]">{student.school}</span>
                                               </>
                                             )}
                                             {student.shift && (
@@ -454,6 +473,22 @@ export default function ManageData() {
                           />
                         </div>
                         <div className="space-y-2">
+                          <label className="text-sm font-medium">School</label>
+                          <Select
+                            value={editingStudent?.school || "none"}
+                            onValueChange={(val) => setEditingStudent((prev) => prev ? { ...prev, school: val === "none" ? "" : val } : null)}
+                          >
+                            <SelectTrigger><SelectValue placeholder="Select School (Optional)" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {editingStudent?.school && !schoolOptions.some((option) => option.name === editingStudent.school) && (
+                                <SelectItem value={editingStudent.school}>{editingStudent.school} (saved)</SelectItem>
+                              )}
+                              {schoolOptions.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
                           <label className="text-sm font-medium">Shift</label>
                           <Select 
                             value={editingStudent?.shift || "none"} 
@@ -464,8 +499,10 @@ export default function ManageData() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="Morning">Morning</SelectItem>
-                              <SelectItem value="Evening">Evening</SelectItem>
+                              {editingStudent?.shift && !shiftOptions.some((option) => option.name === editingStudent.shift) && (
+                                <SelectItem value={editingStudent.shift}>{editingStudent.shift} (saved)</SelectItem>
+                              )}
+                              {shiftOptions.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
@@ -480,9 +517,10 @@ export default function ManageData() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="Science">Science</SelectItem>
-                              <SelectItem value="Commerce">Commerce</SelectItem>
-                              <SelectItem value="Arts">Arts</SelectItem>
+                              {editingStudent?.academicGroup && !groupOptions.some((option) => option.name === editingStudent.academicGroup) && (
+                                <SelectItem value={editingStudent.academicGroup}>{editingStudent.academicGroup} (saved)</SelectItem>
+                              )}
+                              {groupOptions.map((option) => <SelectItem key={option.id} value={option.name}>{option.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
@@ -499,6 +537,7 @@ export default function ManageData() {
                                   name: editingStudent.name, 
                                   studentCustomId: editingStudent.studentCustomId,
                                   mobileNumber: editingStudent.mobileNumber,
+                                  school: editingStudent.school || null,
                                   shift: editingStudent.shift,
                                   academicGroup: editingStudent.academicGroup
                                 } 
@@ -805,6 +844,10 @@ export default function ManageData() {
 
         <TabsContent value="subjects">
           <SubjectMasterManager />
+        </TabsContent>
+
+        <TabsContent value="admission-options">
+          <AdmissionOptionsManager />
         </TabsContent>
       </Tabs>
     </Layout>
