@@ -1,3 +1,4 @@
 - [Package installation side effects](package-installation-side-effects.md) — npm package installation may modify Replit module config and lockfile optional metadata; review and restore unrelated changes.
 - [Vercel ESM verification](vercel-esm-verification.md) — verify the emitted, unbundled backend graph; bundled smoke tests hide Node ESM import-resolution failures.
 - [Bengali PDF shaping](bengali-pdf-shaping.md) — embedded Unicode fonts alone do not shape Bengali; use an OpenType engine and verify conjunct glyph substitution.
+- [Shared external database](shared-external-database.md) — production includes unrelated tables; restrict approved migrations to reviewed app-owned changes.
