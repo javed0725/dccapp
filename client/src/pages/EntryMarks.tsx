@@ -1494,7 +1494,12 @@ export default function EntryMarks() {
                                       return (
                                         <TableRow key={studentRes[0]?.studentId} className={`group ${hasAbsent ? "bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20" : "hover:bg-slate-50/60 dark:hover:bg-slate-800/30"}`}>
                                           <TableCell className="py-2.5 font-medium text-sm">
-                                            <span className={hasAbsent ? "text-red-600" : ""}>{st?.name || "—"}</span>
+                                            <div className="flex min-w-0 flex-col">
+                                              <span className={hasAbsent ? "text-red-600" : ""}>{st?.name || "—"}</span>
+                                              <span className="mt-0.5 text-[11px] font-mono font-normal text-muted-foreground">
+                                                ID: {st?.studentCustomId || "—"}
+                                              </span>
+                                            </div>
                                             {hasAbsent && <span className="ml-2 text-[10px] font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">Absent</span>}
                                           </TableCell>
                                           <TableCell className="py-2.5 text-center text-sm font-bold">
@@ -1709,7 +1714,12 @@ export default function EntryMarks() {
                                     return (
                                       <TableRow key={student.id} className={isAbsent ? "bg-red-50/60" : ""}>
                                         <TableCell className={`font-medium ${isAbsent ? "text-red-600" : ""}`}>
-                                          {student.name}
+                                          <div className="flex min-w-0 flex-col">
+                                            <span>{student.name}</span>
+                                            <span className={`mt-0.5 text-[11px] font-mono font-normal ${isAbsent ? "text-red-500" : "text-muted-foreground"}`}>
+                                              ID: {student.studentCustomId || "—"}
+                                            </span>
+                                          </div>
                                           {isAbsent && <span className="ml-2 text-xs font-bold text-red-500 bg-red-100 px-1.5 py-0.5 rounded">ABS</span>}
                                         </TableCell>
                                         {markingRule.fields.map((field) => (
