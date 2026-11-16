@@ -1,5 +1,5 @@
-import { getSubjectMarkingRule, type MarkComponent } from "./marking";
-import { getStudentGrade } from "./student-profile";
+import { getSubjectMarkingRule, type MarkComponent } from "./marking.js";
+import { getStudentGrade } from "./student-profile.js";
 
 export type StudentMarksheetResult = {
   subject: string;
