@@ -15,6 +15,7 @@ import { z } from "zod";
 import { insertIncomeSchema, type Income as IncomeType, type Batch, type Student } from "@/lib/schemas";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -176,12 +177,20 @@ const formSchema = insertIncomeSchema.extend({
   amount: z.coerce.number().min(1, "Amount must be greater than 0"),
   batchId: z.coerce.number().min(1, "Select a batch"),
   studentId: z.coerce.number().min(1, "Select a student"),
+  receivedByUserId: z.coerce.number().int().min(1, "Select who received the payment"),
 });
 
 type IncomeWithRelations = IncomeType & {
   student?: Student;
   batch?: Batch;
   addedBy?: string;
+};
+type PaymentTeacher = { id: number; name: string };
+type StudentMonthPayment = {
+  month: string;
+  status: "paid" | "due" | "upcoming";
+  amount: number | null;
+  teacherName: string | null;
 };
 
 export default function Income() {
@@ -190,12 +199,16 @@ export default function Income() {
   const { data: incomes, isLoading } = useIncomes();
   const { data: batches } = useBatches();
   const { data: students } = useStudents();
-  
+  const { data: paymentTeachers = [] } = useQuery<PaymentTeacher[]>({
+    queryKey: ["/api/payment-teachers"],
+    enabled: user?.role === "teacher",
+  });
   const createMutation = useCreateIncome();
   const deleteMutation = useDeleteIncome();
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
+  const [isSelfCollector, setIsSelfCollector] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -204,11 +217,13 @@ export default function Income() {
       batchId: 0,
       month: MONTHS[(new Date().getMonth() + 11) % 12],
       amount: 0,
+      receivedByUserId: Number(user?.id) || 0,
     },
   });
 
   const selectedBatchId = form.watch("batchId");
   const selectedStudentId = form.watch("studentId");
+  const paymentReceiverId = form.watch("receivedByUserId");
   const filteredStudents = ((students as any[])?.filter(s => s.batchId === Number(selectedBatchId) && s.isActive !== false) || []).sort((a: any, b: any) => parseInt(a.studentCustomId || '0') - parseInt(b.studentCustomId || '0'));
 
   /* Fetch the last payment amount for the selected student from the server */
@@ -217,12 +232,11 @@ export default function Income() {
     enabled: Number(selectedStudentId) > 0,
   });
 
-  /* Fetch due months for the selected student (past months not yet paid this year) */
-  const { data: dueMonthsData, isFetching: isDueFetching } = useQuery<{ dueMonths: string[] }>({
-    queryKey: ["/api/students", Number(selectedStudentId), "due-months"],
+  const { data: studentMonthPayments = [] } = useQuery<StudentMonthPayment[]>({
+    queryKey: ["/api/students", Number(selectedStudentId), "payment-months"],
     enabled: Number(selectedStudentId) > 0,
   });
-  const dueMonths = dueMonthsData?.dueMonths ?? [];
+  const paymentByMonth = new Map(studentMonthPayments.map((payment) => [payment.month.toLowerCase(), payment]));
 
   /* Auto-fill amount whenever a student is picked or their last-payment data arrives */
   useEffect(() => {
@@ -258,12 +272,31 @@ export default function Income() {
     form.setValue("studentId", 0);
   }, [selectedBatchId, form]);
 
+  useEffect(() => {
+    if (isSelfCollector && Number(user?.id) > 0) {
+      form.setValue("receivedByUserId", Number(user.id), { shouldValidate: false });
+    }
+  }, [form, isSelfCollector, user?.id]);
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    createMutation.mutate(values, {
+    createMutation.mutate({
+      ...values,
+      receivedByUserId: isSelfCollector ? Number(user?.id) : Number(values.receivedByUserId),
+    }, {
       onSuccess: () => {
         setOpen(false);
-        form.reset();
+        form.reset({
+          studentId: 0,
+          batchId: 0,
+          month: MONTHS[(new Date().getMonth() + 11) % 12],
+          amount: 0,
+          receivedByUserId: Number(user?.id) || 0,
+        });
+        setIsSelfCollector(true);
         queryClient.invalidateQueries({ queryKey: ["/api/collections/me"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/collections/me/details"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/students", Number(values.studentId), "payment-months"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/students", Number(values.studentId), "last-payment"] });
         toast({
           title: "Payment added",
           description: "Payment recorded successfully",
@@ -334,7 +367,16 @@ export default function Income() {
         subtitle="Manage tuition payments and income sources"
         action={
             isTeacher && (
-                <Dialog open={open} onOpenChange={setOpen}>
+                <Dialog
+                    open={open}
+                    onOpenChange={(nextOpen) => {
+                      setOpen(nextOpen);
+                      if (!nextOpen) {
+                        setIsSelfCollector(true);
+                        form.setValue("receivedByUserId", Number(user?.id) || 0);
+                      }
+                    }}
+                >
                     <DialogTrigger asChild>
                         <Button className="shadow-lg hover:shadow-xl transition-all">
                             <Plus className="w-4 h-4 mr-2" /> Add Payment
@@ -389,18 +431,6 @@ export default function Income() {
                                         </FormItem>
                                     )}
                                 />
-                                {/* Due Months Status — shown instantly when a student is selected */}
-                                {Number(selectedStudentId) > 0 && (
-                                  <div className="text-xs font-semibold px-1 -mt-1">
-                                    {isDueFetching ? (
-                                      <span className="text-muted-foreground">Checking dues…</span>
-                                    ) : dueMonths.length > 0 ? (
-                                      <span className="text-red-500">Due: {dueMonths.join(", ")}</span>
-                                    ) : (
-                                      <span className="text-green-500">✓ No pending dues</span>
-                                    )}
-                                  </div>
-                                )}
                                 <FormField
                                     control={form.control}
                                     name="month"
@@ -414,11 +444,63 @@ export default function Income() {
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    {MONTHS.map((month) => (
-                                                        <SelectItem key={month} value={month}>{month}</SelectItem>
-                                                    ))}
+                                                    {MONTHS.map((month) => {
+                                                      const payment = paymentByMonth.get(month.toLowerCase());
+                                                      const label = payment?.status === "paid"
+                                                        ? `${month} - ${Number(payment.amount).toLocaleString()}৳ - ${payment.teacherName || "Teacher unavailable"}`
+                                                        : payment?.status === "due"
+                                                        ? `${month} - Due`
+                                                        : `${month} - Upcoming`;
+                                                      return <SelectItem key={month} value={month}>{label}</SelectItem>;
+                                                    })}
                                                 </SelectContent>
                                             </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="receivedByUserId"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Received By</FormLabel>
+                                            <div className="flex items-center gap-3">
+                                                <FormControl>
+                                                    <Select
+                                                        value={paymentReceiverId ? String(paymentReceiverId) : ""}
+                                                        onValueChange={(value) => field.onChange(Number(value))}
+                                                        disabled={isSelfCollector}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select receiving teacher" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {paymentTeachers.map((teacher) => (
+                                                                <SelectItem key={teacher.id} value={String(teacher.id)}>
+                                                                    {teacher.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormControl>
+                                                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                                                    <Checkbox
+                                                        checked={isSelfCollector}
+                                                        onCheckedChange={(checked) => {
+                                                            const checkedSelf = checked === true;
+                                                            setIsSelfCollector(checkedSelf);
+                                                            form.setValue(
+                                                                "receivedByUserId",
+                                                                checkedSelf ? Number(user?.id) || 0 : 0,
+                                                                { shouldValidate: true },
+                                                            );
+                                                        }}
+                                                        aria-label="I received the payment"
+                                                    />
+                                                    <span>Self</span>
+                                                </label>
+                                            </div>
                                             <FormMessage />
                                         </FormItem>
                                     )}

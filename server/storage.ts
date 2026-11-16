@@ -292,6 +292,7 @@ export class DatabaseStorage implements IStorage {
         student: allStudents.find(s => s.id === income.studentId),
         batch: allBatches.find(b => b.id === income.batchId),
         recorder: removePassword(allUsers.find(u => u.id === income.recordedBy)),
+        receiver: removePassword(allUsers.find(u => u.id === (income.receivedByUserId ?? income.recordedBy))),
         status: income.status,
         addedBy: income.addedBy
     }));
@@ -325,11 +326,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteIncome(id: number): Promise<void> {
     const [income] = await db.select().from(incomes).where(eq(incomes.id, id));
-    if (income && income.recordedBy && income.amount) {
-      const [existing] = await db.select().from(collectionTracking).where(eq(collectionTracking.userId, income.recordedBy));
+    const collectorId = income?.receivedByUserId ?? income?.recordedBy;
+    if (income && collectorId && income.amount) {
+      const [existing] = await db.select().from(collectionTracking).where(eq(collectionTracking.userId, collectorId));
       if (existing) {
         const newTotal = Math.max(0, Number(existing.runningCollection) - Number(income.amount));
-        await db.update(collectionTracking).set({ runningCollection: newTotal }).where(eq(collectionTracking.userId, income.recordedBy));
+        await db.update(collectionTracking).set({ runningCollection: newTotal }).where(eq(collectionTracking.userId, collectorId));
       }
     }
     await db.delete(incomes).where(eq(incomes.id, id));

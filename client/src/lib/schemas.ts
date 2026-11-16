@@ -46,6 +46,7 @@ export interface Income {
   amount: number;
   date: string;
   recordedBy: number | null;
+  receivedByUserId: number | null;
   status: string;
   addedBy: string | null;
 }
@@ -99,6 +100,7 @@ export const insertIncomeSchema = z.object({
   batchId: z.coerce.number(),
   month: z.string().min(1, "Month is required"),
   amount: z.coerce.number(),
+  receivedByUserId: z.coerce.number().int().min(1, "Select who received the payment"),
 });
 
 export const insertExpenseSchema = z.object({

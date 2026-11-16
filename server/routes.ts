@@ -224,6 +224,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/payment-teachers", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    if ((req.user as any)?.role !== "teacher") {
+      return res.status(403).json({ message: ROLE_FORBIDDEN_MESSAGE });
+    }
+    try {
+      const teachers = await storage.getTeachers();
+      res.json(teachers.map((teacher) => ({
+        id: teacher.id,
+        name: teacher.name?.trim() || teacher.username || teacher.teacherId || `Teacher ${teacher.id}`,
+      })));
+    } catch (error) {
+      console.error("[GET /api/payment-teachers]", error);
+      res.status(500).json({ message: "Unable to load teachers." });
+    }
+  });
+
   // Public endpoint — no auth required — used by the landing page About section (CMS)
   app.get("/api/settings", async (_req, res) => {
     try {
@@ -656,6 +673,66 @@ export async function registerRoutes(
     return res.json({ dueMonths });
   });
 
+  app.get("/api/students/:id/payment-months", async (req, res) => {
+    if (!requireAuth(req, res)) return;
+    const studentId = Number(req.params.id);
+    if (!Number.isInteger(studentId) || studentId <= 0) {
+      return res.status(400).json({ message: "Invalid student id" });
+    }
+
+    try {
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const year = Number(req.query.year) || new Date().getFullYear();
+      if (!Number.isInteger(year) || year < 2000 || year > 2200) {
+        return res.status(400).json({ message: "Invalid year" });
+      }
+      const yearStart = new Date(Date.UTC(year, 0, 1));
+      const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+      const payments = await db
+        .select({
+          month: incomesTable.month,
+          amount: incomesTable.amount,
+          receivedByUserId: incomesTable.receivedByUserId,
+          recordedBy: incomesTable.recordedBy,
+        })
+        .from(incomesTable)
+        .where(and(
+          eq(incomesTable.studentId, studentId),
+          gte(incomesTable.date, yearStart),
+          lt(incomesTable.date, yearEnd),
+        ))
+        .orderBy(desc(incomesTable.date));
+
+      const teachers = await storage.getTeachers();
+      const teacherNames = new Map(
+        teachers.map((teacher) => [
+          teacher.id,
+          teacher.name?.trim() || teacher.username || teacher.teacherId || `Teacher ${teacher.id}`,
+        ]),
+      );
+      const paidByMonth = new Map<string, (typeof payments)[number]>();
+      for (const payment of payments) {
+        const normalizedMonth = payment.month.trim().toLowerCase();
+        if (!paidByMonth.has(normalizedMonth)) paidByMonth.set(normalizedMonth, payment);
+      }
+
+      const currentMonthIndex = new Date().getMonth();
+      res.json(months.map((month, monthIndex) => {
+        const payment = paidByMonth.get(month.toLowerCase());
+        const receiverId = payment?.receivedByUserId ?? payment?.recordedBy;
+        return {
+          month,
+          status: payment ? "paid" : monthIndex < currentMonthIndex ? "due" : "upcoming",
+          amount: payment?.amount ?? null,
+          teacherName: receiverId ? teacherNames.get(receiverId) ?? null : null,
+        };
+      }));
+    } catch (error) {
+      console.error(`[GET /api/students/${studentId}/payment-months]`, error);
+      res.status(500).json({ message: "Unable to load monthly payment status." });
+    }
+  });
+
   /* Returns the most recent payment amount for a given student (any recorder) */
   app.get("/api/students/:id/last-payment", async (req, res) => {
     if (!requireAuth(req, res)) return;
@@ -715,8 +792,19 @@ export async function registerRoutes(
         ...req.body,
         amount: Number(req.body.amount),
         studentId: Number(req.body.studentId),
-        batchId: Number(req.body.batchId)
+        batchId: Number(req.body.batchId),
+        receivedByUserId: Number(req.body.receivedByUserId ?? (req.user as any).id),
       });
+      const receivedByUserId = Number(input.receivedByUserId);
+      if (!Number.isInteger(receivedByUserId) || receivedByUserId <= 0) {
+        return res.status(400).json({ message: "Choose who received the payment." });
+      }
+
+      const teachers = await storage.getTeachers();
+      const receiver = teachers.find((teacher) => teacher.id === receivedByUserId);
+      if (!receiver) {
+        return res.status(400).json({ message: "Choose a valid teacher who received the payment." });
+      }
 
       const duplicate = await storage.findIncomeByStudentAndMonth(input.studentId, input.month);
       if (duplicate) {
@@ -730,13 +818,14 @@ export async function registerRoutes(
       const recordedByUserId = (req.user as any).id;
       const income = await storage.createIncome({
         ...input,
+        receivedByUserId,
         recordedBy: recordedByUserId,
         addedBy: (req.user as any).username
       });
 
       // Auto-update teacher's running collection
       try {
-        await storage.addToCollection(recordedByUserId, input.amount);
+        await storage.addToCollection(receivedByUserId, input.amount);
       } catch (collErr) {
         console.error("[collection] addToCollection failed:", collErr);
       }
@@ -1901,9 +1990,10 @@ export async function registerRoutes(
       allStudents.forEach((s) => { studentMap[s.id] = s.name; });
 
       const { gte, and: dbAnd } = await import("drizzle-orm");
+      const collectorFilter = sql`(${incomesTable.receivedByUserId} = ${userId} OR (${incomesTable.receivedByUserId} IS NULL AND ${incomesTable.recordedBy} = ${userId}))`;
       const conditions = lastResetAt
-        ? dbAnd(eq(incomesTable.recordedBy, userId), gte(incomesTable.date, lastResetAt))
-        : eq(incomesTable.recordedBy, userId);
+        ? dbAnd(collectorFilter, gte(incomesTable.date, lastResetAt))
+        : collectorFilter;
 
       const rows = await db
         .select()
@@ -1944,9 +2034,10 @@ export async function registerRoutes(
       allBatches.forEach((b) => { batchMap[b.id] = b.name; });
 
       const { gte, and: dbAnd } = await import("drizzle-orm");
+      const collectorFilter = sql`(${incomesTable.receivedByUserId} = ${userId} OR (${incomesTable.receivedByUserId} IS NULL AND ${incomesTable.recordedBy} = ${userId}))`;
       const conditions = lastResetAt
-        ? dbAnd(eq(incomesTable.recordedBy, userId), gte(incomesTable.date, lastResetAt))
-        : eq(incomesTable.recordedBy, userId);
+        ? dbAnd(collectorFilter, gte(incomesTable.date, lastResetAt))
+        : collectorFilter;
 
       const rows = await db
         .select()

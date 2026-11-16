@@ -76,6 +76,7 @@ export const incomes = pgTable("incomes", {
   amount: integer("amount").notNull(),
   date: timestamp("date").defaultNow().notNull(),
   recordedBy: integer("recorded_by").references(() => users.id),
+  receivedByUserId: integer("received_by_user_id").references(() => users.id),
   status: text("status").notNull().default("Pending"),
   addedBy: text("added_by"),
 });
