@@ -569,7 +569,6 @@ export async function registerRoutes(
         storage.getModelTestDrafts(),
       ]);
       const batch = batches.find((item) => item.id === student.batchId);
-      const draftStatusByGroupId = new Map(drafts.map((draft) => [draft.groupId, draft.status]));
       const draftSubjectByKey = new Map<string, ModelTestSubject>(
         drafts.flatMap((draft) => (draft.subjects as ModelTestSubject[]).map((subject) => [
           `${draft.groupId}::${subject.name.trim().toLowerCase()}`,
@@ -598,9 +597,6 @@ export async function registerRoutes(
       const exam = groupStudentExamResults(profileResults).find((group) => group.key === examKey);
       if (!exam?.results.length) return res.status(404).json({ message: "Exam results not found" });
 
-      const groupId = exam.results[0].modelTestGroupId;
-      const draftStatus = groupId ? draftStatusByGroupId.get(groupId) : null;
-
       const pdf = await renderStudentMarksheetPdf({
         student: {
           id: student.id,
@@ -614,7 +610,6 @@ export async function registerRoutes(
         examName: exam.results[0].examName,
         isModelTest: exam.results[0].isModelTest,
         date: exam.results[0].date,
-        draftStatus: draftStatus ?? null,
         results: exam.results,
       });
 

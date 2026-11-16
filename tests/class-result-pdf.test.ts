@@ -130,6 +130,7 @@ test("renders a professional A5 landscape student marksheet with shaped Bengali 
   assert.equal((raw.match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
   assert.match(raw, /\/MediaBox\s*\[0 0 595\.28 419\.53\]/);
   assert.match(raw, /\/FontFile2\b/);
+  assert.ok((raw.match(/\/Subtype\s*\/Image\b/g) ?? []).length >= 2, "PDF embeds the center logo and authority signature");
   assert.ok(pdf.length > 10_000);
   assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
 
