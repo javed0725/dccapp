@@ -21,7 +21,9 @@ import { setupAuth } from "./auth/auth.js";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf.js";
+import { renderStudentMarksheetPdf, studentMarksheetFilename } from "./student-marksheet-pdf.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
+import { groupStudentExamResults } from "../shared/student-profile.js";
 import {
   calculateModelTestStandings,
   formatModelTestTabulation,
@@ -543,6 +545,88 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[GET /api/students/:id/profile] Failed to load profile:", error);
       return res.status(500).json({ message: "Failed to load student profile" });
+    }
+  });
+
+  app.get("/api/students/:id/profile/marksheet.pdf", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const studentId = Number(req.params.id);
+    const examKey = String(req.query.examKey || "");
+    if (!Number.isInteger(studentId) || studentId < 1) {
+      return res.status(400).json({ message: "Invalid student id" });
+    }
+    if (!examKey) {
+      return res.status(400).json({ message: "Exam selection is required" });
+    }
+
+    try {
+      const student = await storage.getStudent(studentId);
+      if (!student) return res.status(404).json({ message: "Student not found" });
+
+      const [batches, results, drafts] = await Promise.all([
+        storage.getBatches(),
+        storage.getResultsByStudentId(studentId),
+        storage.getModelTestDrafts(),
+      ]);
+      const batch = batches.find((item) => item.id === student.batchId);
+      const draftStatusByGroupId = new Map(drafts.map((draft) => [draft.groupId, draft.status]));
+      const draftSubjectByKey = new Map<string, ModelTestSubject>(
+        drafts.flatMap((draft) => (draft.subjects as ModelTestSubject[]).map((subject) => [
+          `${draft.groupId}::${subject.name.trim().toLowerCase()}`,
+          subject,
+        ] as [string, ModelTestSubject]))
+      );
+      const profileResults = results.map((result) => ({
+        ...result,
+        markingConfig: result.modelTestGroupId
+          ? (() => {
+              const subject = draftSubjectByKey.get(
+                `${result.modelTestGroupId}::${result.subject.trim().toLowerCase()}`
+              );
+              return subject ? {
+                totalMarks: subject.totalMarks,
+                mcqEnabled: subject.mcqEnabled,
+                cqEnabled: subject.cqEnabled,
+                practicalEnabled: subject.practicalEnabled,
+                mcqMax: subject.mcqMax,
+                cqMax: subject.cqMax,
+                practicalMax: subject.practicalMax,
+              } : null;
+            })()
+          : null,
+      }));
+      const exam = groupStudentExamResults(profileResults).find((group) => group.key === examKey);
+      if (!exam?.results.length) return res.status(404).json({ message: "Exam results not found" });
+
+      const groupId = exam.results[0].modelTestGroupId;
+      const draftStatus = groupId ? draftStatusByGroupId.get(groupId) : null;
+
+      const pdf = await renderStudentMarksheetPdf({
+        student: {
+          id: student.id,
+          studentCustomId: student.studentCustomId,
+          registrationNumber: student.studentCustomId,
+          name: student.name,
+          batchName: batch?.name ?? null,
+          academicGroup: student.academicGroup,
+          school: student.school,
+        },
+        examName: exam.results[0].examName,
+        isModelTest: exam.results[0].isModelTest,
+        date: exam.results[0].date,
+        draftStatus: draftStatus ?? null,
+        results: exam.results,
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${studentMarksheetFilename(student.name, exam.results[0].examName)}"`,
+      );
+      return res.send(pdf);
+    } catch (error) {
+      console.error("[GET /api/students/:id/profile/marksheet.pdf] Failed to generate marksheet:", error);
+      return res.status(500).json({ message: "Could not generate the marksheet PDF" });
     }
   });
 

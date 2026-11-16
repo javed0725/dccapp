@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { inflateSync } from "node:zlib";
 import test from "node:test";
 import { renderClassResultSheetPdf } from "../server/class-result-pdf";
+import { renderStudentMarksheetPdf } from "../server/student-marksheet-pdf";
 import type { ModelTestTabulation } from "../shared/model-test-results";
 
 test("keeps one A4 landscape table and encodes Bengali conjuncts as shaped ligature glyphs", async () => {
@@ -71,4 +72,74 @@ test("keeps one A4 landscape table and encodes Bengali conjuncts as shaped ligat
     // জ + ্ + ঞ must be encoded as a single substituted glyph for জ্ঞ.
     // Merely embedding a Unicode font (the old jsPDF path) cannot pass this.
     assert.match(unicodeMaps, /<099c\s+09cd\s+099e>/i);
+});
+
+test("renders a professional A5 landscape student marksheet with shaped Bengali text", async () => {
+  const pdf = await renderStudentMarksheetPdf({
+    student: {
+      id: 26,
+      studentCustomId: "S-026",
+      registrationNumber: "R-026",
+      name: "Rafi",
+      batchName: "Class 9",
+      academicGroup: "Science",
+      school: "Dynamic High School",
+    },
+    examName: "বার্ষিক পরীক্ষা",
+    isModelTest: true,
+    date: "2026-11-16T00:00:00.000Z",
+    results: [
+      {
+        subject: "গণিত",
+        obtainedMarks: 82,
+        totalMarks: 100,
+        cqMarks: 42,
+        mcqMarks: 20,
+        practicalMarks: 20,
+        markingConfig: {
+          totalMarks: 100,
+          cqEnabled: true,
+          mcqEnabled: true,
+          practicalEnabled: true,
+          cqMax: 50,
+          mcqMax: 25,
+          practicalMax: 25,
+        },
+      },
+      {
+        subject: "বিজ্ঞান",
+        obtainedMarks: 75,
+        totalMarks: 100,
+        cqMarks: 39,
+        mcqMarks: 18,
+        practicalMarks: 18,
+        markingConfig: {
+          totalMarks: 100,
+          cqEnabled: true,
+          mcqEnabled: true,
+          practicalEnabled: true,
+          cqMax: 50,
+          mcqMax: 25,
+          practicalMax: 25,
+        },
+      },
+    ],
+  });
+
+  const raw = pdf.toString("latin1");
+  assert.equal((raw.match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
+  assert.match(raw, /\/MediaBox\s*\[0 0 595\.28 419\.53\]/);
+  assert.match(raw, /\/FontFile2\b/);
+  assert.ok(pdf.length > 10_000);
+  assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
+
+  const streams = [...raw.matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)].flatMap((match) => {
+    try {
+      return [inflateSync(Buffer.from(match[1], "latin1")).toString("latin1")];
+    } catch {
+      return [];
+    }
+  });
+  const unicodeMaps = streams.filter((stream) => stream.includes("begincmap")).join("\n");
+  assert.match(unicodeMaps, /<099c\s+09cd\s+099e>/i);
 });
