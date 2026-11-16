@@ -10,6 +10,7 @@ import { z } from "zod";
 import { insertStudentSchema } from "@/lib/schemas";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, CheckCircle2, GraduationCap, RefreshCw, Phone, BadgeCheck, Users, Printer } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
@@ -50,12 +51,24 @@ export default function Admission() {
   const [open, setOpen] = useState(false);
   const [admittedStudent, setAdmittedStudent] = useState<AdmissionReceiptData | null>(null);
   const [selectedExistingStudentId, setSelectedExistingStudentId] = useState<number | null>(null);
+  const [admittingTeacherIsSelf, setAdmittingTeacherIsSelf] = useState(true);
+  const [admittingTeacherId, setAdmittingTeacherId] = useState("");
   const { data: batches } = useBatches();
   const { data: students, refetch: refetchStudents } = useStudents();
   const createStudent = useCreateStudent();
   const updateStudent = useUpdateStudent();
   const { toast } = useToast();
   const { data: user } = useQuery<User>({ queryKey: ["/api/user"] });
+  const { data: admissionTeachers = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/payment-teachers"],
+    enabled: user?.role === "teacher",
+  });
+
+  useEffect(() => {
+    if (admittingTeacherIsSelf && user?.id) {
+      setAdmittingTeacherId(String(user.id));
+    }
+  }, [admittingTeacherIsSelf, user?.id]);
 
   const isAdmin = user?.role === "admin";
   const isTeacher = user?.role === "teacher";
@@ -90,6 +103,17 @@ export default function Admission() {
   }, [admittedStudent]);
 
   function onSubmit(values: z.infer<typeof studentFormSchema>) {
+    const selectedAdmittingTeacher = admissionTeachers.find(
+      (teacher) => String(teacher.id) === admittingTeacherId,
+    );
+    if (!selectedAdmittingTeacher) {
+      toast({
+        variant: "destructive",
+        title: "Select an admitting teacher",
+        description: "Choose yourself or select the teacher who processed this admission.",
+      });
+      return;
+    }
     const reAdmission = selectedExistingStudentId !== null;
     const selectedStudent = ((students as any[] | undefined) ?? [])
       .find((student) => student.id === selectedExistingStudentId);
@@ -107,6 +131,8 @@ export default function Admission() {
         setOpen(false);
         form.reset();
         setSelectedExistingStudentId(null);
+        setAdmittingTeacherIsSelf(true);
+        setAdmittingTeacherId(user?.id ? String(user.id) : "");
         queryClient.invalidateQueries({ queryKey: ["/api/students"] });
         queryClient.invalidateQueries({ queryKey: ["/api/batches"] });
         const batch = ((batches as any[] | undefined) ?? []).find((item) => item.id === student.batchId);
@@ -119,7 +145,7 @@ export default function Admission() {
           academicGroup: student.academicGroup || null,
           shift: student.shift || null,
           admissionDate: reAdmission ? new Date().toISOString() : student.admissionDate ?? new Date().toISOString(),
-          admittingTeacher: user?.name || user?.username || "Not recorded",
+          admittingTeacher: selectedAdmittingTeacher.name,
         });
         toast({
           title: "Success",
@@ -240,6 +266,8 @@ export default function Admission() {
                   if (!isOpen) {
                     form.reset();
                     setSelectedExistingStudentId(null);
+                    setAdmittingTeacherIsSelf(true);
+                    setAdmittingTeacherId(user?.id ? String(user.id) : "");
                   }
                 }}
               >
@@ -448,6 +476,41 @@ export default function Admission() {
                           )}
                         />
                       </div>
+                      <FormItem>
+                        <div className="flex items-center justify-between gap-3">
+                          <FormLabel>Admitting Teacher</FormLabel>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm font-normal">
+                            <Checkbox
+                              checked={admittingTeacherIsSelf}
+                              onCheckedChange={(checked) => {
+                                const isSelf = checked === true;
+                                setAdmittingTeacherIsSelf(isSelf);
+                                setAdmittingTeacherId(isSelf && user?.id ? String(user.id) : "");
+                              }}
+                            />
+                            Self
+                          </label>
+                        </div>
+                        <Select
+                          value={admittingTeacherId}
+                          onValueChange={setAdmittingTeacherId}
+                          disabled={admittingTeacherIsSelf}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select the admitting teacher" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {admissionTeachers.map((teacher) => (
+                              <SelectItem key={teacher.id} value={String(teacher.id)}>
+                                {teacher.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!admittingTeacherIsSelf && !admittingTeacherId && (
+                          <p className="text-sm text-destructive">Select who processed this admission.</p>
+                        )}
+                      </FormItem>
                       <Button type="submit" className="w-full h-11" disabled={createStudent.isPending || updateStudent.isPending}>
                         {createStudent.isPending || updateStudent.isPending
                           ? "Processing..."
