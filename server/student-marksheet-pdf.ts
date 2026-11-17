@@ -110,14 +110,8 @@ function safeFilename(value: string) {
     .slice(0, 80) || "Student_Marksheet";
 }
 
-export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput): Promise<Buffer> {
-  const engine = await getPdfEngine();
-  const images = await getMarksheetImages();
+function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreakBefore: boolean): any[] {
   const marksheet = getStudentMarksheetData(input.results);
-  const date = input.date ? new Date(input.date) : null;
-  const publishedDate = date && !Number.isNaN(date.getTime())
-    ? date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
-    : "Not recorded";
   const componentColumns = marksheet.componentColumns;
   const fixedColumnCount = 4 + componentColumns.length;
   const fixedWidth = 46 * fixedColumnCount;
@@ -142,7 +136,7 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
     margin: [5, 4, 5, 4],
   });
 
-  const subjectTable: PdfCell[][] = [
+  const subjectTable: any[][] = [
     [
       header("Subject"),
       header("Full Marks"),
@@ -151,7 +145,7 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
       header("Grade Point"),
       header("Letter Grade"),
     ],
-    ...marksheet.rows.map(({ result, grade, point, isAbsent, components }) => [
+    ...marksheet.rows.map(({ result, grade, point, isAbsent, isPending, components }) => [
       {
         text: cleanText(result.subject),
         bold: true,
@@ -160,7 +154,7 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
       },
       { text: cleanText(result.totalMarks), alignment: "center", fontSize: 7.5 },
       {
-        text: isAbsent ? "Absent" : cleanText(result.obtainedMarks),
+        text: isPending ? "—" : isAbsent ? "Absent" : cleanText(result.obtainedMarks),
         alignment: "center",
         bold: true,
         fontSize: 7.5,
@@ -196,35 +190,16 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
   ];
   const passed = marksheet.passed;
 
-  return engine.createPdf({
-    info: {
-      title: `${input.examName} - ${input.student.name} Marksheet`,
-      author: "Dynamic Coaching Center",
-      producer: "PDFKit / fontkit OpenType",
-    },
-    language: "bn-BD",
-    pageSize: "A5",
-    pageOrientation: "landscape",
-    pageMargins: [22, 18, 22, 78],
-    background: (_page: number, size: { width: number; height: number }) => ({
-      stack: [
-        {
-          canvas: [
-            { type: "rect", x: 8, y: 8, w: size.width - 16, h: size.height - 16, lineColor: "#a88a52", lineWidth: 1.2 },
-            { type: "rect", x: 12, y: 12, w: size.width - 24, h: size.height - 24, lineColor: "#d9c89f", lineWidth: 0.45 },
-          ],
-        },
-        {
-          image: images.logo,
-          width: 230,
-          opacity: 0.045,
-          absolutePosition: { x: (size.width - 230) / 2, y: (size.height - 230) / 2 },
-        },
-      ],
-    }),
-    defaultStyle: { font: "Noto Sans Bengali", fontSize: 7.5, color: "#172033" },
-    content: [
-      { text: "Dynamic Coaching Center", alignment: "center", color: "#182b4b", bold: true, fontSize: 19, margin: [0, 0, 0, 2] },
+  return [
+      {
+        text: "Dynamic Coaching Center",
+        alignment: "center",
+        color: "#182b4b",
+        bold: true,
+        fontSize: 19,
+        margin: [0, 0, 0, 2],
+        pageBreak: pageBreakBefore ? "before" : undefined,
+      },
       { text: "COME TO LEARN, LEAVE TO SHINE", alignment: "center", color: "#64748b", bold: true, fontSize: 6.5, characterSpacing: 1, margin: [0, 0, 0, 5] },
       { canvas: [{ type: "line", x1: 0, y1: 0, x2: 551, y2: 0, lineWidth: 0.8, lineColor: "#a88a52" }], margin: [0, 0, 0, 5] },
       { text: cleanText(input.examName), alignment: "center", color: "#243b63", bold: true, fontSize: 11, margin: [0, 0, 0, 2] },
@@ -267,8 +242,22 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
           body: [[
             { text: `TOTAL MARKS\n${marksheet.totalObtained} / ${marksheet.totalFull}`, bold: true, fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
             { text: `GPA\n${marksheet.gpa === null ? "—" : `${marksheet.gpa.toFixed(2)} / 5.00`}`, bold: true, fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
-            { text: `FINAL RESULT\n${passed ? "PASSED" : "FAILED"}`, bold: true, color: passed ? "#166534" : "#b91c1c", fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
-            { text: `MERIT POSITION\n${cleanText(input.meritPosition || "Not ranked")}`, bold: true, color: input.meritPosition ? "#243b63" : "#64748b", fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
+            {
+              text: `FINAL RESULT\n${marksheet.pending ? "PENDING" : passed ? "PASSED" : "FAILED"}`,
+              bold: true,
+              color: marksheet.pending ? "#a16207" : passed ? "#166534" : "#b91c1c",
+              fontSize: 8.5,
+              alignment: "center",
+              margin: [5, 4, 5, 4],
+            },
+            {
+              text: `MERIT POSITION\n${cleanText(input.meritPosition || (marksheet.pending ? "Pending" : "Not ranked"))}`,
+              bold: true,
+              color: input.meritPosition ? "#243b63" : "#64748b",
+              fontSize: 8.5,
+              alignment: "center",
+              margin: [5, 4, 5, 4],
+            },
           ]],
         },
         layout: {
@@ -280,8 +269,15 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
         },
         margin: [0, 6, 0, 0],
       },
-    ],
-    footer: () => ({
+    ];
+}
+
+function buildStudentMarksheetFooter(input: StudentMarksheetPdfInput, images: { logo: string; signature: string }) {
+  const date = input.date ? new Date(input.date) : null;
+  const publishedDate = date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+    : "Not recorded";
+  return {
       margin: [22, 0, 22, 18],
       columns: [
         {
@@ -300,8 +296,55 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
           ],
         },
       ],
+    };
+}
+
+async function buildStudentMarksheetsPdf(inputs: StudentMarksheetPdfInput[]): Promise<Buffer> {
+  if (inputs.length === 0) throw new Error("At least one student is required for PDF export");
+  const engine = await getPdfEngine();
+  const images = await getMarksheetImages();
+  const first = inputs[0];
+  return engine.createPdf({
+    info: {
+      title: inputs.length === 1
+        ? `${first.examName} - ${first.student.name} Marksheet`
+        : `${first.examName} - Individual Student Marksheets`,
+      author: "Dynamic Coaching Center",
+      producer: "PDFKit / fontkit OpenType",
+    },
+    language: "bn-BD",
+    pageSize: "A5",
+    pageOrientation: "landscape",
+    pageMargins: [22, 18, 22, 78],
+    background: (_page: number, size: { width: number; height: number }) => ({
+      stack: [
+        {
+          canvas: [
+            { type: "rect", x: 8, y: 8, w: size.width - 16, h: size.height - 16, lineColor: "#a88a52", lineWidth: 1.2 },
+            { type: "rect", x: 12, y: 12, w: size.width - 24, h: size.height - 24, lineColor: "#d9c89f", lineWidth: 0.45 },
+          ],
+        },
+        {
+          image: images.logo,
+          width: 230,
+          opacity: 0.045,
+          absolutePosition: { x: (size.width - 230) / 2, y: (size.height - 230) / 2 },
+        },
+      ],
     }),
+    defaultStyle: { font: "Noto Sans Bengali", fontSize: 7.5, color: "#172033" },
+    content: inputs.flatMap((input, index) => buildStudentMarksheetContent(input, index > 0)),
+    footer: (currentPage: number) =>
+      buildStudentMarksheetFooter(inputs[Math.min(currentPage - 1, inputs.length - 1)] ?? first, images),
   }).getBuffer();
+}
+
+export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput): Promise<Buffer> {
+  return buildStudentMarksheetsPdf([input]);
+}
+
+export async function renderStudentMarksheetsPdf(inputs: StudentMarksheetPdfInput[]): Promise<Buffer> {
+  return buildStudentMarksheetsPdf(inputs);
 }
 
 export function studentMarksheetFilename(studentName: string, examName: string) {

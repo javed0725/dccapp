@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { inflateSync } from "node:zlib";
 import test from "node:test";
 import { renderClassResultSheetPdf } from "../server/class-result-pdf";
-import { renderStudentMarksheetPdf } from "../server/student-marksheet-pdf";
+import {
+  renderStudentMarksheetPdf,
+  renderStudentMarksheetsPdf,
+} from "../server/student-marksheet-pdf";
 import type { ModelTestTabulation } from "../shared/model-test-results";
 
 test("keeps one A4 landscape table and encodes Bengali conjuncts as shaped ligature glyphs", async () => {
@@ -144,4 +147,45 @@ test("renders a professional A5 landscape student marksheet with shaped Bengali 
   });
   const unicodeMaps = streams.filter((stream) => stream.includes("begincmap")).join("\n");
   assert.match(unicodeMaps, /<099c\s+09cd\s+099e>/i);
+});
+
+test("renders one A5 landscape page per student and keeps unfinished marks pending", async () => {
+  const baseInput = {
+    examName: "Class Test",
+    isModelTest: true,
+    date: "2026-11-17T00:00:00.000Z",
+    results: [{
+      subject: "Mathematics",
+      obtainedMarks: null,
+      totalMarks: 100,
+      cqMarks: null,
+      mcqMarks: null,
+      markingConfig: {
+        totalMarks: 100,
+        cqEnabled: true,
+        mcqEnabled: true,
+        cqMax: 70,
+        mcqMax: 30,
+      },
+    }],
+  };
+  const pdf = await renderStudentMarksheetsPdf(
+    [1, 2, 3].map((id) => ({
+      ...baseInput,
+      student: {
+        id,
+        studentCustomId: `S-${id}`,
+        registrationNumber: `R-${id}`,
+        name: `Student ${id}`,
+        batchName: "Class 9",
+        academicGroup: "Science",
+        school: "Dynamic High School",
+      },
+      meritPosition: "Pending",
+    })),
+  );
+  const raw = pdf.toString("latin1");
+  assert.equal((raw.match(/\/Type\s*\/Page\b/g) ?? []).length, 3);
+  assert.match(raw, /\/MediaBox\s*\[0 0 595\.28 419\.53\]/);
+  assert.ok((raw.match(/\/Subtype\s*\/Image\b/g) ?? []).length >= 2);
 });

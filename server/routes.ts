@@ -21,7 +21,11 @@ import { setupAuth } from "./auth/auth.js";
 import bcrypt from "bcryptjs";
 import { execSync } from "child_process";
 import { renderAttendancePdf } from "./attendance-pdf.js";
-import { renderStudentMarksheetPdf, studentMarksheetFilename } from "./student-marksheet-pdf.js";
+import {
+  renderStudentMarksheetPdf,
+  renderStudentMarksheetsPdf,
+  studentMarksheetFilename,
+} from "./student-marksheet-pdf.js";
 import { validateSubjectMarksEntry } from "../shared/marking.js";
 import { groupStudentExamResults } from "../shared/student-profile.js";
 import {
@@ -1701,6 +1705,107 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[Class Result PDF] OpenType rendering failed:", error);
       if (!res.headersSent) res.status(500).json({ message: "Could not generate the class result PDF" });
+    }
+  });
+
+  app.get("/api/model-test-drafts/:groupId/individual-marksheets.pdf", async (req, res) => {
+    if (!requireRoles(req, res, ["admin", "teacher"])) return;
+    try {
+      const requestedGroup = typeof req.query.group === "string" ? req.query.group : undefined;
+      const processed = await getModelTestStandings(req.params.groupId, requestedGroup);
+      if (!processed) return res.status(404).json({ message: "Model test draft not found" });
+      if (processed.scopeError) return res.status(400).json({ message: processed.scopeError });
+
+      const [draft, students, savedMarks, batches] = await Promise.all([
+        storage.getModelTestDraftByGroupId(req.params.groupId),
+        storage.getStudents(),
+        storage.getModelTestResults(req.params.groupId, null),
+        storage.getBatches(),
+      ]);
+      if (!draft) return res.status(404).json({ message: "Model test draft not found" });
+      if (processed.standings.length === 0) {
+        return res.status(400).json({ message: "There are no active students in this class or group" });
+      }
+
+      const batch = batches.find((candidate) => candidate.id === processed.batchId);
+      const studentById = new Map(students.map((student) => [student.id, student]));
+      const markByStudentAndSubject = new Map(
+        savedMarks.map((mark) => [
+          `${mark.studentId}::${mark.subject.trim().toLocaleLowerCase()}`,
+          mark,
+        ])
+      );
+      const examDate = savedMarks[0]?.date ?? draft.createdAt;
+      const marksheets = processed.standings.flatMap((standing) => {
+        const student = studentById.get(standing.studentId);
+        if (!student) return [];
+        const results = processed.subjects
+          .filter((subject) => standing.subjects.some((item) =>
+            item.subject.trim().toLocaleLowerCase() === subject.name.trim().toLocaleLowerCase()
+          ))
+          .map((subject) => {
+            const mark = markByStudentAndSubject.get(
+              `${standing.studentId}::${subject.name.trim().toLocaleLowerCase()}`
+            );
+            return {
+              subject: subject.name,
+              totalMarks: subject.totalMarks,
+              obtainedMarks: mark?.obtainedMarks ?? null,
+              mcqMarks: mark?.mcqMarks ?? null,
+              cqMarks: mark?.cqMarks ?? null,
+              practicalMarks: mark?.practicalMarks ?? null,
+              markingConfig: {
+                totalMarks: subject.totalMarks,
+                mcqEnabled: subject.mcqEnabled,
+                cqEnabled: subject.cqEnabled,
+                practicalEnabled: subject.practicalEnabled,
+                mcqMax: subject.mcqMax,
+                cqMax: subject.cqMax,
+                practicalMax: subject.practicalMax,
+              },
+            };
+          });
+        const meritPosition = standing.meritPosition
+          ? `${standing.meritPosition} in Class/Group`
+          : standing.status === "F"
+            ? "Failed — not ranked"
+            : standing.status === "Pending"
+              ? "Pending"
+              : null;
+        return [{
+          student: {
+            id: student.id,
+            studentCustomId: student.studentCustomId,
+            registrationNumber: student.studentCustomId,
+            name: student.name,
+            batchName: batch?.name ?? `Class ${processed.batchId}`,
+            academicGroup: student.academicGroup,
+            school: student.school,
+          },
+          examName: processed.examName,
+          isModelTest: true,
+          date: examDate,
+          meritPosition,
+          results,
+        }];
+      });
+      if (marksheets.length === 0) {
+        return res.status(400).json({ message: "No student records are available for this class or group" });
+      }
+
+      const pdf = await renderStudentMarksheetsPdf(marksheets);
+      const filename = studentMarksheetFilename("All_Students", processed.examName)
+        .replace("_Marksheet.pdf", "_Individual_Marksheets.pdf");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Content-Length", pdf.length);
+      res.setHeader("Cache-Control", "no-store");
+      return res.send(pdf);
+    } catch (error) {
+      console.error("[Bulk Student Marksheets PDF] Failed to generate marksheets:", error);
+      if (!res.headersSent) {
+        return res.status(500).json({ message: "Could not generate the individual student marksheets" });
+      }
     }
   });
 

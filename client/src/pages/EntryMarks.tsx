@@ -21,7 +21,10 @@ import { buildSubjectWhatsAppUrl, buildResultWhatsAppUrl } from "@/lib/whatsapp"
 import { Link } from "wouter";
 import { getSubjectMarkingRule, type MarkComponent, type ModelTestSubject } from "@shared/marking";
 import { getModelTestDraftAcademicGroup, resolveModelTestGroupScope, sameAcademicGroup } from "@shared/model-test-results";
-import { downloadClassResultSheetPdf } from "@/lib/class-result-pdf";
+import {
+  downloadAllIndividualMarksheetsPdf,
+  downloadClassResultSheetPdf,
+} from "@/lib/class-result-pdf";
 
 function getGrade(obtained: number, total: number): { grade: string; gp: number } {
   if (obtained === -1) return { grade: "ABS", gp: 0.0 };
@@ -398,6 +401,7 @@ export default function EntryMarks() {
   // --- Admin: Collapsible draft cards ---
   const [expandedDraftIds, setExpandedDraftIds] = useState<Set<string>>(new Set());
   const [downloadingPdfGroupId, setDownloadingPdfGroupId] = useState<string | null>(null);
+  const [downloadingAllMarksheetsGroupId, setDownloadingAllMarksheetsGroupId] = useState<string | null>(null);
   const toggleDraftExpand = (groupId: string) =>
     setExpandedDraftIds((prev) => {
       const next = new Set(prev);
@@ -761,6 +765,25 @@ export default function EntryMarks() {
       });
     } finally {
       setDownloadingPdfGroupId(null);
+    }
+  };
+
+  const handleDownloadAllIndividualMarksheets = async (draft: any) => {
+    setDownloadingAllMarksheetsGroupId(draft.groupId);
+    try {
+      await downloadAllIndividualMarksheetsPdf(draft.groupId);
+      toast({
+        title: "Individual marksheets downloaded",
+        description: `${draft.examName} · ${draft.batch?.name || `Class ${draft.batchId}`} · ${getDraftScopeLabel(draft.subjects || [])}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Marksheets export failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setDownloadingAllMarksheetsGroupId(null);
     }
   };
 
@@ -1416,19 +1439,36 @@ export default function EntryMarks() {
                                 </Button>
                               )}
                               {isAdmin && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="min-h-10 w-full justify-center gap-2 px-3 text-xs sm:col-span-2 sm:text-sm"
-                                  disabled={downloadingPdfGroupId === draft.groupId}
-                                  onClick={() => handleDownloadClassResultPdf(draft)}
-                                >
-                                  {downloadingPdfGroupId === draft.groupId
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <FileDown className="h-4 w-4" />
-                                  }
-                                  {downloadingPdfGroupId === draft.groupId ? "Preparing PDF..." : "Download Class Result Sheet (PDF)"}
-                                </Button>
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="min-h-10 w-full justify-center gap-2 px-3 text-xs sm:text-sm"
+                                    disabled={downloadingPdfGroupId === draft.groupId || downloadingAllMarksheetsGroupId === draft.groupId}
+                                    onClick={() => handleDownloadClassResultPdf(draft)}
+                                  >
+                                    {downloadingPdfGroupId === draft.groupId
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <FileDown className="h-4 w-4" />
+                                    }
+                                    {downloadingPdfGroupId === draft.groupId ? "Preparing PDF..." : "Download Class Result Sheet (PDF)"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="min-h-10 w-full justify-center gap-2 px-3 text-xs sm:text-sm"
+                                    disabled={downloadingAllMarksheetsGroupId === draft.groupId || downloadingPdfGroupId === draft.groupId}
+                                    onClick={() => handleDownloadAllIndividualMarksheets(draft)}
+                                  >
+                                    {downloadingAllMarksheetsGroupId === draft.groupId
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <FileDown className="h-4 w-4" />
+                                    }
+                                    {downloadingAllMarksheetsGroupId === draft.groupId
+                                      ? "Preparing individual marksheets..."
+                                      : "Download All Individual Marksheets (PDF)"}
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </CardHeader>
