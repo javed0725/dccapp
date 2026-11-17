@@ -88,6 +88,7 @@ test("renders a professional A5 landscape student marksheet with shaped Bengali 
     examName: "বার্ষিক পরীক্ষা",
     isModelTest: true,
     date: "2026-11-16T00:00:00.000Z",
+    meritPosition: "1st in Class/Group",
     results: [
       {
         subject: "গণিত",

@@ -597,6 +597,16 @@ export async function registerRoutes(
       const exam = groupStudentExamResults(profileResults).find((group) => group.key === examKey);
       if (!exam?.results.length) return res.status(404).json({ message: "Exam results not found" });
 
+      const modelTestGroupId = exam.results[0].modelTestGroupId;
+      let meritPosition: string | null = null;
+      if (exam.results[0].isModelTest && modelTestGroupId) {
+        const standings = await getModelTestStandings(modelTestGroupId, student.academicGroup);
+        const standing = standings?.standings.find((item) => item.studentId === studentId);
+        if (standing?.meritPosition) meritPosition = `${standing.meritPosition} in Class/Group`;
+        else if (standing?.status === "F") meritPosition = "Failed — not ranked";
+        else if (standing?.status === "Pending") meritPosition = "Pending";
+      }
+
       const pdf = await renderStudentMarksheetPdf({
         student: {
           id: student.id,
@@ -610,6 +620,7 @@ export async function registerRoutes(
         examName: exam.results[0].examName,
         isModelTest: exam.results[0].isModelTest,
         date: exam.results[0].date,
+        meritPosition,
         results: exam.results,
       });
 

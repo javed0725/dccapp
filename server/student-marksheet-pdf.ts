@@ -26,6 +26,7 @@ export type StudentMarksheetPdfInput = {
   examName: string;
   isModelTest: boolean;
   date: string | Date | null;
+  meritPosition?: string | null;
   results: StudentMarksheetResult[];
 };
 
@@ -204,7 +205,7 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
     language: "bn-BD",
     pageSize: "A5",
     pageOrientation: "landscape",
-    pageMargins: [22, 18, 22, 62],
+    pageMargins: [22, 18, 22, 78],
     background: (_page: number, size: { width: number; height: number }) => ({
       stack: [
         {
@@ -215,9 +216,9 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
         },
         {
           image: images.logo,
-          width: 110,
-          opacity: 0.075,
-          absolutePosition: { x: (size.width - 110) / 2, y: (size.height - 110) / 2 },
+          width: 230,
+          opacity: 0.045,
+          absolutePosition: { x: (size.width - 230) / 2, y: (size.height - 230) / 2 },
         },
       ],
     }),
@@ -262,11 +263,12 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
       },
       {
         table: {
-          widths: ["*", "*", "*"],
+          widths: ["*", "*", "*", "*"],
           body: [[
             { text: `TOTAL MARKS\n${marksheet.totalObtained} / ${marksheet.totalFull}`, bold: true, fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
             { text: `GPA\n${marksheet.gpa === null ? "—" : `${marksheet.gpa.toFixed(2)} / 5.00`}`, bold: true, fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
             { text: `FINAL RESULT\n${passed ? "PASSED" : "FAILED"}`, bold: true, color: passed ? "#166534" : "#b91c1c", fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
+            { text: `MERIT POSITION\n${cleanText(input.meritPosition || "Not ranked")}`, bold: true, color: input.meritPosition ? "#243b63" : "#64748b", fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
           ]],
         },
         layout: {
@@ -280,19 +282,19 @@ export async function renderStudentMarksheetPdf(input: StudentMarksheetPdfInput)
       },
     ],
     footer: () => ({
-      margin: [22, 4, 22, 7],
+      margin: [22, 0, 22, 18],
       columns: [
         {
           text: `Published Date: ${publishedDate}`,
           alignment: "left",
           color: "#475569",
           fontSize: 7.5,
-          margin: [0, 28, 0, 0],
+          margin: [0, 34, 0, 0],
         },
         {
           width: 150,
           stack: [
-            { image: images.signature, fit: [112, 36], alignment: "center", margin: [0, 0, 0, 1] },
+            { image: images.signature, fit: [112, 30], alignment: "center", margin: [0, 0, 0, 1] },
             { canvas: [{ type: "line", x1: 20, y1: 0, x2: 130, y2: 0, lineWidth: 0.55, lineColor: "#334155" }] },
             { text: "Authority", alignment: "center", bold: true, fontSize: 8, margin: [0, 2, 0, 0] },
           ],
