@@ -189,3 +189,40 @@ test("renders one A5 landscape page per student and keeps unfinished marks pendi
   assert.match(raw, /\/MediaBox\s*\[0 0 595\.28 419\.53\]/);
   assert.ok((raw.match(/\/Subtype\s*\/Image\b/g) ?? []).length >= 2);
 });
+
+test("keeps a subject-heavy student's marksheet on exactly one A5 page", async () => {
+  const subjects = Array.from({ length: 32 }, (_, index) => ({
+    subject: `Subject ${index + 1}`,
+    obtainedMarks: 60 + (index % 30),
+    totalMarks: 100,
+    cqMarks: 42,
+    mcqMarks: 20,
+    markingConfig: {
+      totalMarks: 100,
+      cqEnabled: true,
+      mcqEnabled: true,
+      cqMax: 70,
+      mcqMax: 30,
+    },
+  }));
+  const pdf = await renderStudentMarksheetPdf({
+    student: {
+      id: 99,
+      studentCustomId: "S-099",
+      registrationNumber: "R-099",
+      name: "Student with many subjects",
+      batchName: "Class 9",
+      academicGroup: "Science",
+      school: "Dynamic High School",
+    },
+    examName: "Class 9 Comprehensive Examination",
+    isModelTest: true,
+    date: "2026-11-17T00:00:00.000Z",
+    meritPosition: "Pending",
+    results: subjects,
+  });
+
+  const raw = pdf.toString("latin1");
+  assert.equal((raw.match(/\/Type\s*\/Page\b/g) ?? []).length, 1);
+  assert.match(raw, /\/MediaBox\s*\[0 0 595\.28 419\.53\]/);
+});

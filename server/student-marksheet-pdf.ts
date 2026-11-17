@@ -11,6 +11,7 @@ type PdfCell = {
   alignment?: string;
   fontSize?: number;
   margin?: number[];
+  noWrap?: boolean;
 };
 
 export type StudentMarksheetPdfInput = {
@@ -119,6 +120,21 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
   const tablePadding = 3;
   const tableLineWidth = 0.45;
   const widthAllowance = tablePadding * 2 + tableLineWidth;
+  // Reserve space for the header, student details, summary, and footer. Scale
+  // the subject rows to the remaining A5 landscape height so larger class
+  // subject lists stay on the same page instead of being split by the engine.
+  const pageContentHeight = 419.53 - 18 - 78;
+  const fixedContentHeight = 145;
+  const subjectRowHeight = Math.min(
+    15.5,
+    Math.max(0.55, (pageContentHeight - fixedContentHeight) / (marksheet.rows.length + 1)),
+  );
+  const subjectFontSize = Math.max(0.35, Math.min(7.5, (subjectRowHeight - tableLineWidth) / 1.8));
+  const subjectCellPadding = Math.max(
+    0,
+    (subjectRowHeight - tableLineWidth - subjectFontSize * 1.2) / 2,
+  );
+  const compactScale = Math.min(1, Math.max(0.5, subjectFontSize / 7.5));
   const componentLabel = (key: string) =>
     key === "cq" ? "CQ" : key === "mcq" ? "MCQ" : "Practical";
   const header = (text: string): PdfCell => ({
@@ -127,13 +143,14 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
     color: "#ffffff",
     fillColor: "#243b63",
     alignment: "center",
-    fontSize: 7.5,
+    fontSize: subjectFontSize,
+    noWrap: true,
   });
   const infoCell = (label: string, value: string): PdfCell => ({
     text: `${label.toUpperCase()}\n${cleanText(value)}`,
     color: "#172033",
-    fontSize: 7.5,
-    margin: [5, 4, 5, 4],
+    fontSize: Math.max(5, 7.5 * compactScale),
+    margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale],
   });
 
   const subjectTable: any[][] = [
@@ -150,28 +167,32 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
         text: cleanText(result.subject),
         bold: true,
         alignment: "left",
-        fontSize: 7.5,
+        fontSize: subjectFontSize,
+        noWrap: true,
       },
-      { text: cleanText(result.totalMarks), alignment: "center", fontSize: 7.5 },
+      { text: cleanText(result.totalMarks), alignment: "center", fontSize: subjectFontSize, noWrap: true },
       {
         text: isPending ? "—" : isAbsent ? "Absent" : cleanText(result.obtainedMarks),
         alignment: "center",
         bold: true,
-        fontSize: 7.5,
+        fontSize: subjectFontSize,
         color: isAbsent ? "#b91c1c" : "#172033",
+        noWrap: true,
       },
       ...componentColumns.map((column) => ({
         text: isAbsent ? "—" : cleanText(components[column] ?? "—"),
         alignment: "center",
-        fontSize: 7.5,
+        fontSize: subjectFontSize,
+        noWrap: true,
       })),
-      { text: point === null ? "—" : point.toFixed(2), alignment: "center", fontSize: 7.5 },
+      { text: point === null ? "—" : point.toFixed(2), alignment: "center", fontSize: subjectFontSize, noWrap: true },
       {
         text: grade,
         alignment: "center",
         bold: true,
-        fontSize: 7.5,
+        fontSize: subjectFontSize,
         color: grade === "F" ? "#b91c1c" : "#166534",
+        noWrap: true,
       },
     ]),
   ];
@@ -190,20 +211,19 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
   ];
   const passed = marksheet.passed;
 
-  return [
+  const content = [
       {
         text: "Dynamic Coaching Center",
         alignment: "center",
         color: "#182b4b",
         bold: true,
-        fontSize: 19,
-        margin: [0, 0, 0, 2],
-        pageBreak: pageBreakBefore ? "before" : undefined,
+        fontSize: Math.max(12, 19 * compactScale),
+        margin: [0, 0, 0, 2 * compactScale],
       },
-      { text: "COME TO LEARN, LEAVE TO SHINE", alignment: "center", color: "#64748b", bold: true, fontSize: 6.5, characterSpacing: 1, margin: [0, 0, 0, 5] },
-      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 551, y2: 0, lineWidth: 0.8, lineColor: "#a88a52" }], margin: [0, 0, 0, 5] },
-      { text: cleanText(input.examName), alignment: "center", color: "#243b63", bold: true, fontSize: 11, margin: [0, 0, 0, 2] },
-      { text: input.isModelTest ? "Model Test" : "Examination", alignment: "center", color: "#475569", fontSize: 7, margin: [0, 0, 0, 7] },
+      { text: "COME TO LEARN, LEAVE TO SHINE", alignment: "center", color: "#64748b", bold: true, fontSize: 6.5 * compactScale, characterSpacing: 1, margin: [0, 0, 0, 5 * compactScale] },
+      { canvas: [{ type: "line", x1: 0, y1: 0, x2: 551, y2: 0, lineWidth: 0.8, lineColor: "#a88a52" }], margin: [0, 0, 0, 5 * compactScale] },
+      { text: cleanText(input.examName), alignment: "center", color: "#243b63", bold: true, fontSize: 11 * compactScale, margin: [0, 0, 0, 2 * compactScale] },
+      { text: input.isModelTest ? "Model Test" : "Examination", alignment: "center", color: "#475569", fontSize: 7 * compactScale, margin: [0, 0, 0, 7 * compactScale] },
       {
         table: { widths: ["*", "*", "*"], body: infoRows },
         layout: {
@@ -213,7 +233,7 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
           vLineColor: () => "#d5dce6",
           fillColor: (row: number) => row % 2 === 0 ? "#f7f8fb" : "#ffffff",
         },
-        margin: [0, 0, 0, 7],
+        margin: [0, 0, 0, 7 * compactScale],
       },
       {
         table: {
@@ -232,31 +252,31 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
           vLineColor: () => "#aeb9c8",
           paddingLeft: () => tablePadding,
           paddingRight: () => tablePadding,
-          paddingTop: () => 3.5,
-          paddingBottom: () => 3.5,
+          paddingTop: () => subjectCellPadding,
+          paddingBottom: () => subjectCellPadding,
         },
       },
       {
         table: {
           widths: ["*", "*", "*", "*"],
           body: [[
-            { text: `TOTAL MARKS\n${marksheet.totalObtained} / ${marksheet.totalFull}`, bold: true, fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
-            { text: `GPA\n${marksheet.gpa === null ? "—" : `${marksheet.gpa.toFixed(2)} / 5.00`}`, bold: true, fontSize: 8.5, alignment: "center", margin: [5, 4, 5, 4] },
+            { text: `TOTAL MARKS\n${marksheet.totalObtained} / ${marksheet.totalFull}`, bold: true, fontSize: Math.max(5, 8.5 * compactScale), alignment: "center", margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale] },
+            { text: `GPA\n${marksheet.gpa === null ? "—" : `${marksheet.gpa.toFixed(2)} / 5.00`}`, bold: true, fontSize: Math.max(5, 8.5 * compactScale), alignment: "center", margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale] },
             {
               text: `FINAL RESULT\n${marksheet.pending ? "PENDING" : passed ? "PASSED" : "FAILED"}`,
               bold: true,
               color: marksheet.pending ? "#a16207" : passed ? "#166534" : "#b91c1c",
-              fontSize: 8.5,
+              fontSize: Math.max(5, 8.5 * compactScale),
               alignment: "center",
-              margin: [5, 4, 5, 4],
+              margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale],
             },
             {
               text: `MERIT POSITION\n${cleanText(input.meritPosition || (marksheet.pending ? "Pending" : "Not ranked"))}`,
               bold: true,
               color: input.meritPosition ? "#243b63" : "#64748b",
-              fontSize: 8.5,
+              fontSize: Math.max(5, 8.5 * compactScale),
               alignment: "center",
-              margin: [5, 4, 5, 4],
+              margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale],
             },
           ]],
         },
@@ -267,9 +287,16 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
           vLineColor: () => "#d5c7a2",
           fillColor: () => "#fbfaf6",
         },
-        margin: [0, 6, 0, 0],
+        margin: [0, 6 * compactScale, 0, 0],
       },
     ];
+  return [{
+    // The stack keeps a student's header, marks table, and summary together.
+    // Each subsequent student begins on a fresh page.
+    unbreakable: true,
+    pageBreak: pageBreakBefore ? "before" : undefined,
+    stack: content,
+  }];
 }
 
 function buildStudentMarksheetFooter(input: StudentMarksheetPdfInput, images: { logo: string; signature: string }) {
