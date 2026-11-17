@@ -127,6 +127,23 @@ test("renders a professional A5 landscape student marksheet with shaped Bengali 
           practicalMax: 25,
         },
       },
+      ...["Biology", "Chemistry", "Physics", "English 1st", "English 2nd"].map((subject) => ({
+        subject,
+        obtainedMarks: 70,
+        totalMarks: 100,
+        cqMarks: 45,
+        mcqMarks: 25,
+        practicalMarks: subject === "English 1st" || subject === "English 2nd" ? null : 20,
+        markingConfig: {
+          totalMarks: 100,
+          cqEnabled: true,
+          mcqEnabled: true,
+          practicalEnabled: subject !== "English 1st" && subject !== "English 2nd",
+          cqMax: 50,
+          mcqMax: 30,
+          practicalMax: 20,
+        },
+      })),
     ],
   });
 

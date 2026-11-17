@@ -115,11 +115,13 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
   const marksheet = getStudentMarksheetData(input.results);
   const componentColumns = marksheet.componentColumns;
   const fixedColumnCount = 4 + componentColumns.length;
-  const fixedWidth = 46 * fixedColumnCount;
-  const subjectWidth = Math.max(110, 551 - fixedWidth);
-  const tablePadding = 3;
-  const tableLineWidth = 0.45;
+  const tablePadding = 2;
+  const tableLineWidth = 0.35;
   const widthAllowance = tablePadding * 2 + tableLineWidth;
+  const tableColumnCount = fixedColumnCount + 1;
+  const totalContentWidth = 551 - tableColumnCount * widthAllowance;
+  const subjectColumnWidth = Math.max(115, totalContentWidth * 0.27);
+  const otherColumnWidth = (totalContentWidth - subjectColumnWidth) / fixedColumnCount;
   // Reserve space for the header, student details, summary, and footer. Scale
   // the subject rows to the remaining A5 landscape height so larger class
   // subject lists stay on the same page instead of being split by the engine.
@@ -143,7 +145,7 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
     color: "#ffffff",
     fillColor: "#243b63",
     alignment: "center",
-    fontSize: subjectFontSize,
+    fontSize: Math.min(6.5, subjectFontSize),
     noWrap: true,
   });
   const infoCell = (label: string, value: string): PdfCell => ({
@@ -240,8 +242,8 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
           headerRows: 1,
           dontBreakRows: true,
           widths: [
-            subjectWidth - widthAllowance,
-            ...Array(fixedColumnCount).fill(46 - widthAllowance),
+            subjectColumnWidth,
+            ...Array(fixedColumnCount).fill(otherColumnWidth),
           ],
           body: subjectTable,
         },
@@ -260,23 +262,40 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
         table: {
           widths: ["*", "*", "*", "*"],
           body: [[
-            { text: `TOTAL MARKS\n${marksheet.totalObtained} / ${marksheet.totalFull}`, bold: true, fontSize: Math.max(5, 8.5 * compactScale), alignment: "center", margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale] },
-            { text: `GPA\n${marksheet.gpa === null ? "—" : `${marksheet.gpa.toFixed(2)} / 5.00`}`, bold: true, fontSize: Math.max(5, 8.5 * compactScale), alignment: "center", margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale] },
             {
-              text: `FINAL RESULT\n${marksheet.pending ? "PENDING" : passed ? "PASSED" : "FAILED"}`,
-              bold: true,
-              color: marksheet.pending ? "#a16207" : passed ? "#166534" : "#b91c1c",
-              fontSize: Math.max(5, 8.5 * compactScale),
-              alignment: "center",
-              margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale],
-            },
-            {
-              text: `MERIT POSITION\n${cleanText(input.meritPosition || (marksheet.pending ? "Pending" : "Not ranked"))}`,
+              text: `MERIT: ${shortMerit(input.meritPosition, marksheet.pending, marksheet.passed)}`,
               bold: true,
               color: input.meritPosition ? "#243b63" : "#64748b",
-              fontSize: Math.max(5, 8.5 * compactScale),
+              fontSize: Math.max(5, 8 * compactScale),
               alignment: "center",
-              margin: [5 * compactScale, 4 * compactScale, 5 * compactScale, 4 * compactScale],
+              noWrap: true,
+              margin: [4 * compactScale, 3 * compactScale, 4 * compactScale, 3 * compactScale],
+            },
+            {
+              text: `GPA: ${marksheet.gpa === null ? "—" : `${marksheet.gpa.toFixed(2)} / 5.00`}`,
+              bold: true,
+              fontSize: Math.max(5, 8 * compactScale),
+              alignment: "center",
+              noWrap: true,
+              margin: [4 * compactScale, 3 * compactScale, 4 * compactScale, 3 * compactScale],
+            },
+            {
+              text: marksheet.pending ? "PENDING" : passed ? "PASSED" : "FAILED",
+              bold: true,
+              color: marksheet.pending ? "#a16207" : passed ? "#166534" : "#b91c1c",
+              fontSize: Math.max(5, 8 * compactScale),
+              alignment: "center",
+              noWrap: true,
+              margin: [4 * compactScale, 3 * compactScale, 4 * compactScale, 3 * compactScale],
+            },
+            {
+              text: `TOTAL: ${marksheet.totalObtained} / ${marksheet.totalFull}`,
+              bold: true,
+              color: "#172033",
+              fontSize: Math.max(5, 8 * compactScale),
+              alignment: "center",
+              noWrap: true,
+              margin: [4 * compactScale, 3 * compactScale, 4 * compactScale, 3 * compactScale],
             },
           ]],
         },
@@ -287,7 +306,7 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
           vLineColor: () => "#d5c7a2",
           fillColor: () => "#fbfaf6",
         },
-        margin: [0, 6 * compactScale, 0, 0],
+        margin: [0, 4 * compactScale, 0, 0],
       },
     ];
   return [{
@@ -299,27 +318,34 @@ function buildStudentMarksheetContent(input: StudentMarksheetPdfInput, pageBreak
   }];
 }
 
+function shortMerit(value: string | null | undefined, pending: boolean, passed: boolean) {
+  if (!value) return pending ? "Pending" : passed ? "Not ranked" : "Failed";
+  if (/failed|not ranked/i.test(value)) return "Failed";
+  const rank = value.match(/\b\d+(?:st|nd|rd|th)\b/i)?.[0];
+  return rank ?? cleanText(value).trim();
+}
+
 function buildStudentMarksheetFooter(input: StudentMarksheetPdfInput, images: { logo: string; signature: string }) {
   const date = input.date ? new Date(input.date) : null;
   const publishedDate = date && !Number.isNaN(date.getTime())
     ? date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
     : "Not recorded";
   return {
-      margin: [22, 0, 22, 18],
+      margin: [22, 0, 22, 15],
       columns: [
         {
           text: `Published Date: ${publishedDate}`,
           alignment: "left",
           color: "#475569",
           fontSize: 7.5,
-          margin: [0, 34, 0, 0],
+          margin: [0, 30, 0, 0],
         },
         {
-          width: 150,
+          width: 138,
           stack: [
-            { image: images.signature, fit: [112, 30], alignment: "center", margin: [0, 0, 0, 1] },
-            { canvas: [{ type: "line", x1: 20, y1: 0, x2: 130, y2: 0, lineWidth: 0.55, lineColor: "#334155" }] },
-            { text: "Authority", alignment: "center", bold: true, fontSize: 8, margin: [0, 2, 0, 0] },
+            { image: images.signature, fit: [96, 24], alignment: "center", margin: [0, 0, 0, 1] },
+            { canvas: [{ type: "line", x1: 14, y1: 0, x2: 124, y2: 0, lineWidth: 0.55, lineColor: "#334155" }] },
+            { text: "Authority", alignment: "center", bold: true, fontSize: 7.5, margin: [0, 2, 0, 0] },
           ],
         },
       ],
@@ -356,6 +382,15 @@ async function buildStudentMarksheetsPdf(inputs: StudentMarksheetPdfInput[]): Pr
           width: 230,
           opacity: 0.045,
           absolutePosition: { x: (size.width - 230) / 2, y: (size.height - 230) / 2 },
+        },
+        {
+          text: "Generated from DCC App | Dynamic Coaching Center",
+          font: "Noto Sans Bengali",
+          fontSize: 4.2,
+          color: "#94a3b8",
+          alignment: "center",
+          absolutePosition: { x: 0, y: size.height - 7.2 },
+          width: size.width,
         },
       ],
     }),
