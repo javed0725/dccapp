@@ -1,7 +1,12 @@
-import express, { type Request as ExpressRequest, type Response as ExpressResponse, type NextFunction } from "express";
+import express, {
+  type Application,
+  type Request as ExpressRequest,
+  type Response as ExpressResponse,
+  type NextFunction,
+} from "express";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-const app = express();
+const app: Application = express();
 const httpServer = createServer(app);
 
 function logHandlerError(event: string, error: unknown, req?: IncomingMessage | ExpressRequest) {

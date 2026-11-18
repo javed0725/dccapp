@@ -1,6 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { type Express, type Request } from "express";
+import { type Application, type Request } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
@@ -45,7 +45,7 @@ function toPublicUser(user: SelectUser): PublicUser {
   return publicUser;
 }
 
-export function setupAuth(app: Express) {
+export function setupAuth(app: Application) {
   app.set("trust proxy", 1);
 
   const PgStore = connectPgSimple(session);
