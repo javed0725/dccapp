@@ -1,4 +1,22 @@
+import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
+
+type ServerlessHandler = (
+  request: IncomingMessage,
+  response: ServerResponse
+) => unknown;
+
+const requireFromApi = createRequire(`${process.cwd()}/api/index.ts`);
+
+function loadServerlessHandler(): ServerlessHandler {
+  const bundledServer = requireFromApi("../dist/serverless-handler.cjs") as {
+    default?: unknown;
+  };
+  if (typeof bundledServer.default !== "function") {
+    throw new TypeError("Prebuilt serverless handler does not expose a callable default export");
+  }
+  return bundledServer.default as ServerlessHandler;
+}
 
 function sendJsonError(res: ServerResponse, statusCode: number, payload: Record<string, unknown>) {
   if (res.headersSent) return;
@@ -26,11 +44,7 @@ function describeSafeError(error: unknown) {
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
   let appHandler: (request: IncomingMessage, response: ServerResponse) => unknown;
   try {
-    const server = await import("../server/handler.js");
-    if (typeof server.default !== "function") {
-      throw new TypeError("server/handler does not expose a callable request handler");
-    }
-    appHandler = server.default;
+    appHandler = loadServerlessHandler();
   } catch (error) {
     console.error("[Vercel] Server handler import failed:", error);
     const requestId = req.headers["x-vercel-id"] ?? req.headers["x-request-id"] ?? null;
