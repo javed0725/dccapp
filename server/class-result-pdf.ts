@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
 import type { ModelTestTabulation } from "../shared/model-test-results.js";
 
@@ -23,7 +22,6 @@ type Cell = {
 
 // pdfmake uses PDFKit/fontkit's OpenType layout engine. Unlike jsPDF's
 // character-by-character TTF encoding, this applies Bengali GSUB/GPOS shaping.
-const require = createRequire(path.resolve(process.cwd(), "package.json"));
 let fontPromise: Promise<{ regular: string; bold: string }> | undefined;
 
 async function readFont(filename: string): Promise<string> {
@@ -38,7 +36,7 @@ async function readFont(filename: string): Promise<string> {
 }
 
 async function getPdfEngine() {
-  const imported = require("pdfmake");
+  const imported: any = await import("pdfmake");
   const engine = imported.default ?? imported;
   fontPromise ??= Promise.all([
     readFont("NotoSansBengali-Regular.ttf"),

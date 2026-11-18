@@ -1,9 +1,7 @@
 import { access, readFile } from "fs/promises";
 import path from "path";
-import { createRequire } from "module";
 
-const require = createRequire(path.resolve(process.cwd(), "package.json"));
-const pdfMake = require("pdfmake") as {
+type PdfMakeEngine = {
   virtualfs: {
     writeFileSync: (fileName: string, content: string, options?: { encoding?: string } | string) => void;
   };
@@ -139,7 +137,12 @@ function reportRows(data: AttendancePdfData): PdfCell[][] {
   ]);
 }
 
-function configureFonts(fonts: { regular: string; bold: string }) {
+async function getPdfMake(): Promise<PdfMakeEngine> {
+  const imported: any = await import("pdfmake");
+  return (imported.default ?? imported) as PdfMakeEngine;
+}
+
+function configureFonts(pdfMake: PdfMakeEngine, fonts: { regular: string; bold: string }) {
   // pdfmake's virtual file system accepts the Base64 font payload directly.
   // The document definition then references only these in-memory font files.
   pdfMake.virtualfs.writeFileSync("NotoSansBengali-Regular.ttf", fonts.regular, "base64");
@@ -226,7 +229,7 @@ export async function renderAttendancePdf(
   data: AttendancePdfData,
   batchName: string,
 ): Promise<Buffer> {
-  const fonts = await getFontData();
-  configureFonts(fonts);
+  const [fonts, pdfMake] = await Promise.all([getFontData(), getPdfMake()]);
+  configureFonts(pdfMake, fonts);
   return pdfMake.createPdf(buildDocument(data, batchName)).getBuffer();
 }

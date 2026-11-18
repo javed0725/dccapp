@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { getStudentMarksheetData, type StudentMarksheetResult } from "../shared/student-marksheet.js";
 
@@ -31,7 +30,6 @@ export type StudentMarksheetPdfInput = {
   results: StudentMarksheetResult[];
 };
 
-const require = createRequire(path.resolve(process.cwd(), "package.json"));
 let fontPromise: Promise<{ regular: string; bold: string }> | undefined;
 let imagePromise: Promise<{ logo: string; signature: string }> | undefined;
 
@@ -47,7 +45,7 @@ async function readFont(filename: string): Promise<string> {
 }
 
 async function getPdfEngine() {
-  const imported = require("pdfmake");
+  const imported: any = await import("pdfmake");
   const engine = imported.default ?? imported;
   fontPromise ??= Promise.all([
     readFont("NotoSansBengali-Regular.ttf"),
