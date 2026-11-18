@@ -24,19 +24,32 @@ function describeSafeError(error: unknown) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<unknown> {
+  let appHandler: (request: VercelRequest, response: VercelResponse) => unknown;
   try {
     const server = await import("../server/handler.js");
-    const appHandler = server.default;
-    if (typeof appHandler !== "function") {
+    if (typeof server.default !== "function") {
       throw new TypeError("server/handler does not expose a callable request handler");
     }
-    return await appHandler(req, res);
+    appHandler = server.default;
   } catch (error) {
-    console.error("[Vercel] Server handler initialization or request failed:", error);
+    console.error("[Vercel] Server handler import failed:", error);
     const requestId = req.headers["x-vercel-id"] ?? req.headers["x-request-id"] ?? null;
     return sendJsonError(res, 503, {
-      code: "SERVER_HANDLER_INITIALIZATION_FAILED",
+      code: "SERVER_HANDLER_IMPORT_FAILED",
       message: "Service initialization failed. Please try again.",
+      requestId,
+      diagnostic: describeSafeError(error),
+    });
+  }
+
+  try {
+    return await appHandler(req, res);
+  } catch (error) {
+    console.error("[Vercel] Server handler request failed:", error);
+    const requestId = req.headers["x-vercel-id"] ?? req.headers["x-request-id"] ?? null;
+    return sendJsonError(res, 500, {
+      code: "SERVER_HANDLER_REQUEST_FAILED",
+      message: "A server error occurred. Please try again.",
       requestId,
       diagnostic: describeSafeError(error),
     });
