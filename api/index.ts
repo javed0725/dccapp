@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
-function sendJsonError(res: VercelResponse, statusCode: number, payload: Record<string, unknown>) {
+function sendJsonError(res: ServerResponse, statusCode: number, payload: Record<string, unknown>) {
   if (res.headersSent) return;
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -23,8 +23,8 @@ function describeSafeError(error: unknown) {
   };
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<unknown> {
-  let appHandler: (request: VercelRequest, response: VercelResponse) => unknown;
+export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
+  let appHandler: (request: IncomingMessage, response: ServerResponse) => unknown;
   try {
     const server = await import("../server/handler.js");
     if (typeof server.default !== "function") {
