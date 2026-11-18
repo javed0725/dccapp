@@ -10,9 +10,10 @@ import {
   incomes as incomesTable,
   users,
   admissionOptionTypes,
+  type InsertResult,
   type ModelTestSubject,
 } from "../shared/schema.js";
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { type Server } from "http";
 import { storage } from "./storage.js";
 import { api } from "../shared/routes.js";
@@ -111,7 +112,7 @@ const subjectMasterPayloadSchema = z.object({
   }
 });
 
-function requireAuth(req: any, res: any): boolean {
+function requireAuth(req: Request, res: Response): boolean {
   if (!req.isAuthenticated()) {
     res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
     return false;
@@ -119,7 +120,7 @@ function requireAuth(req: any, res: any): boolean {
   return true;
 }
 
-function requireAdmin(req: any, res: any): boolean {
+function requireAdmin(req: Request, res: Response): boolean {
   if (!req.isAuthenticated()) {
     res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
     return false;
@@ -132,7 +133,7 @@ function requireAdmin(req: any, res: any): boolean {
   return true;
 }
 
-function requireRoles(req: any, res: any, roles: string[]): boolean {
+function requireRoles(req: Request, res: Response, roles: string[]): boolean {
   if (!req.isAuthenticated()) {
     res.status(401).json({ message: SESSION_EXPIRED_MESSAGE });
     return false;
@@ -1199,7 +1200,7 @@ export async function registerRoutes(
       if (rawEntries.length === 0) {
         return res.status(400).json({ message: "entries array is required" });
       }
-      const parsed = rawEntries.map((entry: any) =>
+      const parsed: InsertResult[] = rawEntries.map((entry: any) =>
         insertResultSchema.parse({
           ...entry,
           totalMarks: Number(entry.totalMarks),

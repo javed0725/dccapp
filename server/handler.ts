@@ -1,7 +1,7 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
 
-const app = express();
+const app: Express = express();
 const httpServer = createServer(app);
 
 function logHandlerError(event: string, error: unknown, req?: Request) {
@@ -34,7 +34,7 @@ function logHandlerError(event: string, error: unknown, req?: Request) {
   }));
 }
 
-export function sendJsonError(res: any, statusCode: number, payload: Record<string, unknown>) {
+export function sendJsonError(res: Response, statusCode: number, payload: Record<string, unknown>) {
   // Initialization can fail before Express decorates Vercel's native
   // ServerResponse with .status() and .json().
   if (typeof res.status === "function" && typeof res.json === "function") {
@@ -65,7 +65,7 @@ app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
 
 // Request logger
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   const path = req.path;
   res.on("finish", () => {
@@ -85,9 +85,12 @@ function initializeApplication(): Promise<void> {
       .then(({ registerRoutes }) => registerRoutes(httpServer, app))
       .then(() => {
       // Global error handler (must be registered AFTER routes)
-      app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-        const status = err.status || err.statusCode || 500;
-        const message = err.message || "Internal Server Error";
+      app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+        const details = err instanceof Error
+          ? err as Error & { status?: number; statusCode?: number }
+          : null;
+        const status = details?.status || details?.statusCode || 500;
+        const message = details?.message || "Internal Server Error";
         logHandlerError("request_failed", err, req);
         if (res.headersSent) return next(err);
         res.status(status).json({ message });
@@ -98,7 +101,7 @@ function initializeApplication(): Promise<void> {
 }
 
 // Export for Vercel: await ready then hand off to Express
-export default async function handler(req: any, res: any) {
+export default async function handler(req: Request, res: Response): Promise<unknown> {
   try {
     await initializeApplication();
   } catch (err) {

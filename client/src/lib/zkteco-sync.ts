@@ -98,8 +98,8 @@ function parseJsonLogs(raw: string): PunchRecord[] | null {
     // Basic shape check
     if (parsed.length > 0 && typeof parsed[0] !== "object") return null;
     return (parsed as PunchRecord[]).map((r) => ({
-      deviceId: DEVICE_ID,
       ...r,
+      deviceId: DEVICE_ID,
     }));
   } catch {
     return null;

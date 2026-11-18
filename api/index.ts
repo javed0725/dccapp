@@ -1,4 +1,6 @@
-function sendJsonError(res: any, statusCode: number, payload: Record<string, unknown>) {
+import type { Request, Response } from "express";
+
+function sendJsonError(res: Response, statusCode: number, payload: Record<string, unknown>) {
   if (res.headersSent) return;
   res.statusCode = statusCode;
   res.setHeader?.("Content-Type", "application/json; charset=utf-8");
@@ -21,7 +23,9 @@ function describeSafeError(error: unknown) {
   };
 }
 
-export default async function handler(req: any, res: any) {
+type VercelRequestHandler = (request: Request, response: Response) => unknown;
+
+export default async function handler(req: Request, res: Response): Promise<unknown> {
   let server: typeof import("../server/handler.js");
   try {
     server = await import("../server/handler.js");
@@ -38,18 +42,18 @@ export default async function handler(req: any, res: any) {
 
   const exported = server as unknown as Record<string, unknown>;
   const defaultExport = exported.default;
-  let appHandler: ((request: any, response: any) => unknown) | null =
+  let appHandler: VercelRequestHandler | null =
     typeof defaultExport === "function"
-      ? defaultExport as (request: any, response: any) => unknown
+      ? defaultExport as VercelRequestHandler
       : null;
   if (!appHandler && defaultExport && typeof defaultExport === "object") {
     const nestedDefault = (defaultExport as { default?: unknown }).default;
     if (typeof nestedDefault === "function") {
-      appHandler = nestedDefault as (request: any, response: any) => unknown;
+      appHandler = nestedDefault as VercelRequestHandler;
     }
   }
   if (!appHandler && typeof exported.handler === "function") {
-    appHandler = exported.handler as (request: any, response: any) => unknown;
+    appHandler = exported.handler as VercelRequestHandler;
   }
   if (!appHandler) {
     const error = new TypeError("server/handler does not expose a callable request handler");

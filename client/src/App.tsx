@@ -187,7 +187,7 @@ function Router() {
         <Route path="/student"><LoginPage fixedRole="student" /></Route>
         <Route path="/teacher"><LoginPage fixedRole="teacher" /></Route>
         <Route path="/admin"><LoginPage fixedRole="admin" /></Route>
-        <Route path="/login" component={LoginPage} />
+        <Route path="/login"><LoginPage /></Route>
         <Route>
           <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="w-8 h-8 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
@@ -204,7 +204,7 @@ function Router() {
         <Route path="/student"><LoginPage fixedRole="student" /></Route>
         <Route path="/teacher"><LoginPage fixedRole="teacher" /></Route>
         <Route path="/admin"><LoginPage fixedRole="admin" /></Route>
-        <Route path="/login" component={LoginPage} />
+        <Route path="/login"><LoginPage /></Route>
         <Route><PortalAwareRedirect /></Route>
       </Switch>
     );

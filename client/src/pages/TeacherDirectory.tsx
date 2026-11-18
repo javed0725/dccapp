@@ -101,7 +101,7 @@ export default function TeacherDirectory() {
   });
 
   return (
-    <Layout>
+    <Layout title="Teacher Directory">
       <div className="px-4 pt-6 pb-4 max-w-lg mx-auto space-y-6">
         {/* Header */}
         <div>
