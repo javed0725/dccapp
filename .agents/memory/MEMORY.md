@@ -2,4 +2,4 @@
 - [Vercel ESM verification](vercel-esm-verification.md) — verify the emitted, unbundled backend graph; bundled smoke tests hide Node ESM import-resolution failures.
 - [Bengali PDF shaping](bengali-pdf-shaping.md) — embedded Unicode fonts alone do not shape Bengali; use an OpenType engine and verify conjunct glyph substitution.
 - [Shared external database](shared-external-database.md) — production includes unrelated tables; restrict approved migrations to reviewed app-owned changes.
-- [Vercel and Zod compatibility](vercel-zod-compat.md) — the current Vercel Babel build fails on Zod 3.25's bundled v4 export-namespace source.
+- [Vercel dependency compatibility](vercel-zod-compat.md) — Vercel's function builder can parse export-namespace syntax in transitive packages; validate with the locked pnpm tree.

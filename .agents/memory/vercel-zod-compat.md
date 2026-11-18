@@ -1,10 +1,10 @@
 ---
-name: Vercel and Zod compatibility
-description: A Vercel function-build parsing issue involving Zod's bundled v4 modules.
+name: Vercel dependency compatibility
+description: Vercel function-build parsing issues with export-namespace syntax in transitive packages.
 ---
 
-The current Vercel function build path can fail on `zod/v4/core/index.js` with an export-namespace Babel transform error, even though application code imports the Zod v3 root entrypoint. Zod 3.25.x bundles the v4 source tree; pinning to 3.24.4 removes that source tree from the dependency package.
+Vercel's Node function builder can parse transitive package files that application code does not directly select. It failed on Zod 3.25's bundled `zod/v4/core/index.js`, then on the `tslib` 2.9 module entry, both with an export-namespace Babel transform error. A clean pnpm install also exposed imports that npm hoisting had hidden.
 
-**Why:** The new Vercel project's deployment logs identified the Zod v4 core index as the source of the build failure.
+**Why:** The new Vercel project's build logs identified these modules, while pnpm was the install manager selected from the repository's lockfile.
 
-**How to apply:** When upgrading Zod or changing the Vercel function builder, verify the actual Vercel build. Do not assume the app's import path prevents the builder from parsing bundled package files.
+**How to apply:** Validate with a clean install from the lockfile Vercel selects and check the actual Vercel build. When constraining a package in this repository, keep npm's root `overrides`, pnpm's `pnpm.overrides`, and both lockfiles aligned.
