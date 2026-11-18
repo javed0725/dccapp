@@ -6,3 +6,4 @@ vite.config.ts.*
 *.tar.gz
 .git.backup.*
 api/_server.cjs
+.vercel
