@@ -1,21 +1,21 @@
-import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
+
+// The Vercel build script generates this bundled backend before function
+// packaging; the local type-check intentionally runs without that artifact.
+// @ts-ignore
+import bundledServer from "../dist/serverless-handler.cjs";
 
 type ServerlessHandler = (
   request: IncomingMessage,
   response: ServerResponse
 ) => unknown;
 
-const requireFromApi = createRequire(`${process.cwd()}/api/index.ts`);
-
 function loadServerlessHandler(): ServerlessHandler {
-  const bundledServer = requireFromApi("../dist/serverless-handler.cjs") as {
-    default?: unknown;
-  };
-  if (typeof bundledServer.default !== "function") {
+  const serverModule = bundledServer as { default?: unknown };
+  if (typeof serverModule.default !== "function") {
     throw new TypeError("Prebuilt serverless handler does not expose a callable default export");
   }
-  return bundledServer.default as ServerlessHandler;
+  return serverModule.default as ServerlessHandler;
 }
 
 function sendJsonError(res: ServerResponse, statusCode: number, payload: Record<string, unknown>) {

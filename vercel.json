@@ -12,10 +12,7 @@
   "functions": {
     "api/index.ts": {
       "maxDuration": 30,
-      "includeFiles": [
-        "client/public/fonts/*.ttf",
-        "dist/serverless-handler.cjs"
-      ]
+      "includeFiles": "client/public/fonts/*.ttf"
     }
   }
 }
