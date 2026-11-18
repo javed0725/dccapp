@@ -13,7 +13,7 @@ import {
   type InsertResult,
   type ModelTestSubject,
 } from "../shared/schema.js";
-import type { Express, Request, Response } from "express";
+import type { Application, Request, Response } from "express";
 import { type Server } from "http";
 import { storage } from "./storage.js";
 import { api } from "../shared/routes.js";
@@ -147,7 +147,7 @@ function requireRoles(req: Request, res: Response, roles: string[]): boolean {
 
 export async function registerRoutes(
   httpServer: Server,
-  app: Express
+  app: Application
 ): Promise<Server> {
   setupAuth(app);
   // Health-check — useful for diagnosing Vercel cold starts and DB connectivity

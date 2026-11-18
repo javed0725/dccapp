@@ -1,16 +1,15 @@
-import express, { type Express, type Request, type Response, type NextFunction } from "express";
-import { createServer } from "http";
+import express, { type Request as ExpressRequest, type Response as ExpressResponse, type NextFunction } from "express";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-const app: Express = express();
+const app = express();
 const httpServer = createServer(app);
 
-function logHandlerError(event: string, error: unknown, req?: Request) {
+function logHandlerError(event: string, error: unknown, req?: IncomingMessage | ExpressRequest) {
   const err = error instanceof Error ? error : new Error(String(error));
   const details = error && typeof error === "object"
     ? error as { code?: unknown }
     : {};
-  const request = req as (Request & {
-    headers?: Record<string, string | string[] | undefined>;
+  const request = req as (IncomingMessage & {
     get?: (name: string) => string | undefined;
   }) | undefined;
   console.error(err);
@@ -19,7 +18,7 @@ function logHandlerError(event: string, error: unknown, req?: Request) {
     component: "vercel-handler",
     event,
     method: req?.method ?? null,
-    path: req?.path ?? null,
+    path: req?.url ?? null,
     requestId: request?.get?.("x-vercel-id")
       || request?.get?.("x-request-id")
       || request?.headers?.["x-vercel-id"]
@@ -34,14 +33,9 @@ function logHandlerError(event: string, error: unknown, req?: Request) {
   }));
 }
 
-export function sendJsonError(res: Response, statusCode: number, payload: Record<string, unknown>) {
-  // Initialization can fail before Express decorates Vercel's native
-  // ServerResponse with .status() and .json().
-  if (typeof res.status === "function" && typeof res.json === "function") {
-    return res.status(statusCode).json(payload);
-  }
+export function sendJsonError(res: ServerResponse, statusCode: number, payload: Record<string, unknown>) {
   res.statusCode = statusCode;
-  res.setHeader?.("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   return res.end(JSON.stringify(payload));
 }
 
@@ -65,7 +59,7 @@ app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false, limit: "5mb" }));
 
 // Request logger
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
   const start = Date.now();
   const path = req.path;
   res.on("finish", () => {
@@ -85,7 +79,7 @@ function initializeApplication(): Promise<void> {
       .then(({ registerRoutes }) => registerRoutes(httpServer, app))
       .then(() => {
       // Global error handler (must be registered AFTER routes)
-      app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+      app.use((err: unknown, req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
         const details = err instanceof Error
           ? err as Error & { status?: number; statusCode?: number }
           : null;
@@ -101,7 +95,7 @@ function initializeApplication(): Promise<void> {
 }
 
 // Export for Vercel: await ready then hand off to Express
-export default async function handler(req: Request, res: Response): Promise<unknown> {
+export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
   try {
     await initializeApplication();
   } catch (err) {
@@ -114,7 +108,7 @@ export default async function handler(req: Request, res: Response): Promise<unkn
     });
   }
   try {
-    return app(req, res);
+    return app(req as ExpressRequest, res as ExpressResponse);
   } catch (err) {
     logHandlerError("invocation_failed", err, req);
     if (!res.headersSent) {

@@ -1,6 +1,6 @@
-import type { Request, Response } from "express";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
-function sendJsonError(res: Response, statusCode: number, payload: Record<string, unknown>) {
+function sendJsonError(res: ServerResponse, statusCode: number, payload: Record<string, unknown>) {
   if (res.headersSent) return;
   res.statusCode = statusCode;
   res.setHeader?.("Content-Type", "application/json; charset=utf-8");
@@ -23,9 +23,9 @@ function describeSafeError(error: unknown) {
   };
 }
 
-type VercelRequestHandler = (request: Request, response: Response) => unknown;
+type VercelRequestHandler = (request: IncomingMessage, response: ServerResponse) => unknown;
 
-export default async function handler(req: Request, res: Response): Promise<unknown> {
+export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<unknown> {
   let server: typeof import("../server/handler.js");
   try {
     server = await import("../server/handler.js");
